@@ -35,11 +35,17 @@ function automaticRating(root){
   if(r.classList.contains('bad'))return '×';
   return null;
 }
+function placeRatingDirectlyAfterResult(root,d){
+  const result=root.querySelector(':scope > .resultcard')||root.querySelector('.resultcard');
+  if(!result||!d)return;
+  if(result.nextElementSibling!==d)root.insertBefore(d,result.nextSibling);
+}
 async function addRating(root,q){
-  if(root.querySelector('.qbSharedRating'))return;
-  const d=document.createElement('div');d.className='card qbSharedRating';
+  let d=root.querySelector('.qbSharedRating');
+  if(d){placeRatingDirectlyAfterResult(root,d);return}
+  d=document.createElement('div');d.className='card qbSharedRating';
   d.innerHTML=`<b>■ 自己評価</b><div class="ratings">${['◎','○','△','×','-'].map(v=>`<button class="rate" data-qb-rate="${v}">${v}</button>`).join('')}</div><div class="meta qbRateMsg">◎=完璧 / ○=理解 / △=あやふや / ×=要復習 / -=解説のみ</div>`;
-  root.appendChild(d);
+  placeRatingDirectlyAfterResult(root,d);
   const sb=window.qbSupabase;if(!sb)return;
   const {data:{user}}=await sb.auth.getUser();if(!user)return;
   const id=q.id||q.dbId;if(!id)return;
@@ -64,13 +70,14 @@ async function addRating(root,q){
 function ensure(){
   const ans=document.getElementById('ans');if(!ans||!ans.children.length)return;
   const q=currentQuestion();if(!q)return;
+  addRating(ans,q);
   const overview=q.explanation_overview||q.note||'未登録';
   addCard(ans,'■ 問題文のポイント',esc(overview));
   const cb=choiceBody(q);if(cb&&!hasHeading(ans,'■ 各選択肢')){const d=document.createElement('div');d.className='card qbSharedExplanationCard';d.innerHTML=`<b>■ 各選択肢</b>${cb}`;ans.appendChild(d)}
   addCard(ans,'■ 出題者の意図',esc(q.examiner_intent||q.examinerIntent||'未登録'));
   addCard(ans,'■ 試験用まとめ',esc(q.exam_summary||q.examSummary||'未登録'),'summary');
   addCard(ans,'■ 医学的検証メモ',esc(q.medical_verification_note||q.medicalVerificationNote||'未登録'));
-  addRating(ans,q);
+  const rating=ans.querySelector('.qbSharedRating');if(rating)placeRatingDirectlyAfterResult(ans,rating);
   window.dispatchEvent(new CustomEvent('qb-explanation-ready',{detail:{questionId:q.id||q.dbId||null}}));
 }
 function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;ensure()})}
