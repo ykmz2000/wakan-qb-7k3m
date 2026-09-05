@@ -1,8 +1,9 @@
 (()=>{
 'use strict';
 let done=false;
+function hasSelectedSubject(){return !!new URLSearchParams(location.search).get('subject')}
 function show(){
-  if(done||!window.QB_DB_READY)return false;
+  if(done||!window.QB_DB_READY||hasSelectedSubject())return false;
   if(typeof window.showGradeScreen==='function'){
     done=true;
     window.showGradeScreen();
@@ -11,6 +12,7 @@ function show(){
   return false;
 }
 function boot(){
+  if(hasSelectedSubject())return;
   if(show())return;
   window.addEventListener('qb-app-ready',()=>show(),{once:true});
   let tries=0;const t=setInterval(()=>{tries++;if(show()||tries>=50)clearInterval(t)},100);
