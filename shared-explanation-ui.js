@@ -10,7 +10,6 @@ function currentQuestion(){
   if(!stem)return null;
   return qs.find(q=>(q.stem||q.q||'').trim()===stem)||null;
 }
-// Compatibility bridge for admin editing, media editing and personal notes.
 window.pq=currentQuestion;
 function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
 function addCard(root,title,body,cls='line'){
@@ -28,6 +27,14 @@ function choiceBody(q){
     return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b><div class="line">${esc(ex)}</div></div>`;
   }).join('');
 }
+function automaticRating(root){
+  const r=root.querySelector('.resultcard');
+  if(!r)return null;
+  if(r.classList.contains('review'))return '-';
+  if(r.classList.contains('ok'))return '○';
+  if(r.classList.contains('bad'))return '×';
+  return null;
+}
 async function addRating(root,q){
   if(root.querySelector('.qbSharedRating'))return;
   const d=document.createElement('div');d.className='card qbSharedRating';
@@ -36,11 +43,20 @@ async function addRating(root,q){
   const sb=window.qbSupabase;if(!sb)return;
   const {data:{user}}=await sb.auth.getUser();if(!user)return;
   const id=q.id||q.dbId;if(!id)return;
-  const r=await sb.from('question_ratings').select('rating').eq('user_id',user.id).eq('question_id',id).maybeSingle();
   const setOn=v=>d.querySelectorAll('[data-qb-rate]').forEach(b=>b.classList.toggle('on',b.dataset.qbRate===v));
-  if(r.data?.rating)setOn(r.data.rating);
+  const msg=d.querySelector('.qbRateMsg');
+  const auto=automaticRating(root);
+  if(auto){
+    setOn(auto);
+    if(msg)msg.textContent=`自動設定：${auto}　（必要なら変更できます）`;
+    const x=await sb.from('question_ratings').upsert({user_id:user.id,question_id:id,rating:auto,updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});
+    if(x.error&&msg)msg.textContent='自己評価の自動保存に失敗しました';
+  }else{
+    const r=await sb.from('question_ratings').select('rating').eq('user_id',user.id).eq('question_id',id).maybeSingle();
+    if(r.data?.rating)setOn(r.data.rating);
+  }
   d.querySelectorAll('[data-qb-rate]').forEach(b=>b.onclick=async()=>{
-    const v=b.dataset.qbRate;setOn(v);const msg=d.querySelector('.qbRateMsg');if(msg)msg.textContent='保存中…';
+    const v=b.dataset.qbRate;setOn(v);if(msg)msg.textContent='保存中…';
     const x=await sb.from('question_ratings').upsert({user_id:user.id,question_id:id,rating:v,updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});
     if(msg)msg.textContent=x.error?'保存できませんでした':'保存しました';
   });
