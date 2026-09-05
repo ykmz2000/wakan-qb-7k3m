@@ -18,18 +18,16 @@ async function loadSubjects(){
   if(!g.data)throw new Error(`${GRADE_CODE} が見つかりません`);
   const r=await sb.from('subjects').select('id,slug,name,sort_order').eq('grade_id',g.data.id).eq('is_active',true).order('sort_order');
   if(r.error)throw r.error;
-  const rows=r.data||[];
-  const withCounts=await Promise.all(rows.map(async s=>{
-    const q=await sb.from('questions').select('id',{count:'exact',head:true}).eq('subject_id',s.id).eq('status','published');
-    return {...s,question_count:q.count||0};
-  }));
-  subjects=withCounts;
+  subjects=r.data||[];
   selected=subjects.find(s=>s.slug===selectedSlug())||subjects.find(s=>s.slug==='wakan')||subjects[0]||null;
 }
 function goSubject(slug){
+  if(!view)return;
+  const s=subjects.find(x=>x.slug===slug);
+  view.innerHTML=`<div class="card"><div class="title">${esc(s?.name||'科目')}を読み込み中…</div><div class="sub">単元を読み込んでいます。</div></div>`;
   const u=new URL(location.href);
   u.searchParams.set('subject',slug);
-  location.href=u.toString();
+  location.assign(u.toString());
 }
 function renderCatalog(){
   if(!view||!crumb)return;
@@ -37,7 +35,7 @@ function renderCatalog(){
   if(home)home.classList.add('hidden');
   crumb.textContent=`${GRADE_CODE} ＞ 科目を選択`;
   view.innerHTML=`<div class="card"><div class="title">科目一覧</div><div class="sub">勉強する科目を選んでください。</div></div>`+
-    subjects.map(s=>`<button class="list" data-subject="${esc(s.slug)}"><div><div class="lt">${esc(s.name)}</div><div class="meta">${s.question_count}問収録</div></div><div>›</div></button>`).join('');
+    subjects.map(s=>`<button class="list" data-subject="${esc(s.slug)}"><div><div class="lt">${esc(s.name)}</div></div><div>›</div></button>`).join('');
   view.querySelectorAll('[data-subject]').forEach(b=>b.onclick=()=>goSubject(b.dataset.subject));
 }
 function patchSubjectLabels(){
@@ -54,13 +52,17 @@ function enterSelectedSubject(){
   const name=btn.querySelector('.lt');if(name&&selected)name.textContent=selected.name;
   catalogShowing=false;
   btn.click();
-  setTimeout(patchSubjectLabels,0);
+  requestAnimationFrame(patchSubjectLabels);
   return true;
 }
 function handleSubjectsScreen(){
   if(window.qbGetScreen?.()!=='subjects')return;
   if(selectedSlug()){
-    if(!enterSelectedSubject())renderCatalog();
+    let tries=0;
+    const t=setInterval(()=>{
+      tries++;
+      if(enterSelectedSubject()||tries>=20)clearInterval(t);
+    },50);
   }else renderCatalog();
 }
 async function boot(){
