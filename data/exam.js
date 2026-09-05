@@ -1,0 +1,10 @@
+window.QB_QUESTIONS=(window.QB_QUESTIONS||[]).concat([
+{id:'ex-001',subject:'wakan',unit:'exam',subtopic:'四診・腹診',year:'2023年度',exam:'本試',qnum:'第15問',q:'中医学に比べて日本漢方の古方派で頻用されるのはどれか。',choices:['脈診','舌診','腹診','打診','視診'],ans:[2],note:'日本漢方では腹診が特に発達した。'},
+{id:'ex-002',subject:'wakan',unit:'exam',subtopic:'舌診・瘀血',year:'2023年度',exam:'本試',qnum:'第23問',q:'舌の色が紫を帯びていた。これと同様の意義を持たないのを1つ選べ。',choices:['痔','細絡','小腹不仁','臍周囲の圧痛','目の下のくま'],ans:[2],note:'紫舌は瘀血を示唆する。痔・細絡・臍周囲圧痛・目の下のくまは瘀血所見。小腹不仁は腎虚。'},
+{id:'ex-003',subject:'wakan',unit:'exam',subtopic:'脈診・胸脇苦満',year:'2023年度',exam:'本試',qnum:'第31問',q:'胸脇苦満がみられるときの脈の所見で期待されるのはどれか。',choices:['数脈','大脈','弦脈','浮脈','虚脈'],ans:[2],note:'胸脇苦満は柴胡剤の目標となり、弦脈を伴いやすい。'},
+{id:'ex-004',subject:'wakan',unit:'exam',subtopic:'腹診・胸脇苦満',year:'2023年度',exam:'本試',qnum:'第32問',q:'胸脇苦満を呈する患者で使用を考慮する生薬はどれか。',choices:['柴胡','甘草','芍薬','桂枝','大黄'],ans:[0],note:'胸脇苦満は柴胡剤の代表的腹証で、柴胡を考える。'},
+{id:'ex-005',subject:'wakan',unit:'exam',subtopic:'腹診・臍上悸',year:'2023年度',exam:'本試',qnum:'第33問',q:'臍上悸を認めたとき何を考えるか。',choices:['気虚','気逆','気鬱','血虚','瘀血'],ans:[1],note:'臍上悸は気逆を示唆する腹診所見。'},
+{id:'ex-006',subject:'wakan',unit:'exam',subtopic:'腹診・腹直筋緊張',year:'2023年度',exam:'本試',qnum:'第48問',q:'腹直筋の緊張が強い場合何を考えるか。',choices:['少陽病','太陽病','気逆','気虚','血虚'],ans:[4],note:'腹直筋緊張は血虚を示唆する所見として整理する。'},
+{id:'ex-007',subject:'wakan',unit:'exam',subtopic:'四診・腹診',year:'2024年度',exam:'本試',qnum:'第27問',q:'中医学に比べ日本漢方で発達した診察法はどれか。',choices:['問診','聞診','脈診','舌診','腹診'],ans:[4],note:'日本漢方では腹診が特に発達した。'},
+{id:'ex-008',subject:'wakan',unit:'exam',subtopic:'舌診・瘀血',year:'2024年度',exam:'本試',qnum:'第28問',q:'舌下静脈の拡張と類似した意義のある所見はどれか。',choices:['舌の歯痕','胸脇苦満','臍上悸','小腹急結','心下痞硬'],ans:[3],note:'舌下静脈拡張は瘀血所見。小腹急結も瘀血を示唆する。'}
+]);
