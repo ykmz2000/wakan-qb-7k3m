@@ -1,1 +1,1 @@
-PLACEHOLDER
+(()=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/ykmz2000/wakan-qb-7k3m@a2d2bc55423e35c25e5e16db3173183a32d93851/qb-app.js';s.onload=()=>window.dispatchEvent(new CustomEvent('qb-core-loaded'));s.onerror=()=>console.error('QB core load failed');document.currentScript.after(s)})();
