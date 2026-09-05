@@ -1,28 +1,14 @@
 (()=>{
 'use strict';
-let adminCache=null,timer=null,lastQuestionId=null;
+let timer=null,lastQuestionId=null;
 const V=document.getElementById('view');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const qid=q=>q?.id||q?.dbId||null;
-function getQ(qtext){
-  try{
-    const fromApp=window.pq?.();
-    if(fromApp)return fromApp;
-  }catch{}
+function currentQ(qtext){
+  try{const q=window.pq?.();if(q)return q}catch{}
   const stem=(qtext?.textContent||'').trim();
   if(!stem)return null;
   return (window.QB_QUESTIONS||[]).find(q=>(q.stem||q.q||'').trim()===stem)||null;
-}
-async function isAdmin(){
-  if(adminCache===true)return true;
-  const sb=window.qbSupabase;if(!sb)return false;
-  try{
-    const a=await sb.auth.getUser(),u=a.data?.user;if(!u)return false;
-    if((u.email||'').toLowerCase()==='otohaykm@gmail.com')return adminCache=true;
-    const r=await sb.from('profiles').select('role').eq('id',u.id).maybeSingle();
-    if(r.data?.role==='admin')return adminCache=true;
-    return false;
-  }catch{return false}
 }
 function css(){
   if(document.getElementById('qseSafeCss'))return;
@@ -40,25 +26,27 @@ function openEditor(toolbar,q,qtext){
   d.querySelector('.qseSafeCancel').onclick=()=>d.remove();
   save.onclick=async()=>{
     if(save.disabled)return;
-    const id=qid(q),val=ta.value.trim();if(!id){st.textContent='問題IDを取得できません';return}
+    const id=qid(q),val=ta.value.trim();
+    if(!id){st.textContent='問題IDを取得できません';return}
     save.disabled=true;st.textContent='保存中…';
     try{
       const sb=window.qbSupabase;if(!sb)throw new Error('DB接続を取得できません');
       const r=await sb.from('questions').update({stem:val||null}).eq('id',id);if(r.error)throw r.error;
       q.stem=val;qtext.textContent=val;st.textContent='保存しました';
       window.dispatchEvent(new CustomEvent('qb-question-stem-updated',{detail:{questionId:id,stem:val}}));
-      setTimeout(()=>d.remove(),120);
+      setTimeout(()=>d.remove(),120)
     }catch(e){st.textContent='保存失敗: '+(e?.message||'不明なエラー');save.disabled=false}
   };
   ta.focus()
 }
-async function inject(){
+function inject(){
   clearTimeout(timer);
   const qtext=document.querySelector('#view > .card > .qtext');
   if(!qtext){clear();return}
-  const q=getQ(qtext);
-  if(!q){setTimeout(schedule,250);return}
-  if(!(await isAdmin())){setTimeout(schedule,500);return}
+  // Existing official edit buttons are already working and are admin-only.
+  // Use them as the authorization/readiness signal to avoid a second auth race.
+  if(!document.querySelector('#ans .adeEditBtnV2,#ans .adeEditBtn')){clear();return}
+  const q=currentQ(qtext);if(!q)return;
   const id=qid(q);
   if(lastQuestionId!==id){clear();lastQuestionId=id}
   if(qtext.nextElementSibling?.classList?.contains('qseSafeToolbar'))return;
@@ -68,12 +56,12 @@ async function inject(){
   b.onclick=e=>{e.preventDefault();e.stopPropagation();openEditor(toolbar,q,qtext)};
   toolbar.appendChild(b);qtext.insertAdjacentElement('afterend',toolbar)
 }
-function schedule(){clearTimeout(timer);timer=setTimeout(inject,40)}
+function schedule(){clearTimeout(timer);timer=setTimeout(inject,20)}
 function boot(){
   css();schedule();
-  ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-app-ready','qb-auth-ready'].forEach(ev=>window.addEventListener(ev,schedule));
+  ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));
   if(V)new MutationObserver(schedule).observe(V,{childList:true,subtree:true});
-  setTimeout(schedule,300);setTimeout(schedule,1000);setTimeout(schedule,2500)
+  setTimeout(schedule,250);setTimeout(schedule,800);setTimeout(schedule,1600)
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
