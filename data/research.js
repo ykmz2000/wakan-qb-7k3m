@@ -1,1 +1,1 @@
-document.write('<script src="data/research-base.js"></script><script src="data/2025.js"></script>');
+document.write('<script src="data/research-base.js"></script><script src="data/2025.js"></script><script src="data/grade-layer.js"></script>');
