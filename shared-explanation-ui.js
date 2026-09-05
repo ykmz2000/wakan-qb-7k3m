@@ -10,6 +10,8 @@ function currentQuestion(){
   if(!stem)return null;
   return qs.find(q=>(q.stem||q.q||'').trim()===stem)||null;
 }
+// Compatibility bridge for admin editing, media editing and personal notes.
+window.pq=currentQuestion;
 function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
 function addCard(root,title,body,cls='line'){
   if(hasHeading(root,title))return;
@@ -53,6 +55,7 @@ function ensure(){
   addCard(ans,'■ 試験用まとめ',esc(q.exam_summary||q.examSummary||'未登録'),'summary');
   addCard(ans,'■ 医学的検証メモ',esc(q.medical_verification_note||q.medicalVerificationNote||'未登録'));
   addRating(ans,q);
+  window.dispatchEvent(new CustomEvent('qb-explanation-ready',{detail:{questionId:q.id||q.dbId||null}}));
 }
 function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;ensure()})}
 window.addEventListener('qb-screen-change',schedule);
