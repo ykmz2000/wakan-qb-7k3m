@@ -1,20 +1,11 @@
 (()=>{
 const seriesMap={
-  '2025-029':['2025-029','2025-030'],
-  '2025-030':['2025-029','2025-030'],
-  '2025-031':['2025-031','2025-032','2025-033'],
-  '2025-032':['2025-031','2025-032','2025-033'],
-  '2025-033':['2025-031','2025-032','2025-033'],
-  '2025-034':['2025-034','2025-035'],
-  '2025-035':['2025-034','2025-035'],
-  '2025-038':['2025-038','2025-039'],
-  '2025-039':['2025-038','2025-039'],
-  '2025-042':['2025-042','2025-043'],
-  '2025-043':['2025-042','2025-043'],
-  '2025-044':['2025-044','2025-045','2025-046','2025-047'],
-  '2025-045':['2025-044','2025-045','2025-046','2025-047'],
-  '2025-046':['2025-044','2025-045','2025-046','2025-047'],
-  '2025-047':['2025-044','2025-045','2025-046','2025-047']
+  '2025-029':['2025-029','2025-030'],'2025-030':['2025-029','2025-030'],
+  '2025-031':['2025-031','2025-032','2025-033'],'2025-032':['2025-031','2025-032','2025-033'],'2025-033':['2025-031','2025-032','2025-033'],
+  '2025-034':['2025-034','2025-035'],'2025-035':['2025-034','2025-035'],
+  '2025-038':['2025-038','2025-039'],'2025-039':['2025-038','2025-039'],
+  '2025-042':['2025-042','2025-043'],'2025-043':['2025-042','2025-043'],
+  '2025-044':['2025-044','2025-045','2025-046','2025-047'],'2025-045':['2025-044','2025-045','2025-046','2025-047'],'2025-046':['2025-044','2025-045','2025-046','2025-047'],'2025-047':['2025-044','2025-045','2025-046','2025-047']
 };
 window.QB_SERIES_MAP=seriesMap;
 function uniq(a){return [...new Set(a)]}
@@ -26,7 +17,7 @@ function patchNavigation(){
   const brand=document.querySelector('.brand');
   if(brand&&!brand.dataset.navPatched){brand.dataset.navPatched='1';brand.style.cursor='pointer';brand.title='学年一覧へ戻る';brand.addEventListener('click',()=>{try{if(typeof showGradeScreen==='function')return showGradeScreen()}catch(e){}location.href=location.pathname})}
   const h=document.getElementById('home');
-  if(h){const s=(typeof state!=='undefined'&&state.screen)||'';let label='';if(s==='subjects')label='学年一覧';else if(s==='units')label='M4 科目一覧';else if(s==='problems'||s==='practice')label='和漢医学概論 単元一覧';if(label&&h.textContent!==label)h.textContent=label}
+  if(h){const s=(typeof state!=='undefined'&&state.screen)||'';if(s==='practice'){h.classList.add('hidden');return}h.classList.remove('hidden');let label='';if(s==='subjects')label='学年一覧';else if(s==='units')label='M4 科目一覧';else if(s==='problems')label='和漢医学概論 単元一覧';if(label&&h.textContent!==label)h.textContent=label}
 }
 function addSeriesBadge(){try{if(typeof pq!=='function')return;const q=pq();if(!q||!seriesMap[q.id])return;const submit=document.getElementById('submit');if(!submit||document.getElementById('seriesBadge'))return;const group=seriesMap[q.id],idx=group.indexOf(q.id)+1;const d=document.createElement('div');d.id='seriesBadge';d.className='badge gray';d.style.marginTop='8px';d.textContent=`連続問題 ${idx}/${group.length}`;submit.insertAdjacentElement('beforebegin',d)}catch(e){}}
 let scheduled=false;
