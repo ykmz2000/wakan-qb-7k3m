@@ -1,17 +1,27 @@
 (()=>{
 'use strict';
 let adminCache=null,timer=null,lastQuestionId=null;
+const V=document.getElementById('view');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const getQ=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=q=>q?.id||q?.dbId||null;
+function getQ(qtext){
+  try{
+    const fromApp=window.pq?.();
+    if(fromApp)return fromApp;
+  }catch{}
+  const stem=(qtext?.textContent||'').trim();
+  if(!stem)return null;
+  return (window.QB_QUESTIONS||[]).find(q=>(q.stem||q.q||'').trim()===stem)||null;
+}
 async function isAdmin(){
-  if(adminCache!==null)return adminCache;
+  if(adminCache===true)return true;
   const sb=window.qbSupabase;if(!sb)return false;
   try{
     const a=await sb.auth.getUser(),u=a.data?.user;if(!u)return false;
     if((u.email||'').toLowerCase()==='otohaykm@gmail.com')return adminCache=true;
     const r=await sb.from('profiles').select('role').eq('id',u.id).maybeSingle();
-    return adminCache=r.data?.role==='admin';
+    if(r.data?.role==='admin')return adminCache=true;
+    return false;
   }catch{return false}
 }
 function css(){
@@ -33,10 +43,9 @@ function openEditor(toolbar,q,qtext){
     const id=qid(q),val=ta.value.trim();if(!id){st.textContent='問題IDを取得できません';return}
     save.disabled=true;st.textContent='保存中…';
     try{
-      const r=await window.qbSupabase.from('questions').update({stem:val||null}).eq('id',id);if(r.error)throw r.error;
-      q.stem=val;
-      qtext.textContent=val;
-      st.textContent='保存しました';
+      const sb=window.qbSupabase;if(!sb)throw new Error('DB接続を取得できません');
+      const r=await sb.from('questions').update({stem:val||null}).eq('id',id);if(r.error)throw r.error;
+      q.stem=val;qtext.textContent=val;st.textContent='保存しました';
       window.dispatchEvent(new CustomEvent('qb-question-stem-updated',{detail:{questionId:id,stem:val}}));
       setTimeout(()=>d.remove(),120);
     }catch(e){st.textContent='保存失敗: '+(e?.message||'不明なエラー');save.disabled=false}
@@ -45,17 +54,26 @@ function openEditor(toolbar,q,qtext){
 }
 async function inject(){
   clearTimeout(timer);
-  const q=getQ(),qtext=document.querySelector('#view > .card > .qtext');
-  if(!q||!qtext||!(await isAdmin())){clear();return}
+  const qtext=document.querySelector('#view > .card > .qtext');
+  if(!qtext){clear();return}
+  const q=getQ(qtext);
+  if(!q){setTimeout(schedule,250);return}
+  if(!(await isAdmin())){setTimeout(schedule,500);return}
   const id=qid(q);
   if(lastQuestionId!==id){clear();lastQuestionId=id}
   if(qtext.nextElementSibling?.classList?.contains('qseSafeToolbar'))return;
+  document.querySelectorAll('.qseSafeToolbar,.qseSafeEditor').forEach(x=>x.remove());
   const toolbar=document.createElement('div');toolbar.className='qseSafeToolbar';
   const b=document.createElement('button');b.type='button';b.className='qseSafeBtn';b.textContent='✎ 問題文を編集';
   b.onclick=e=>{e.preventDefault();e.stopPropagation();openEditor(toolbar,q,qtext)};
   toolbar.appendChild(b);qtext.insertAdjacentElement('afterend',toolbar)
 }
-function schedule(){clearTimeout(timer);timer=setTimeout(inject,30)}
-function boot(){css();schedule();['qb-screen-change','qb-answer-shown','qb-retry-current'].forEach(ev=>window.addEventListener(ev,schedule))}
+function schedule(){clearTimeout(timer);timer=setTimeout(inject,40)}
+function boot(){
+  css();schedule();
+  ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-app-ready','qb-auth-ready'].forEach(ev=>window.addEventListener(ev,schedule));
+  if(V)new MutationObserver(schedule).observe(V,{childList:true,subtree:true});
+  setTimeout(schedule,300);setTimeout(schedule,1000);setTimeout(schedule,2500)
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
