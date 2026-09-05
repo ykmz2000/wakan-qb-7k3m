@@ -11,6 +11,7 @@ function currentQuestion(){
   return qs.find(q=>(q.stem||q.q||'').trim()===stem)||null;
 }
 window.pq=currentQuestion;
+function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}`;document.head.appendChild(s)}
 function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
 function addCard(root,title,body,cls='line'){
   if(hasHeading(root,title))return;
@@ -68,6 +69,7 @@ async function addRating(root,q){
   });
 }
 function ensure(){
+  css();
   const ans=document.getElementById('ans');if(!ans||!ans.children.length)return;
   const q=currentQuestion();if(!q)return;
   addRating(ans,q);
