@@ -1,0 +1,14 @@
+(()=>{
+const STORE='m4_qb_v6';
+function read(){try{return JSON.parse(localStorage.getItem(STORE)||'null')}catch(e){return null}}
+function latestAt(s){let t=0;const h=s&&s.history||{};(s.practice||[]).forEach(id=>(h[id]||[]).forEach(x=>{const n=Date.parse(x.at||'');if(n>t)t=n}));return t?new Date(t):null}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(d){if(!d)return '前回の演習';return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+function currentQuestion(s){const ids=s.practice||[],i=Math.max(0,Math.min(Number(s.pi)||0,Math.max(ids.length-1,0))),id=ids[i];return (window.QB_QUESTIONS||[]).find(q=>q.id===id)||null}
+function shouldShow(s){return !!(s&&Array.isArray(s.practice)&&s.practice.length&&Number(s.pi)>=0&&Number(s.pi)<s.practice.length&&s.screen!=='practice')}
+function close(){document.getElementById('qbResumeSheet')?.remove()}
+function resume(){try{const s=read();if(!s)return;s.screen='practice';localStorage.setItem(STORE,JSON.stringify(s));if(typeof go==='function'){go('practice');close();return}}catch(e){}location.reload()}
+function render(){const s=read();if(!shouldShow(s)||document.getElementById('qbResumeSheet'))return;const q=currentQuestion(s);const i=(Number(s.pi)||0)+1,n=s.practice.length;const wrap=document.createElement('div');wrap.id='qbResumeSheet';wrap.innerHTML=`<div style="position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(820px,calc(100% - 16px));z-index:90;background:#fff;border:1px solid #dce3ec;border-radius:18px;box-shadow:0 10px 34px #0002;padding:14px 14px 13px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center"><div><div style="font-size:12px;color:#6f7786;margin-bottom:4px">${fmt(latestAt(s))}</div><div style="font-size:16px;font-weight:900;color:#126fb3">続きから解く${q?`：${esc(q.year)} ${esc(q.qnum)}`:''}</div><div style="font-size:13px;font-weight:800;margin-top:4px">演習中 ${i}/${n}問目</div></div><div style="display:flex;gap:8px;align-items:center"><button id="qbResumeClose" aria-label="閉じる" style="border:0;background:transparent;font-size:26px;color:#7b8491;padding:8px">×</button><button id="qbResumeGo" aria-label="続きから解く" style="border:0;background:#126fb3;color:white;border-radius:13px;width:52px;height:52px;font-size:24px;font-weight:900">▶</button></div></div>`;document.body.appendChild(wrap);document.getElementById('qbResumeClose').onclick=close;document.getElementById('qbResumeGo').onclick=resume}
+window.addEventListener('load',()=>setTimeout(render,150));
+document.addEventListener('DOMContentLoaded',()=>setTimeout(render,150));
+})();
