@@ -23,10 +23,8 @@ async function ctx(){
   ctxPromise=(async()=>{
     const sb=window.qbSupabase;if(!sb)return null;
     const a=await sb.auth.getUser(),user=a.data?.user;if(!user)return null;
-    let admin=false;
     const p=await sb.from('profiles').select('role').eq('id',user.id).maybeSingle();
-    admin=p.data?.role==='admin';
-    return{sb,user,admin};
+    return{sb,user,admin:p.data?.role==='admin'};
   })();
   return ctxPromise;
 }
@@ -134,18 +132,27 @@ async function bindPersonal(c,Q){
     await bindSortable(grid,'.qbsortNoteItem',x=>x.dataset.id,(ids,status)=>persist('user_note_images',ids,status,{questionId:qid(Q),type:'personal-note-image-order'}));
   }
 }
-async function scan(){
-  clearTimeout(timer);timer=setTimeout(async()=>{
-    try{
-      css();const Q=q(),c=await ctx();if(!Q||!c)return;
-      await bindOfficialEditors(c,Q);await bindQuestionStem(c,Q);await bindPersonal(c,Q);
-    }catch(e){console.error(e)}
-  },80);
+async function runScan(){
+  try{
+    css();const Q=q(),c=await ctx();if(!Q||!c)return;
+    await bindOfficialEditors(c,Q);await bindQuestionStem(c,Q);await bindPersonal(c,Q);
+  }catch(e){console.error(e)}
+}
+function scan(delay=80){
+  clearTimeout(timer);timer=setTimeout(runScan,delay);
+}
+function addedRelevant(node){
+  if(node?.nodeType!==1)return false;
+  const sel='.oeiGrid,.oeiItem,.qsiGrid,.qsiImgWrap,.qbPersonal,.qbNoteImageGrid,.adeEditor';
+  return node.matches?.(sel)||!!node.querySelector?.(sel);
 }
 function boot(){
-  css();scan();
-  ['qb-screen-change','qb-answer-shown','qb-admin-editor-opened','qb-content-updated','qb-retry-current'].forEach(ev=>window.addEventListener(ev,scan));
-  const v=document.getElementById('view');if(v)new MutationObserver(scan).observe(v,{childList:true,subtree:true});
+  css();scan(120);
+  ['qb-screen-change','qb-answer-shown','qb-admin-editor-opened','qb-retry-current'].forEach(ev=>window.addEventListener(ev,()=>scan(100)));
+  window.addEventListener('qb-content-updated',e=>{const t=String(e.detail?.type||'');if(t.includes('image'))scan(100)});
+  document.addEventListener('click',e=>{if(e.target.closest?.('.adeEditBtn,.adeStemBtn,.oeiBtn,.qbPencil')){scan(180);setTimeout(()=>scan(80),450)}},true);
+  const v=document.getElementById('view');
+  if(v)new MutationObserver(ms=>{for(const m of ms){for(const n of m.addedNodes){if(addedRelevant(n)){scan(100);return}}}}).observe(v,{childList:true,subtree:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
