@@ -11,7 +11,7 @@ function currentQuestion(){
   return qs.find(q=>(q.stem||q.q||'').trim()===stem)||null;
 }
 window.pq=currentQuestion;
-function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}`;document.head.appendChild(s)}
+function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}.qbChoiceDetail{margin-top:7px;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:13px;line-height:1.6;white-space:pre-wrap}.qbChoiceDetail b{font-size:12px;margin-right:5px}`;document.head.appendChild(s)}
 function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
 function addCard(root,title,body,cls='line'){
   if(hasHeading(root,title))return;
@@ -19,14 +19,39 @@ function addCard(root,title,body,cls='line'){
   d.innerHTML=`<b>${esc(title)}</b><div class="${cls}">${body}</div>`;
   root.appendChild(d);
 }
+function detailRows(c){
+  const rows=[];
+  if(c.correction_text)rows.push(['正しく直すと',c.correction_text,'qbChoiceCorrection']);
+  if(c.correct_for_other_context)rows.push(['別の文脈では',c.correct_for_other_context,'qbChoiceOtherContext']);
+  if(c.examiner_distinction)rows.push(['区別ポイント',c.examiner_distinction,'qbChoiceDistinction']);
+  return rows;
+}
+function choiceDetailHtml(c){
+  return detailRows(c).map(([label,text,cls])=>`<div class="qbChoiceDetail ${cls}"><b>${esc(label)}：</b>${esc(text)}</div>`).join('');
+}
 function choiceBody(q){
   const choices=q.choices||[];
   if(!choices.length)return null;
   const ans=q.ans||choices.map((c,i)=>c.is_correct?i:null).filter(i=>i!==null);
   return choices.map((c,i)=>{
     const key=c.choice_key||String.fromCharCode(97+i),text=c.choice_text||String(c),ok=ans.includes(i),ex=c.explanation||'未登録';
-    return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b><div class="line">${esc(ex)}</div></div>`;
+    return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b><div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
   }).join('');
+}
+function enhanceExistingChoiceCard(root,q){
+  const heading=[...root.querySelectorAll('.card > b')].find(x=>(x.textContent||'').trim()==='■ 各選択肢');
+  const card=heading?.closest('.card');
+  if(!card)return;
+  const exps=[...card.querySelectorAll(':scope > .exp')];
+  (q.choices||[]).forEach((c,i)=>{
+    const exp=exps[i];if(!exp)return;
+    detailRows(c).forEach(([label,text,cls])=>{
+      if(exp.querySelector(`.${cls}`))return;
+      const d=document.createElement('div');d.className=`qbChoiceDetail ${cls}`;
+      d.innerHTML=`<b>${esc(label)}：</b>${esc(text)}`;
+      exp.appendChild(d);
+    });
+  });
 }
 function automaticRating(root){
   const r=root.querySelector('.resultcard');
@@ -82,6 +107,7 @@ function ensure(){
   const overview=q.explanation_overview||q.note||'未登録';
   addCard(ans,'■ 問題文のポイント',esc(overview));
   const cb=choiceBody(q);if(cb&&!hasHeading(ans,'■ 各選択肢')){const d=document.createElement('div');d.className='card qbSharedExplanationCard';d.innerHTML=`<b>■ 各選択肢</b>${cb}`;ans.appendChild(d)}
+  enhanceExistingChoiceCard(ans,q);
   addCard(ans,'■ 出題者の意図',esc(q.examiner_intent||q.examinerIntent||'未登録'));
   addCard(ans,'■ 試験用まとめ',esc(q.exam_summary||q.examSummary||'未登録'),'summary');
   addCard(ans,'■ 医学的検証メモ',esc(q.medical_verification_note||q.medicalVerificationNote||'未登録'));
