@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-let adminCache=null,timer=0,ctx=null,drag=null;
+let adminCache=null,timer=0,ctx=null,drag=null,suppressClickRow=null,suppressClickUntil=0;
 const screen=()=>window.qbGetScreen?.()||'';
 const pstate=()=>window.qbGetPracticeState?.()||{};
 const sb=()=>window.qbSupabase;
@@ -27,7 +27,7 @@ function css(){
   document.head.appendChild(s)
 }
 function clear(){
-  drag=null;ctx=null;document.getElementById('qsoBar')?.remove();
+  drag=null;ctx=null;suppressClickRow=null;suppressClickUntil=0;document.getElementById('qsoBar')?.remove();
   document.querySelectorAll('.qsoHandle').forEach(x=>x.remove());
   document.querySelectorAll('.qsoNum').forEach(n=>{const p=n.parentElement;if(p){p.textContent=n.textContent||''}});
   document.querySelectorAll('.qsoRow,.qsoDragging,.qsoDropTarget').forEach(x=>x.classList.remove('qsoRow','qsoDragging','qsoDropTarget'))
@@ -44,13 +44,14 @@ function restore(){
   if(!ctx)return;const map=new Map(rows().map(r=>[rowId(r),r]));const parent=rows()[0]?.parentElement;if(!parent)return;
   ctx.originalIds.forEach(id=>{const r=map.get(id);if(r)parent.appendChild(r)});renumber();updateBar()
 }
+function armClickSuppression(row,ms=900){suppressClickRow=row;suppressClickUntil=Date.now()+ms;window.QB_SUPPRESS_SINGLE_OPEN_UNTIL=suppressClickUntil}
 function onPointerDown(e){
   const h=e.currentTarget,r=h.closest('.problem');if(!r||!ctx||ctx.saving)return;
-  e.preventDefault();e.stopPropagation();drag={row:r,pointerId:e.pointerId,moved:false};r.classList.add('qsoDragging');
+  e.preventDefault();e.stopPropagation();armClickSuppression(r);drag={row:r,pointerId:e.pointerId,moved:false};r.classList.add('qsoDragging');
   try{h.setPointerCapture(e.pointerId)}catch{}
 }
 function onPointerMove(e){
-  if(!drag||e.pointerId!==drag.pointerId)return;e.preventDefault();e.stopPropagation();drag.moved=true;
+  if(!drag||e.pointerId!==drag.pointerId)return;e.preventDefault();e.stopPropagation();drag.moved=true;armClickSuppression(drag.row);
   document.querySelectorAll('.qsoDropTarget').forEach(x=>x.classList.remove('qsoDropTarget'));
   const el=document.elementFromPoint(e.clientX,e.clientY),target=el?.closest?.('.problem');if(!target||target===drag.row)return;
   const rect=target.getBoundingClientRect(),parent=target.parentElement;if(!parent)return;
@@ -59,7 +60,12 @@ function onPointerMove(e){
   renumber();updateBar()
 }
 function onPointerUp(e){
-  if(!drag||e.pointerId!==drag.pointerId)return;e.preventDefault();e.stopPropagation();drag.row.classList.remove('qsoDragging');document.querySelectorAll('.qsoDropTarget').forEach(x=>x.classList.remove('qsoDropTarget'));drag=null;renumber();updateBar()
+  if(!drag||e.pointerId!==drag.pointerId)return;e.preventDefault();e.stopPropagation();const row=drag.row;armClickSuppression(row,1000);row.classList.remove('qsoDragging');document.querySelectorAll('.qsoDropTarget').forEach(x=>x.classList.remove('qsoDropTarget'));drag=null;renumber();updateBar()
+}
+function suppressSyntheticClick(e){
+  if(Date.now()>suppressClickUntil||!suppressClickRow)return;
+  const row=e.target?.closest?.('#view .problem');if(row!==suppressClickRow)return;
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()
 }
 async function save(){
   if(!ctx||ctx.saving)return;const current=idsNow();if(sameOrder(current,ctx.originalIds))return;
@@ -83,12 +89,12 @@ async function inject(){
     row.classList.add('qsoRow');const qid=row.querySelector('.qid');if(!qid)return;const old=qid.textContent.trim();qid.textContent='';
     const h=document.createElement('button');h.type='button';h.className='qsoHandle';h.setAttribute('aria-label','問題を並び替え');h.textContent='≡';
     const n=document.createElement('span');n.className='qsoNum';n.textContent=old||String(i+1);qid.append(h,n);
-    h.addEventListener('pointerdown',onPointerDown);h.addEventListener('pointermove',onPointerMove);h.addEventListener('pointerup',onPointerUp);h.addEventListener('pointercancel',onPointerUp);h.addEventListener('click',e=>{e.preventDefault();e.stopPropagation()})
+    h.addEventListener('pointerdown',onPointerDown);h.addEventListener('pointermove',onPointerMove);h.addEventListener('pointerup',onPointerUp);h.addEventListener('pointercancel',onPointerUp);h.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()})
   });
   const listCard=rs[0].parentElement,bar=document.createElement('div');bar.id='qsoBar';bar.innerHTML='<div class="qsoMsg">≡ をドラッグして並び替えできます。</div><button id="qsoUndo" type="button" disabled>元に戻す</button><button id="qsoSave" type="button" disabled>順番を保存</button>';
   listCard?.insertAdjacentElement('beforebegin',bar);document.getElementById('qsoUndo').onclick=restore;document.getElementById('qsoSave').onclick=save;renumber();updateBar()
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>inject().catch(console.error),80)}
-function boot(){css();['qb-screen-change','qb-app-ready','qb-question-order-updated'].forEach(ev=>window.addEventListener(ev,schedule));setTimeout(schedule,900)}
+function boot(){css();document.addEventListener('click',suppressSyntheticClick,true);['qb-screen-change','qb-app-ready','qb-question-order-updated'].forEach(ev=>window.addEventListener(ev,schedule));setTimeout(schedule,900)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
