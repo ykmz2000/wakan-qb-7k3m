@@ -36,6 +36,8 @@ Relevant commits:
 - `53eb1526790bc9139117ced8802fa8f08b39fa17` — load guard from index
 - `7b2b1060dd22e35364df55f8c10e53e406650987` — cache bust for final guard
 
+The GitHub Pages deployment workflow completed successfully after the repair and audit commits.
+
 ## Duplicate-stem exposure
 
 Published same-subject/same-unit duplicate-stem groups contained:
@@ -70,6 +72,26 @@ Post-repair recheck:
 - remaining attempt-linked misbindings: 0
 - remaining review-only misbindings: 0
 
+### Source-text integrity check
+
+Duplicate-stem canonical questions were compared against `question_occurrences.exact_stem` / `exact_choices`, without rewriting any source fields.
+
+Choice-text verification where exact source choices are available:
+
+- 和漢医学概論: 15 / 15 match, 0 mismatch
+- 救急医学: 35 / 35 match, 0 mismatch
+- 整形外科・リハビリテーション医学: 44 / 44 match, 0 mismatch
+- 臨床診断学: 15 / 15 verifiable rows match, 0 mismatch; 20 rows have no source choice payload available for automated comparison
+
+Stem verification where `exact_stem` is available:
+
+- 和漢医学概論: 15 / 15 match, 0 mismatch
+- 救急医学: 35 / 35 match, 0 mismatch
+- 整形外科・リハビリテーション医学: 44 / 44 match after accounting for instruction separation, 0 mismatch
+- 臨床診断学: 27 / 27 verifiable rows match, 0 mismatch; 8 rows have no exact stem payload available for automated comparison
+
+Therefore no confirmed canonical stem/choice corruption was found in the source-verifiable duplicate-stem set.
+
 ### Personal notes
 
 Within duplicate-stem groups during the audit window:
@@ -91,7 +113,9 @@ Candidate writes near confirmed identity-mismatch events were manually sampled a
 
 45 `question_images` rows were created on duplicate-stem questions during the audit window. Temporal correlation produced a subset of possible candidates near known mismatch events, but timestamps alone do not prove the intended image target. Several candidate images were created immediately after a legitimate interaction with the currently stored/source question, while others occurred closer to a sibling interaction.
 
-Because the available database metadata cannot prove visual ownership, no image row or Storage object was moved/deleted automatically. This preserves source integrity and avoids creating new corruption from an uncertain repair.
+`question_images` contains no uploader/user identifier, and these rows have no captions or alt text that can prove visual ownership. The available DB metadata therefore cannot safely determine which sibling was intended.
+
+Because the available evidence cannot prove visual ownership, no image row or Storage object was moved/deleted automatically. This preserves source integrity and avoids creating new corruption from an uncertain repair.
 
 ## Remaining follow-up
 
