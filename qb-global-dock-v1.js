@@ -17,7 +17,7 @@ body.qbGlobalDockOn .app{padding-bottom:calc(94px + env(safe-area-inset-bottom))
 #qbGlobalDock{position:fixed;left:0;right:0;bottom:0;z-index:88;background:#fffffff2;border-top:1px solid #dce3ec;backdrop-filter:blur(14px);padding:6px max(7px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));box-shadow:0 -6px 20px #17203314}
 #qbGlobalDock .qbgdInner{max-width:850px;margin:auto;display:grid;grid-template-columns:1fr .85fr 1.4fr .85fr 1fr;gap:4px}
 #qbGlobalDock button{border:0;background:transparent;color:#536174;min-height:56px;border-radius:12px;font-weight:900;font-size:10px;line-height:1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px}
-#qbGlobalDock button:disabled{opacity:.28}#qbGlobalDock .qbgdResume{background:#eef6fb;color:#126fb3}#qbGlobalDock .qbgdIco{font-size:19px;line-height:1}#qbGlobalDock .qbgdResume .qbgdIco{font-size:20px}
+#qbGlobalDock button:disabled{opacity:.28}#qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:#eef6fb;color:#126fb3}#qbGlobalDock .qbgdIco{font-size:19px;line-height:1}#qbGlobalDock .qbgdResume .qbgdIco,#qbGlobalDock .qbgdStart .qbgdIco{font-size:20px}
 @media(max-width:390px){#qbGlobalDock .qbgdInner{grid-template-columns:.95fr .78fr 1.34fr .78fr .95fr}#qbGlobalDock button{font-size:9px}}
 `;
   document.head.appendChild(s)
@@ -61,18 +61,24 @@ async function render(){
   css();const s=screen(),d=document.getElementById('qbGlobalDock');
   if(s==='practice'||!ready){document.body.classList.remove('qbGlobalDockOn');d?.remove();return}
   document.body.classList.add('qbGlobalDockOn');document.getElementById('qbResumeV2')?.remove();
-  const hasResume=!!(await latestResume());if(screen()==='practice')return;
+  const isProblemList=s==='problems';
+  const startButton=isProblemList?document.getElementById('start'):null;
+  const startDisabled=!startButton||/（\s*0問\s*）/.test(startButton.textContent||'')||startButton.disabled;
+  const hasResume=isProblemList?false:!!(await latestResume());if(screen()==='practice')return;
   const dock=ensureDock();dock.innerHTML=`<div class="qbgdInner">
     <button data-a="home"><span class="qbgdIco">⌂</span><span>ホーム</span></button>
     <button data-a="back" ${backStack.length?'':'disabled'}><span class="qbgdIco">‹</span><span>戻る</span></button>
-    <button class="qbgdResume" data-a="resume" ${hasResume?'':'disabled'}><span class="qbgdIco">↻</span><span>前回の続きから</span></button>
+    ${isProblemList
+      ?`<button class="qbgdStart" data-a="start" ${startDisabled?'disabled':''}><span class="qbgdIco">▶</span><span>演習開始</span></button>`
+      :`<button class="qbgdResume" data-a="resume" ${hasResume?'':'disabled'}><span class="qbgdIco">↻</span><span>前回の続きから</span></button>`}
     <button data-a="forward" ${forwardStack.length?'':'disabled'}><span class="qbgdIco">›</span><span>進む</span></button>
     <button data-a="mypage"><span class="qbgdIco">◉</span><span>マイページ</span></button>
   </div>`;
   dock.querySelector('[data-a="home"]').onclick=()=>go({screen:'grades'},'normal');
   dock.querySelector('[data-a="back"]').onclick=()=>{const t=backStack.pop();if(t)go(t,'back')};
   dock.querySelector('[data-a="forward"]').onclick=()=>{const t=forwardStack.pop();if(t)go(t,'forward')};
-  dock.querySelector('[data-a="resume"]').onclick=async()=>{const r=await latestResume(true);if(r)window.qbResumeSession?.(r)};
+  const start=dock.querySelector('[data-a="start"]');if(start)start.onclick=()=>document.getElementById('start')?.click();
+  const resume=dock.querySelector('[data-a="resume"]');if(resume)resume.onclick=async()=>{const r=await latestResume(true);if(r)window.qbResumeSession?.(r)};
   dock.querySelector('[data-a="mypage"]').onclick=()=>document.getElementById('acctBtn')?.click()
 }
 function scheduleRender(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>render().catch(console.error),20)}
@@ -84,6 +90,8 @@ function onScreen(){
 function initHistory(){ready=true;current=stateNow();backStack=[];forwardStack=[];scheduleRender()}
 function boot(){
   css();window.addEventListener('qb-screen-change',onScreen);window.addEventListener('qb-app-ready',()=>setTimeout(initHistory,260));
+  document.addEventListener('change',e=>{if(screen()==='problems'&&e.target?.matches?.('[data-q]'))scheduleRender()});
+  document.addEventListener('click',e=>{if(screen()==='problems'&&e.target?.closest?.('#toggleAll'))setTimeout(scheduleRender,0)});
   if(window.QB_DB_READY)setTimeout(initHistory,260);else setTimeout(()=>{if(!ready&&window.qbGetScreen)initHistory()},1200)
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
