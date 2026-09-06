@@ -25,3 +25,5 @@ drop policy if exists "users_delete_own_question_flags" on public.user_question_
 create policy "users_delete_own_question_flags"
   on public.user_question_flags for delete
   using (auth.uid() = user_id);
+
+grant select, insert, delete on table public.user_question_flags to authenticated;
