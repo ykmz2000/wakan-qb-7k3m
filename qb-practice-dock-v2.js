@@ -14,13 +14,13 @@ body.qbPracticeDockV2On #view #review,
 body.qbPracticeDockV2On #view #showTextAnswer,
 body.qbPracticeDockV2On #view .nav{display:none!important}
 #qbPracticeDockV2{position:fixed;left:0;right:0;bottom:0;z-index:90;background:#fffffff2;border-top:1px solid #dce3ec;backdrop-filter:blur(14px);padding:6px max(7px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));box-shadow:0 -6px 20px #17203314}
-#qbPracticeDockV2 .qbpdInner{max-width:850px;margin:auto;display:grid;grid-template-columns:1fr 1fr .72fr 1.5fr .72fr;gap:4px;align-items:stretch}
+#qbPracticeDockV2 .qbpdInner{max-width:850px;margin:auto;display:grid;grid-template-columns:1fr .72fr 1.5fr .72fr 1fr;gap:4px;align-items:stretch}
 #qbPracticeDockV2 button{border:0;background:transparent;color:#536174;min-height:54px;border-radius:12px;font-weight:900;font-size:10px;line-height:1.1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px}
 #qbPracticeDockV2 button:disabled{opacity:.35}
 #qbPracticeDockV2 button.qbpdMain{background:#126fb3;color:#fff;font-size:12px;box-shadow:0 3px 10px #126fb32b}
 #qbPracticeDockV2 .qbpdIco{font-size:18px;line-height:1}
 #qbPracticeDockV2 .qbpdMain .qbpdIco{font-size:20px}
-@media(max-width:390px){#qbPracticeDockV2 .qbpdInner{grid-template-columns:.95fr .95fr .68fr 1.42fr .68fr}#qbPracticeDockV2 button{font-size:9px}}
+@media(max-width:390px){#qbPracticeDockV2 .qbpdInner{grid-template-columns:.95fr .68fr 1.42fr .68fr .95fr}#qbPracticeDockV2 button{font-size:9px}}
 `;
   document.head.appendChild(s);
 }
@@ -77,16 +77,16 @@ function render(){
   const st=state(),i=Number(st.currentIndex)||0,n=(st.questionIds||[]).length;
   d.innerHTML=`<div class="qbpdInner">
     <button data-a="subjects"><span class="qbpdIco">⌂</span><span>科目一覧</span></button>
-    <button data-a="units"><span class="qbpdIco">☷</span><span>単元一覧</span></button>
     <button data-a="prev" ${i<=0?'disabled':''}><span class="qbpdIco">‹</span><span>前へ</span></button>
     <button class="qbpdMain" data-a="main"><span class="qbpdIco">${mainIcon()}</span><span>${mainLabel()}</span></button>
     <button data-a="next"><span class="qbpdIco">${n&&i>=n-1?'■':'›'}</span><span>${n&&i>=n-1?'終了':'次へ'}</span></button>
+    <button data-a="units"><span class="qbpdIco">☷</span><span>単元一覧</span></button>
   </div>`;
   d.querySelector('[data-a="subjects"]').onclick=goSubjects;
-  d.querySelector('[data-a="units"]').onclick=goUnits;
   d.querySelector('[data-a="prev"]').onclick=()=>tap('prev');
   d.querySelector('[data-a="main"]').onclick=doMain;
   d.querySelector('[data-a="next"]').onclick=()=>tap('next');
+  d.querySelector('[data-a="units"]').onclick=goUnits;
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(render,0)}
 function boot(){
