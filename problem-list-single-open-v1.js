@@ -4,6 +4,7 @@ const FAKE_SESSION_ID='00000000-0000-0000-0000-000000000000';
 let opening=false,savedSelection=null,timer=null;
 const screen=()=>window.qbGetScreen?.()||'';
 const state=()=>window.qbGetPracticeState?.()||{};
+const reorderSuppressed=()=>Date.now()<Number(window.QB_SUPPRESS_SINGLE_OPEN_UNTIL||0)||!!window.QB_REORDER_ACTIVE;
 function css(){
   if(document.getElementById('qbSingleOpenCss'))return;
   const s=document.createElement('style');s.id='qbSingleOpenCss';s.textContent=`
@@ -35,7 +36,7 @@ function restoreSelection(){
   })
 }
 async function openOne(id){
-  if(opening||!id||screen()!=='problems'||typeof window.qbResumeSession!=='function')return;
+  if(opening||reorderSuppressed()||!id||screen()!=='problems'||typeof window.qbResumeSession!=='function')return;
   const st=state();if(!st.subjectId)return;
   opening=true;savedSelection=snapshotSelection();mask(true);
   try{
@@ -77,13 +78,18 @@ function decorateDock(){
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>{decorateRows();decorateDock();restoreSelection()},0)}
 function onClick(e){
   if(screen()!=='problems')return;
+  if(reorderSuppressed()){
+    const row=e.target.closest?.('#view .problem');
+    if(row){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}
+    return
+  }
   const row=e.target.closest?.('#view .problem');if(!row)return;
   if(e.target.closest?.('input,button,label,a,.pick'))return;
   const id=row.querySelector('[data-q]')?.dataset.q;if(!id)return;
   e.preventDefault();openOne(id)
 }
 function onKey(e){
-  if(screen()!=='problems'||!['Enter',' '].includes(e.key))return;
+  if(screen()!=='problems'||reorderSuppressed()||!['Enter',' '].includes(e.key))return;
   const row=e.target.closest?.('#view .problem.qbSingleOpenRow');if(!row||e.target.matches('input,button,a'))return;
   const id=row.querySelector('[data-q]')?.dataset.q;if(!id)return;
   e.preventDefault();openOne(id)
