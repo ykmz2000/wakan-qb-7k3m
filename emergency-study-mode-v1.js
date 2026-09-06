@@ -1,9 +1,9 @@
 (()=>{
 'use strict';
 const ZERO='00000000-0000-0000-0000-000000000000';
-let subjectId=null,provenanceCache=new Map();
+let subjectId=null,provenanceCache=new Map(),renderTimer=null,rendering=false;
 const esc=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function sb(){for(let i=0;i<40;i++){if(window.qbSupabase)return window.qbSupabase;await new Promise(r=>setTimeout(r,75))}return null}
+async function sb(){for(let i=0;i<80;i++){if(window.qbSupabase)return window.qbSupabase;await new Promise(r=>setTimeout(r,75))}return null}
 async function getSubjectId(){if(subjectId)return subjectId;const c=await sb();if(!c)return null;const r=await c.from('subjects').select('id').eq('slug','emergency-medicine').maybeSingle();subjectId=r.data?.id||null;return subjectId}
 function onEmergencyUnits(){const crumb=document.getElementById('crumb')?.textContent||'';return crumb.includes('救急医学')&&crumb.includes('単元')}
 const GROUPS={
@@ -16,21 +16,26 @@ function moduleCard(m,count){
   return `<div class="qbEmSection" data-tone="${esc(g.tone)}"><div class="qbEmSectionHead"><div><div class="qbEmSectionTitle">${g.icon} ${esc(g.heading)}</div><div class="qbEmSectionLead">${esc(g.lead)}</div></div><span class="qbEmPriority">${esc(g.priority)}</span></div><button class="qbEmModule" data-mid="${m.id}" data-type="${esc(m.module_type)}"><div><div class="qbEmTitle">${esc(m.title||g.heading)}</div><div class="qbEmMeta">${esc(m.description||'')}</div><span class="qbEmTag">${count||0}問・${esc(g.tag)}</span></div><div class="qbEmArrow">›</div></button></div>`
 }
 async function renderHub(){
-  if(!onEmergencyUnits())return;
+  if(rendering||!onEmergencyUnits())return;
   const V=document.getElementById('view');if(!V||V.querySelector('#qbEmergencyStudyHub'))return;
-  const c=await sb(),sid=await getSubjectId();if(!c||!sid||!onEmergencyUnits())return;
-  const modulesQ=await c.from('study_modules').select('id,module_key,title,description,module_type,sort_order').eq('subject_id',sid).eq('academic_year',2026).eq('is_active',true).order('sort_order');
-  if(modulesQ.error||!modulesQ.data?.length)return;
-  const mids=modulesQ.data.map(x=>x.id);
-  const iRes=await c.from('study_module_items').select('module_id,question_id').in('module_id',mids.length?mids:[ZERO]);
-  const counts={};(iRes.data||[]).forEach(x=>counts[x.module_id]=(counts[x.module_id]||0)+1);
-  const mods=[...modulesQ.data].sort((a,b)=>((GROUPS[a.module_type]?.order||99)-(GROUPS[b.module_type]?.order||99))||((a.sort_order||0)-(b.sort_order||0)));
-  const wrap=document.createElement('section');wrap.id='qbEmergencyStudyHub';wrap.innerHTML=`<style>
-    #qbEmergencyStudyHub{margin-bottom:14px}.qbEmHead{margin:2px 2px 4px;font-weight:900;font-size:19px}.qbEmIntro{font-size:12px;color:var(--muted);line-height:1.55;margin:0 2px 13px}.qbEmSection{margin:0 0 14px;padding-top:12px;border-top:2px solid var(--line)}.qbEmSection:first-of-type{border-top:0;padding-top:0}.qbEmSectionHead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;margin:0 3px 8px}.qbEmSectionTitle{font-weight:950;font-size:17px;line-height:1.35}.qbEmSectionLead{font-size:11px;color:var(--muted);line-height:1.55;margin-top:4px;max-width:650px}.qbEmPriority{flex:0 0 auto;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;background:#eef3f8;color:#536174}.qbEmSection[data-tone="new"] .qbEmPriority{background:#e7f2fb;color:#126fb3}.qbEmSection[data-tone="legacy"] .qbEmPriority{background:#f1f1f1;color:#777}.qbEmModule{width:100%;border:1px solid var(--line);background:#fff;border-radius:17px;padding:14px;text-align:left;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.qbEmSection[data-tone="new"] .qbEmModule{border-width:2px;border-color:#126fb3}.qbEmSection[data-tone="legacy"] .qbEmModule{opacity:.72}.qbEmTitle{font-weight:900;font-size:15px}.qbEmMeta{font-size:11px;color:var(--muted);line-height:1.5;margin-top:4px}.qbEmTag{display:inline-block;margin-top:7px;padding:4px 7px;border-radius:999px;background:#eef3f8;font-size:10px;font-weight:900}.qbEmArrow{font-size:23px;color:var(--muted)}.qbEmDivider{font-size:13px;color:#536174;font-weight:900;margin:18px 3px 5px;border-top:2px solid var(--line);padding-top:14px}.qbEmDividerNote{font-size:10px;color:var(--muted);font-weight:500;line-height:1.5;margin-top:4px}.qbGeneratedBanner{margin:0 0 10px;padding:9px 11px;border-radius:12px;background:#eaf4fb;border:1px solid #b9d9ef;font-size:12px;font-weight:800;line-height:1.5}
-  </style><div class="qbEmHead">2026試験対策</div><div class="qbEmIntro">上から順に優先して学習できるよう、問題の出自と2026年度での位置づけを分けています。</div>${mods.map(m=>moduleCard(m,counts[m.id])).join('')}<div class="qbEmDivider">詳細単元一覧<div class="qbEmDividerNote">下の一覧は従来の単元別表示です。学習優先順位は上の3区分を基準にしてください。</div></div>`;
-  const first=V.querySelector('.card');if(first)first.insertAdjacentElement('afterend',wrap);else V.prepend(wrap);
-  wrap.querySelectorAll('[data-mid]').forEach(b=>b.onclick=()=>openModule(b.dataset.mid));
+  rendering=true;
+  try{
+    const c=await sb(),sid=await getSubjectId();if(!c||!sid||!onEmergencyUnits())return;
+    const modulesQ=await c.from('study_modules').select('id,module_key,title,description,module_type,sort_order').eq('subject_id',sid).eq('academic_year',2026).eq('is_active',true).order('sort_order');
+    if(modulesQ.error||!modulesQ.data?.length)return;
+    const mids=modulesQ.data.map(x=>x.id);
+    const iRes=await c.from('study_module_items').select('module_id,question_id').in('module_id',mids.length?mids:[ZERO]);
+    const counts={};(iRes.data||[]).forEach(x=>counts[x.module_id]=(counts[x.module_id]||0)+1);
+    const mods=[...modulesQ.data].sort((a,b)=>((GROUPS[a.module_type]?.order||99)-(GROUPS[b.module_type]?.order||99))||((a.sort_order||0)-(b.sort_order||0)));
+    if(!onEmergencyUnits()||document.querySelector('#qbEmergencyStudyHub'))return;
+    const wrap=document.createElement('section');wrap.id='qbEmergencyStudyHub';wrap.innerHTML=`<style>
+      #qbEmergencyStudyHub{margin-bottom:14px}.qbEmHead{margin:2px 2px 4px;font-weight:900;font-size:19px}.qbEmIntro{font-size:12px;color:var(--muted);line-height:1.55;margin:0 2px 13px}.qbEmSection{margin:0 0 14px;padding-top:12px;border-top:2px solid var(--line)}.qbEmSection:first-of-type{border-top:0;padding-top:0}.qbEmSectionHead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;margin:0 3px 8px}.qbEmSectionTitle{font-weight:950;font-size:17px;line-height:1.35}.qbEmSectionLead{font-size:11px;color:var(--muted);line-height:1.55;margin-top:4px;max-width:650px}.qbEmPriority{flex:0 0 auto;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;background:#eef3f8;color:#536174}.qbEmSection[data-tone="new"] .qbEmPriority{background:#e7f2fb;color:#126fb3}.qbEmSection[data-tone="legacy"] .qbEmPriority{background:#f1f1f1;color:#777}.qbEmModule{width:100%;border:1px solid var(--line);background:#fff;border-radius:17px;padding:14px;text-align:left;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.qbEmSection[data-tone="new"] .qbEmModule{border-width:2px;border-color:#126fb3}.qbEmSection[data-tone="legacy"] .qbEmModule{opacity:.72}.qbEmTitle{font-weight:900;font-size:15px}.qbEmMeta{font-size:11px;color:var(--muted);line-height:1.5;margin-top:4px}.qbEmTag{display:inline-block;margin-top:7px;padding:4px 7px;border-radius:999px;background:#eef3f8;font-size:10px;font-weight:900}.qbEmArrow{font-size:23px;color:var(--muted)}.qbEmDivider{font-size:13px;color:#536174;font-weight:900;margin:18px 3px 5px;border-top:2px solid var(--line);padding-top:14px}.qbEmDividerNote{font-size:10px;color:var(--muted);font-weight:500;line-height:1.5;margin-top:4px}.qbGeneratedBanner{margin:0 0 10px;padding:9px 11px;border-radius:12px;background:#eaf4fb;border:1px solid #b9d9ef;font-size:12px;font-weight:800;line-height:1.5}
+    </style><div class="qbEmHead">2026試験対策</div><div class="qbEmIntro">上から順に優先して学習できるよう、問題の出自と2026年度での位置づけを分けています。</div>${mods.map(m=>moduleCard(m,counts[m.id])).join('')}<div class="qbEmDivider">詳細単元一覧<div class="qbEmDividerNote">下の一覧は従来の単元別表示です。学習優先順位は上の3区分を基準にしてください。</div></div>`;
+    const first=V.querySelector('.card');if(first)first.insertAdjacentElement('afterend',wrap);else V.prepend(wrap);
+    wrap.querySelectorAll('[data-mid]').forEach(b=>b.onclick=()=>openModule(b.dataset.mid));
+  }finally{rendering=false}
 }
+function scheduleRender(delay=40){clearTimeout(renderTimer);renderTimer=setTimeout(()=>renderHub().catch(console.error),delay)}
 async function openModule(moduleId){
   const c=await sb(),sid=await getSubjectId();if(!c||!sid)return;
   const r=await c.from('study_module_items').select('question_id,sort_order').eq('module_id',moduleId).order('sort_order');
@@ -49,7 +54,14 @@ async function annotateGenerated(){
   if(!p?.is_ai_generated)return;
   const d=document.createElement('div');d.className='qbGeneratedBanner';d.textContent=`2026レジメ対策問題｜AI作成・過去問ではありません｜根拠: ${p.source_file||'講義資料'}${p.source_locator?'・'+p.source_locator:''}`;card.prepend(d);
 }
-window.addEventListener('qb-screen-change',()=>{setTimeout(renderHub,0);setTimeout(annotateGenerated,0)});
-window.addEventListener('qb-answer-shown',()=>setTimeout(annotateGenerated,0));
-setTimeout(renderHub,800);
+function bootWatch(){
+  const v=document.getElementById('view');if(v)new MutationObserver(()=>scheduleRender(60)).observe(v,{childList:true,subtree:false});
+  const c=document.getElementById('crumb');if(c)new MutationObserver(()=>scheduleRender(20)).observe(c,{childList:true,subtree:true,characterData:true});
+  window.addEventListener('qb-screen-change',()=>{scheduleRender(10);setTimeout(annotateGenerated,0)});
+  window.addEventListener('qb-app-ready',()=>scheduleRender(10));
+  window.addEventListener('qb-answer-shown',()=>setTimeout(annotateGenerated,0));
+  setInterval(()=>{if(onEmergencyUnits()&&!document.getElementById('qbEmergencyStudyHub'))scheduleRender(0)},700);
+  scheduleRender(500)
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootWatch,{once:true});else bootWatch();
 })();
