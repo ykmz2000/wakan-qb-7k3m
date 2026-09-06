@@ -3,7 +3,13 @@
 const CATEGORIES=['◎','○','△','×','未演習'];
 let active=new Set(CATEGORIES),ratingByQuestion=new Map(),fingerprint='',loadedFingerprint='',timer=0,loading=false;
 const screen=()=>window.qbGetScreen?.()||'';
-const inputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
+const allInputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
+const inputs=()=>{
+  const xs=allInputs();
+  if(!xs.length)return xs;
+  const visible=xs.filter(x=>x.closest('.problem')?.style?.display!=='none');
+  return visible.length&&visible.length<xs.length?visible:xs;
+};
 const categoryOf=id=>{
   const r=ratingByQuestion.get(id);
   return ['◎','○','△','×'].includes(r)?r:'未演習';
@@ -40,7 +46,7 @@ function applySelection(){
     x.checked=want;
     x.dispatchEvent(new Event('change',{bubbles:true}));
   });
-  syncCoreUi();
+  setTimeout(syncCoreUi,0);
 }
 function updateButtons(){
   document.querySelectorAll('#qbRatingFilterPanel .qbrfBtn').forEach(b=>{
@@ -50,8 +56,8 @@ function updateButtons(){
 }
 function buildPanel(){
   document.getElementById('qbRatingFilterPanel')?.remove();
-  const rs=[...document.querySelectorAll('#view .problem')];if(!rs.length)return;
-  const listCard=rs[0].closest('.card');if(!listCard)return;
+  const scoped=inputs(),first=scoped[0]?.closest('.problem');if(!first)return;
+  const listCard=first.closest('.card');if(!listCard)return;
   const panel=document.createElement('div');panel.id='qbRatingFilterPanel';panel.innerHTML=`<div class="qbrfHead"><div class="qbrfTitle">自己評価で絞り込み</div><div class="qbrfCount"></div></div><div class="qbrfButtons">${CATEGORIES.map(c=>`<button type="button" class="qbrfBtn ${active.has(c)?'on':''}" data-cat="${c}" aria-pressed="${active.has(c)}">${c}</button>`).join('')}</div><div class="qbrfHint">複数選択できます。未演習には「-（解説のみ）」と自己評価未登録を含みます。</div>`;
   const orderBar=document.getElementById('qsoBar');
   if(orderBar&&orderBar.nextElementSibling===listCard)orderBar.insertAdjacentElement('afterend',panel);else listCard.insertAdjacentElement('beforebegin',panel);
@@ -64,9 +70,13 @@ function buildPanel(){
 async function loadRatings(ids){
   const sb=window.qbSupabase;if(!sb||!ids.length){ratingByQuestion=new Map();return}
   const a=await sb.auth.getUser(),user=a.data?.user;if(!user){ratingByQuestion=new Map();return}
-  const r=await sb.from('question_ratings').select('question_id,rating').eq('user_id',user.id).in('question_id',ids);
-  if(r.error)throw r.error;
-  ratingByQuestion=new Map((r.data||[]).map(x=>[String(x.question_id),x.rating]));
+  const rows=[];
+  for(let i=0;i<ids.length;i+=100){
+    const r=await sb.from('question_ratings').select('question_id,rating').eq('user_id',user.id).in('question_id',ids.slice(i,i+100));
+    if(r.error)throw r.error;
+    rows.push(...(r.data||[]));
+  }
+  ratingByQuestion=new Map(rows.map(x=>[String(x.question_id),x.rating]));
 }
 async function inject(force=false){
   clearTimeout(timer);if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
@@ -87,7 +97,11 @@ function boot(){
   window.addEventListener('qb-app-ready',()=>schedule(true));
   window.addEventListener('qb-question-order-updated',()=>schedule(false));
   document.addEventListener('change',e=>{if(e.target?.matches?.('#view .problem input[data-q]'))setTimeout(syncCoreUi,0)},true);
-  const v=document.getElementById('view');if(v)new MutationObserver(()=>{if(screen()==='problems'&&!document.getElementById('qbRatingFilterPanel'))schedule(false)}).observe(v,{childList:true,subtree:true});
+  const v=document.getElementById('view');if(v)new MutationObserver(()=>{
+    if(screen()!=='problems')return;
+    const fp=currentFingerprint();
+    if(!document.getElementById('qbRatingFilterPanel')||fp!==fingerprint)schedule(false);
+  }).observe(v,{childList:true,subtree:true,attributes:true,attributeFilter:['style']});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
