@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const FLAG='review_later';
-let ctxPromise=null,user=null,flags=new Set(),loadedFingerprint='',timer=0,loading=false,sortPriority=false;
+let ctxPromise=null,user=null,flags=new Set(),loadedFingerprint='',timer=0,loading=false;
 const screen=()=>window.qbGetScreen?.()||'';
 const inputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
 const rows=()=>[...document.querySelectorAll('#view .problem')];
@@ -16,8 +16,8 @@ function css(){
   if(document.getElementById('qbReviewLaterCss'))return;
   const s=document.createElement('style');s.id='qbReviewLaterCss';s.textContent=`
 #qbReviewLaterPanel{padding:12px 13px;margin-bottom:10px;border:1px solid #eadca8;background:#fffdf5;border-radius:15px}
-#qbReviewLaterPanel .qbrlHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.qbrlTitle{font-size:20px;font-weight:900;color:#9a6d00}.qbrlCount{font-size:11px;color:#7f7350}.qbrlActions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.qbrlBtn{border:1px solid #dacb91;background:#fff;color:#735f19;border-radius:11px;min-height:43px;padding:7px 8px;font-weight:900}.qbrlBtn.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbrlHint{margin-top:7px;font-size:10px;color:#837858;line-height:1.45}.qbReviewRowMark{display:inline-flex;align-items:center;justify-content:center;margin-left:7px;width:22px;height:22px;border-radius:999px;background:#fff4c7;color:#9a6d00;font-size:14px;font-weight:900;vertical-align:middle}.qbReviewPractice{margin-left:auto;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.qbReviewPractice button{width:42px;height:42px;border:1px solid #dacb91;background:#fffdf5;color:#846500;border-radius:12px;padding:0;font-weight:900;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center}.qbReviewPractice button.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbReviewPractice button:disabled{opacity:.6}.qbReviewSortHost{display:flex!important;flex-direction:column}.qbReviewSortHost>.row{order:-100000}.qbReviewSortHost>.problem{width:100%}body.qbReviewSortOn #qsoBar,body.qbReviewSortOn .qsoHandle{display:none!important}
-@media(max-width:390px){#qbReviewLaterPanel{padding:10px}.qbrlActions{gap:5px}.qbrlBtn{font-size:12px}.qbReviewPractice button{width:38px;height:38px;font-size:24px}}
+#qbReviewLaterPanel .qbrlHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.qbrlTitle{font-size:20px;font-weight:900;color:#9a6d00}.qbrlCount{font-size:11px;color:#7f7350}.qbrlActions{display:block}.qbrlBtn{width:100%;border:1px solid #dacb91;background:#fff;color:#735f19;border-radius:11px;min-height:43px;padding:7px 8px;font-weight:900}.qbrlHint{margin-top:7px;font-size:10px;color:#837858;line-height:1.45}.qbReviewRowMark{display:inline-flex;align-items:center;justify-content:center;margin-left:7px;width:22px;height:22px;border-radius:999px;background:#fff4c7;color:#9a6d00;font-size:14px;font-weight:900;vertical-align:middle}.qbReviewPractice{margin-left:auto;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.qbReviewPractice button{width:42px;height:42px;border:1px solid #dacb91;background:#fffdf5;color:#846500;border-radius:12px;padding:0;font-weight:900;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center}.qbReviewPractice button.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbReviewPractice button:disabled{opacity:.6}
+@media(max-width:390px){#qbReviewLaterPanel{padding:10px}.qbrlBtn{font-size:12px}.qbReviewPractice button{width:38px;height:38px;font-size:24px}}
 `;
   document.head.appendChild(s);
 }
@@ -35,17 +35,10 @@ function markRows(){
     }else m?.remove();
   });
 }
-function applyVisualSort(){
-  const rs=rows(),host=rs[0]?.closest('.card');if(!host)return;
-  if(!sortPriority){document.body.classList.remove('qbReviewSortOn');host.classList.remove('qbReviewSortHost');rs.forEach(r=>r.style.removeProperty('order'));return}
-  document.body.classList.add('qbReviewSortOn');host.classList.add('qbReviewSortHost');
-  rs.forEach((r,i)=>{r.style.order=String((flags.has(rowId(r))?0:10000)+i)});
-}
 function updatePanel(){
   const p=document.getElementById('qbReviewLaterPanel');if(!p)return;
   const n=[...flags].filter(id=>inputs().some(x=>x.dataset.q===id)).length;
   p.querySelector('.qbrlCount').textContent=`${n}問`;
-  const b=p.querySelector('[data-qbrl="sort"]');if(b){b.classList.toggle('on',sortPriority);b.setAttribute('aria-pressed',String(sortPriority));b.textContent='★優先'}
 }
 function filterToFlags(){
   inputs().forEach(x=>{
@@ -57,7 +50,7 @@ function buildPanel(){
   const rs=rows();if(!rs.length)return;
   const listCard=rs[0].closest('.card');if(!listCard)return;
   let p=document.getElementById('qbReviewLaterPanel');
-  if(!p){p=document.createElement('div');p.id='qbReviewLaterPanel';p.innerHTML=`<div class="qbrlHead"><div class="qbrlTitle">★</div><div class="qbrlCount"></div></div><div class="qbrlActions"><button type="button" class="qbrlBtn" data-qbrl="filter">★のみ</button><button type="button" class="qbrlBtn" data-qbrl="sort" aria-pressed="false">★優先</button></div><div class="qbrlHint">★のみ：現在の選択から★付きだけを残します。自己評価フィルタと組み合わせ可能です。★優先：順番通り演習の先頭に★付き問題を並べます。</div>`;p.querySelector('[data-qbrl="filter"]').onclick=filterToFlags;p.querySelector('[data-qbrl="sort"]').onclick=()=>{sortPriority=!sortPriority;applyVisualSort();updatePanel()}}
+  if(!p){p=document.createElement('div');p.id='qbReviewLaterPanel';p.innerHTML=`<div class="qbrlHead"><div class="qbrlTitle">★</div><div class="qbrlCount"></div></div><div class="qbrlActions"><button type="button" class="qbrlBtn" data-qbrl="filter">★のみ</button></div><div class="qbrlHint">現在の選択から★付きだけを残します。自己評価フィルタと組み合わせ可能です。</div>`;p.querySelector('[data-qbrl="filter"]').onclick=filterToFlags}
   const rating=document.getElementById('qbRatingFilterPanel');if(rating&&rating.nextElementSibling!==p)rating.insertAdjacentElement('afterend',p);else if(!rating&&p.nextElementSibling!==listCard)listCard.insertAdjacentElement('beforebegin',p);
   updatePanel();
 }
@@ -95,26 +88,18 @@ async function ensurePractice(){
   };
 }
 async function ensureList(force=false){
-  if(screen()!=='problems'){document.getElementById('qbReviewLaterPanel')?.remove();document.body.classList.remove('qbReviewSortOn');return}
+  if(screen()!=='problems'){document.getElementById('qbReviewLaterPanel')?.remove();return}
   const xs=inputs();if(!xs.length)return;const f=fp();
-  if(f!==loadedFingerprint){loadedFingerprint='';flags=new Set();sortPriority=false}
+  if(f!==loadedFingerprint){loadedFingerprint='';flags=new Set()}
   if(loading)return;
   if(force||loadedFingerprint!==f){loading=true;try{await loadFlags(xs.map(x=>x.dataset.q));loadedFingerprint=f}catch(e){console.error('review star load',e)}finally{loading=false}}
-  markRows();buildPanel();applyVisualSort();
-}
-function syncSelectedOrderBeforeStart(){
-  if(screen()!=='problems'||!sortPriority)return;
-  const xs=inputs(),checked=xs.filter(x=>x.checked);if(checked.length<2)return;
-  const ordered=[...checked.filter(x=>flags.has(x.dataset.q)),...checked.filter(x=>!flags.has(x.dataset.q))];
-  checked.forEach(x=>{x.checked=false;x.dispatchEvent(new Event('change',{bubbles:true}))});
-  ordered.forEach(x=>{x.checked=true;x.dispatchEvent(new Event('change',{bubbles:true}))});
+  markRows();buildPanel();
 }
 function schedule(force=false){clearTimeout(timer);timer=setTimeout(()=>{ensurePractice().catch(console.error);ensureList(force).catch(console.error)},80)}
 function boot(){
   css();schedule(true);
   ['qb-screen-change','qb-app-ready'].forEach(ev=>window.addEventListener(ev,()=>schedule(true)));
   window.addEventListener('qb-review-later-changed',()=>schedule(true));
-  document.addEventListener('click',e=>{if(e.target?.id==='start')syncSelectedOrderBeforeStart()},true);
   const v=document.getElementById('view');if(v)new MutationObserver(()=>schedule(false)).observe(v,{childList:true,subtree:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
