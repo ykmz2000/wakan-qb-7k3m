@@ -2,7 +2,7 @@
 'use strict';
 const V=document.getElementById('view'),C=document.getElementById('crumb'),H=document.getElementById('home'),M=document.getElementById('modal');
 let sb=null,user=null,grade=null,subjects=[],subject=null,units=[],unitQuestionIndex=[],questions=[],qstate={},ratings={},screen='subjects',unitId=null,selected=new Set(),practice=[],pi=0,submitted=false,reviewOnly=false,sel=new Set(),practiceMode='ordered',sessionId=null,resumeCheckTimer=null,resumeDismissed=null;
-const esc=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=(s='')=>String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot',"'":'&#39;'}[c]));
 const stateOf=id=>qstate[id]||{};
 function emit(){window.dispatchEvent(new CustomEvent('qb-screen-change',{detail:{screen}}))}
 function setScreen(s){screen=s;render();emit();scrollTo({top:0,behavior:'smooth'});scheduleResumePrompt()}
@@ -62,7 +62,7 @@ function renderPractice(){
   const isText=!q.choices.length,official=o.official_answer;
   V.innerHTML=`<div class="card"><div class="row"><div><span class="badge">${esc(o.academic_year||'年度不明')}</span><span class="badge gray">${esc(o.exam_type||'')}</span></div><div class="meta">${pi+1}/${practice.length}</div></div><div class="qtext" style="font-size:18px;font-weight:800;margin-top:12px">${esc(q.stem)}</div>${q.instruction?`<div class="meta">${esc(q.instruction)}</div>`:''}${isText?`<div class="card" style="margin-top:12px"><div class="meta">記述・穴埋め問題</div><button id="showTextAnswer" class="secondary">解答を見る</button></div>`:`<div class="choices">${q.choices.map((c,i)=>`<button class="choice ${sel.has(i)?'sel':''}" data-c="${i}" ${submitted?'disabled':''}>${esc(c.choice_key)}. ${esc(c.choice_text)}</button>`).join('')}</div><div style="margin-top:12px"><button id="answer" class="primary" ${submitted||!sel.size?'disabled':''}>${submitted?'もう一度解く':'解答する'}</button><button id="review" class="secondary" style="margin-top:8px" ${submitted?'disabled':''}>解答せずに解説を見る</button></div>`}<div id="ans"></div><div class="nav"><button id="prev" class="btn" ${pi===0?'disabled':''}>← 前へ</button><button id="next" class="btn">${pi===practice.length-1?'終了':'次へ →'}</button></div></div>`;
   if(isText){document.getElementById('showTextAnswer').onclick=()=>{reviewOnly=true;submitted=true;drawTextAnswer(q,official);afterAnswerShown()}}else{
-    V.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.c);if(q.answer_mode==='single'){sel=new Set([i])}else{sel.has(i)?sel.delete(i):sel.add(i)};renderPractice()});
+    V.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{if(submitted)return;const i=Number(b.dataset.c);if(q.answer_mode==='single'){sel=new Set([i]);V.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('sel',Number(x.dataset.c)===i))}else{sel.has(i)?sel.delete(i):sel.add(i);b.classList.toggle('sel',sel.has(i))}const a=document.getElementById('answer');if(a)a.disabled=!sel.size;window.dispatchEvent(new CustomEvent('qb-selection-change',{detail:{questionId:q.id,selected:[...sel]}}))});
     document.getElementById('answer').onclick=()=>submitted?retryCurrent():submitAnswer(q);
     document.getElementById('review').onclick=()=>submitReview(q);
   }
