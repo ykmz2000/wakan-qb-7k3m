@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-const escRx=s=>String(s??'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const norm=s=>String(s??'').replace(/\s+/g,' ').trim();
+let exactId=null;
 function visibleStem(){return norm(document.querySelector('#view > .card > .qtext')?.textContent||'')}
 function visibleChoices(){
   return [...document.querySelectorAll('#view > .card > .choices > .choice')].map(el=>{
@@ -19,17 +19,26 @@ function sameChoices(q,vis){
   const ch=[...(q?.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   if(ch.length!==vis.length)return false;
   return ch.every((c,i)=>{
-    const key=norm(c.choice_key||'');
-    const text=norm(c.choice_text||'');
+    const key=norm(c.choice_key||''),text=norm(c.choice_text||'');
     return (!vis[i].key||key===vis[i].key)&&text===vis[i].text;
   });
+}
+function matchesVisible(q,stem,vis){
+  if(!q||norm(q?.stem||q?.q||'')!==stem)return false;
+  if(vis.length&&!sameChoices(q,vis))return false;
+  return true;
 }
 function resolve(){
   const qs=Array.isArray(window.QB_QUESTIONS)?window.QB_QUESTIONS:[];
   if(!qs.length)return null;
   const stem=visibleStem();if(!stem)return null;
-  let cand=qs.filter(q=>norm(q?.stem||q?.q||'')===stem);
-  const vis=visibleChoices();if(vis.length)cand=cand.filter(q=>sameChoices(q,vis));
+  const vis=visibleChoices();
+  if(exactId){
+    const exact=qs.find(q=>(q?.id||q?.dbId)===exactId);
+    if(matchesVisible(exact,stem,vis))return exact;
+    exactId=null;
+  }
+  let cand=qs.filter(q=>matchesVisible(q,stem,vis));
   const occ=visibleOccurrence();
   if(cand.length>1&&occ.year)cand=cand.filter(q=>Number(q?.occ?.[0]?.academic_year||0)===occ.year);
   if(cand.length>1&&occ.examType)cand=cand.filter(q=>norm(q?.occ?.[0]?.exam_type||'')===occ.examType);
@@ -39,6 +48,8 @@ function qid(q){return q?.id||q?.dbId||null}
 window.qbResolveCurrentQuestion=resolve;
 window.qbCurrentQuestionId=()=>qid(resolve());
 window.pq=resolve;
+window.addEventListener('qb-selection-change',e=>{const id=e.detail?.questionId;if(id)exactId=id});
+document.addEventListener('click',e=>{if(e.target?.closest?.('#prev,#next,#start,.mode,[data-u],[data-s]'))exactId=null},true);
 function annotateEditors(){
   const id=window.qbCurrentQuestionId?.();if(!id)return;
   document.querySelectorAll('.adeEditor,.adeStemEditor,.oaiEditor,.qbNoteEditor,.oeiBox,.qsiEditor').forEach(ed=>{if(!ed.dataset.qbQuestionId)ed.dataset.qbQuestionId=id});
