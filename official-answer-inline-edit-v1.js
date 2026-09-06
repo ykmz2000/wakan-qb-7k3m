@@ -1,0 +1,66 @@
+(()=>{
+'use strict';
+let adminCache=null,timer=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const Q=()=>{try{return window.pq?.()||null}catch{return null}};
+const qid=q=>q?.id||q?.dbId||null;
+async function isAdmin(){
+  if(adminCache!==null)return adminCache;
+  const sb=window.qbSupabase;if(!sb)return false;
+  const a=await sb.auth.getUser(),u=a.data?.user;if(!u)return adminCache=false;
+  const r=await sb.from('profiles').select('role').eq('id',u.id).maybeSingle();
+  return adminCache=r.data?.role==='admin';
+}
+function keysFor(q,group){
+  const fromDom=[...group.querySelectorAll('.fbAnswerLine > span')].map(x=>(x.textContent||'').replace(/^\[/,'').replace(/\]$/,'').trim()).filter(Boolean);
+  if(fromDom.length)return [...new Set(fromDom)];
+  const text=`${q?.stem||''} ${q?.instruction||''}`,out=[],seen=new Set();
+  for(const m of text.matchAll(/\[([^\]]+)\]/g)){const k=String(m[1]||'').trim();if(k&&!seen.has(k)){seen.add(k);out.push(k)}}
+  return out.length?out:['A'];
+}
+function valueOf(a,k){if(a&&typeof a==='object'&&!Array.isArray(a))return a[k]??'';return ''}
+function css(){if(document.getElementById('oaiInlineCss'))return;const s=document.createElement('style');s.id='oaiInlineCss';s.textContent=`
+.fbAnswerGroup.oaiHost{position:relative;padding-right:92px}.oaiEditBtn{position:absolute;right:0;top:8px;border:1px solid #cfe1ef;background:#fff;color:#126fb3;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:900}.oaiEditor{margin-top:10px;padding:10px;border:1px solid #cfe1ef;background:#f8fbff;border-radius:10px}.oaiField{display:grid;grid-template-columns:48px 1fr;gap:8px;align-items:center;margin:7px 0;font-weight:900}.oaiField input,.oaiExtras input,.oaiExtras textarea{width:100%;border:1px solid #cfd8e3;border-radius:8px;padding:8px;font:inherit;background:#fff}.oaiExtras{display:grid;gap:7px;margin-top:10px}.oaiActions{display:flex;gap:7px;align-items:center;margin-top:10px}.oaiActions .spacer{flex:1}.oaiCancel,.oaiSave{border-radius:8px;padding:8px 11px;font-weight:900}.oaiCancel{border:1px solid #dce3ec;background:#fff}.oaiSave{border:0;background:#126fb3;color:#fff}.oaiStatus{font-size:11px;color:#6f7786}.oaiHint{font-size:10px;color:#6f7786;margin-top:5px}`;document.head.appendChild(s)}
+function refreshGroup(group,q,a){
+  const ks=keysFor(q,group);
+  const lines=[...group.querySelectorAll('.fbAnswerLine')];
+  lines.forEach((line,i)=>{const k=ks[i],strong=line.querySelector('strong');if(!strong)return;const v=valueOf(a,k);strong.textContent=v===''||v==null?'解答未登録':Array.isArray(v)?v.join('・'):String(v)});
+  group.querySelector('.fbExtra')?.remove();
+  if(a&&typeof a==='object'&&!Array.isArray(a)){
+    const extras=[];if(a.order)extras.push(`順序：${a.order}`);if(a.note)extras.push(String(a.note));
+    if(extras.length){const d=document.createElement('div');d.className='meta fbExtra';d.textContent=extras.join(' / ');group.appendChild(d)}
+  }
+}
+function openEditor(group,q){
+  group.querySelector('.oaiEditor')?.remove();
+  const occ=q?.occ?.[0],occId=occ?.id;if(!occId)return;
+  const old=occ.official_answer,ks=keysFor(q,group),obj=old&&typeof old==='object'&&!Array.isArray(old)?old:{};
+  const d=document.createElement('div');d.className='oaiEditor';
+  d.innerHTML=`<div class="oaiHint">ここで保存すると、この年度の公式解答（question_occurrences.official_answer）を直接更新します。</div>${ks.map(k=>`<label class="oaiField"><span>[${esc(k)}]</span><input data-k="${esc(k)}" value="${esc(valueOf(obj,k))}" autocomplete="off"></label>`).join('')}<div class="oaiExtras"><label>順序<input class="oaiOrder" value="${esc(obj.order||'')}" placeholder="例：順不同"></label><label>注記<textarea class="oaiNote" rows="2" placeholder="原資料上の注記がある場合のみ">${esc(obj.note||'')}</textarea></label></div><div class="oaiActions"><span class="oaiStatus"></span><span class="spacer"></span><button type="button" class="oaiCancel">キャンセル</button><button type="button" class="oaiSave">保存</button></div>`;
+  group.appendChild(d);
+  d.querySelector('.oaiCancel').onclick=()=>d.remove();
+  d.querySelector('.oaiSave').onclick=async()=>{
+    const save=d.querySelector('.oaiSave'),status=d.querySelector('.oaiStatus');if(save.disabled)return;save.disabled=true;status.textContent='保存中…';
+    const next={};
+    d.querySelectorAll('[data-k]').forEach(inp=>{const v=inp.value.trim();if(v)next[inp.dataset.k]=v});
+    const order=d.querySelector('.oaiOrder').value.trim(),note=d.querySelector('.oaiNote').value.trim();if(order)next.order=order;if(note)next.note=note;
+    try{
+      const sb=window.qbSupabase;const r=await sb.from('question_occurrences').update({official_answer:next}).eq('id',occId);if(r.error)throw r.error;
+      occ.official_answer=next;refreshGroup(group,q,next);status.textContent='保存しました';
+      setTimeout(()=>d.remove(),180);
+      window.dispatchEvent(new CustomEvent('qb-official-answer-updated',{detail:{questionId:qid(q),occurrenceId:occId}}));
+    }catch(e){console.error(e);status.textContent='保存失敗: '+(e?.message||'不明なエラー');save.disabled=false}
+  };
+  d.querySelector('[data-k]')?.focus();
+}
+async function inject(){
+  clearTimeout(timer);timer=setTimeout(async()=>{
+    const q=Q();if(!q||q.answer_mode!=='fill_blank'||!(await isAdmin()))return;
+    const groups=[...document.querySelectorAll('#ans .fbAnswerGroup')];
+    const group=groups.find(g=>(g.querySelector(':scope > b')?.textContent||'').trim()==='公式解答');if(!group||group.dataset.oaiBound==='1')return;
+    group.dataset.oaiBound='1';group.classList.add('oaiHost');const b=document.createElement('button');b.type='button';b.className='oaiEditBtn';b.textContent='✎ 公式解答を編集';b.onclick=()=>openEditor(group,q);group.appendChild(b);
+  },0)
+}
+function boot(){css();['qb-answer-shown','qb-screen-change','qb-retry-current'].forEach(ev=>window.addEventListener(ev,inject));const v=document.getElementById('view');if(v)new MutationObserver(()=>{if(document.querySelector('#ans .fbAnswerGroup'))inject()}).observe(v,{childList:true,subtree:true});inject()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
