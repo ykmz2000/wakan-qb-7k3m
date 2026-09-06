@@ -68,6 +68,12 @@ async function addRating(root,q){
     if(msg)msg.textContent=x.error?'保存できませんでした':'保存しました';
   });
 }
+function emitReadyOnce(ans,q){
+  const id=String(q?.id||q?.dbId||'');
+  if(!id||ans.dataset.qbExplanationReady===id)return;
+  ans.dataset.qbExplanationReady=id;
+  window.dispatchEvent(new CustomEvent('qb-explanation-ready',{detail:{questionId:id}}));
+}
 function ensure(){
   css();
   const ans=document.getElementById('ans');if(!ans||!ans.children.length)return;
@@ -80,7 +86,7 @@ function ensure(){
   addCard(ans,'■ 試験用まとめ',esc(q.exam_summary||q.examSummary||'未登録'),'summary');
   addCard(ans,'■ 医学的検証メモ',esc(q.medical_verification_note||q.medicalVerificationNote||'未登録'));
   const rating=ans.querySelector('.qbSharedRating');if(rating)placeRatingDirectlyAfterResult(ans,rating);
-  window.dispatchEvent(new CustomEvent('qb-explanation-ready',{detail:{questionId:q.id||q.dbId||null}}));
+  emitReadyOnce(ans,q);
 }
 function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;ensure()})}
 window.addEventListener('qb-screen-change',schedule);
