@@ -16,8 +16,8 @@ function css(){
   if(document.getElementById('qbReviewLaterCss'))return;
   const s=document.createElement('style');s.id='qbReviewLaterCss';s.textContent=`
 #qbReviewLaterPanel{padding:12px 13px;margin-bottom:10px;border:1px solid #eadca8;background:#fffdf5;border-radius:15px}
-#qbReviewLaterPanel .qbrlHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.qbrlTitle{font-size:13px;font-weight:900;color:#4a422b}.qbrlCount{font-size:11px;color:#7f7350}.qbrlActions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.qbrlBtn{border:1px solid #dacb91;background:#fff;color:#735f19;border-radius:11px;min-height:43px;padding:7px 8px;font-weight:900}.qbrlBtn.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbrlHint{margin-top:7px;font-size:10px;color:#837858;line-height:1.45}.qbReviewRowMark{display:inline-block;margin-left:7px;padding:2px 6px;border-radius:999px;background:#fff4c7;color:#9a6d00;font-size:10px;font-weight:900}.qbReviewPractice{display:flex;align-items:center;gap:8px;margin:10px 0 2px}.qbReviewPractice button{border:1px solid #dacb91;background:#fffdf5;color:#846500;border-radius:12px;min-height:42px;padding:0 13px;font-weight:900}.qbReviewPractice button.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbReviewPractice .qbrlStatus{font-size:10px;color:#7d7461}.qbReviewSortHost{display:flex!important;flex-direction:column}.qbReviewSortHost>.row{order:-100000}.qbReviewSortHost>.problem{width:100%}body.qbReviewSortOn #qsoBar,body.qbReviewSortOn .qsoHandle{display:none!important}
-@media(max-width:390px){#qbReviewLaterPanel{padding:10px}.qbrlActions{gap:5px}.qbrlBtn{font-size:12px}.qbReviewPractice{align-items:stretch;flex-direction:column}.qbReviewPractice button{width:100%}}
+#qbReviewLaterPanel .qbrlHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.qbrlTitle{font-size:20px;font-weight:900;color:#9a6d00}.qbrlCount{font-size:11px;color:#7f7350}.qbrlActions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.qbrlBtn{border:1px solid #dacb91;background:#fff;color:#735f19;border-radius:11px;min-height:43px;padding:7px 8px;font-weight:900}.qbrlBtn.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbrlHint{margin-top:7px;font-size:10px;color:#837858;line-height:1.45}.qbReviewRowMark{display:inline-flex;align-items:center;justify-content:center;margin-left:7px;width:22px;height:22px;border-radius:999px;background:#fff4c7;color:#9a6d00;font-size:14px;font-weight:900;vertical-align:middle}.qbReviewPractice{margin-left:auto;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.qbReviewPractice button{width:42px;height:42px;border:1px solid #dacb91;background:#fffdf5;color:#846500;border-radius:12px;padding:0;font-weight:900;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center}.qbReviewPractice button.on{background:#f0b429;color:#fff;border-color:#f0b429}.qbReviewPractice button:disabled{opacity:.6}.qbReviewSortHost{display:flex!important;flex-direction:column}.qbReviewSortHost>.row{order:-100000}.qbReviewSortHost>.problem{width:100%}body.qbReviewSortOn #qsoBar,body.qbReviewSortOn .qsoHandle{display:none!important}
+@media(max-width:390px){#qbReviewLaterPanel{padding:10px}.qbrlActions{gap:5px}.qbrlBtn{font-size:12px}.qbReviewPractice button{width:38px;height:38px;font-size:24px}}
 `;
   document.head.appendChild(s);
 }
@@ -31,7 +31,7 @@ function markRows(){
   rows().forEach(r=>{
     const id=rowId(r),meta=r.querySelector('.meta');let m=r.querySelector('.qbReviewRowMark');
     if(flags.has(id)){
-      if(!m&&meta){m=document.createElement('span');m.className='qbReviewRowMark';m.textContent='★あとで見る';meta.appendChild(m)}
+      if(!m&&meta){m=document.createElement('span');m.className='qbReviewRowMark';m.textContent='★';m.setAttribute('aria-label','★');meta.appendChild(m)}
     }else m?.remove();
   });
 }
@@ -44,8 +44,8 @@ function applyVisualSort(){
 function updatePanel(){
   const p=document.getElementById('qbReviewLaterPanel');if(!p)return;
   const n=[...flags].filter(id=>inputs().some(x=>x.dataset.q===id)).length;
-  p.querySelector('.qbrlCount').textContent=`★ ${n}問`;
-  const b=p.querySelector('[data-qbrl="sort"]');b?.classList.toggle('on',sortPriority);if(b)b.textContent=sortPriority?'★を先に解く ON':'★を先に解く';
+  p.querySelector('.qbrlCount').textContent=`${n}問`;
+  const b=p.querySelector('[data-qbrl="sort"]');if(b){b.classList.toggle('on',sortPriority);b.setAttribute('aria-pressed',String(sortPriority));b.textContent='★優先'}
 }
 function filterToFlags(){
   inputs().forEach(x=>{
@@ -57,7 +57,7 @@ function buildPanel(){
   const rs=rows();if(!rs.length)return;
   const listCard=rs[0].closest('.card');if(!listCard)return;
   let p=document.getElementById('qbReviewLaterPanel');
-  if(!p){p=document.createElement('div');p.id='qbReviewLaterPanel';p.innerHTML=`<div class="qbrlHead"><div class="qbrlTitle">あとで見る</div><div class="qbrlCount"></div></div><div class="qbrlActions"><button type="button" class="qbrlBtn" data-qbrl="filter">★で絞る</button><button type="button" class="qbrlBtn" data-qbrl="sort">★を先に解く</button></div><div class="qbrlHint">「★で絞る」は現在の選択から★付きだけを残します。自己評価フィルタと組み合わせ可能です。「★を先に解く」は順番通り演習の先頭に★付き問題を並べます。</div>`;p.querySelector('[data-qbrl="filter"]').onclick=filterToFlags;p.querySelector('[data-qbrl="sort"]').onclick=()=>{sortPriority=!sortPriority;applyVisualSort();updatePanel()}}
+  if(!p){p=document.createElement('div');p.id='qbReviewLaterPanel';p.innerHTML=`<div class="qbrlHead"><div class="qbrlTitle">★</div><div class="qbrlCount"></div></div><div class="qbrlActions"><button type="button" class="qbrlBtn" data-qbrl="filter">★のみ</button><button type="button" class="qbrlBtn" data-qbrl="sort" aria-pressed="false">★優先</button></div><div class="qbrlHint">★のみ：現在の選択から★付きだけを残します。自己評価フィルタと組み合わせ可能です。★優先：順番通り演習の先頭に★付き問題を並べます。</div>`;p.querySelector('[data-qbrl="filter"]').onclick=filterToFlags;p.querySelector('[data-qbrl="sort"]').onclick=()=>{sortPriority=!sortPriority;applyVisualSort();updatePanel()}}
   const rating=document.getElementById('qbRatingFilterPanel');if(rating&&rating.nextElementSibling!==p)rating.insertAdjacentElement('afterend',p);else if(!rating&&p.nextElementSibling!==listCard)listCard.insertAdjacentElement('beforebegin',p);
   updatePanel();
 }
@@ -71,24 +71,26 @@ async function currentFlagged(id){
   const r=await sb.from('user_question_flags').select('question_id').eq('user_id',user.id).eq('question_id',id).eq('flag_type',FLAG).maybeSingle();
   if(r.error)throw r.error;if(r.data)flags.add(String(id));return !!r.data;
 }
-function setPracticeButtonState(w,on,msg=''){
-  const b=w?.querySelector('button'),m=w?.querySelector('.qbrlStatus');if(!b)return;b.classList.toggle('on',on);b.textContent=on?'★ あとで見る':'☆ あとで見る';if(m)m.textContent=msg;
+function setPracticeButtonState(w,on){
+  const b=w?.querySelector('button');if(!b)return;b.classList.toggle('on',on);b.textContent=on?'★':'☆';b.setAttribute('aria-label',on?'★を解除':'★を付ける');b.setAttribute('aria-pressed',String(on));
 }
 async function ensurePractice(){
   if(screen()!=='practice'){document.querySelector('.qbReviewPractice')?.remove();return}
   const id=currentQuestionId();if(!id)return;
   const stem=document.querySelector('#view .qtext');if(!stem)return;
-  let w=document.querySelector('.qbReviewPractice');if(w?.dataset.qid===String(id))return;w?.remove();
-  w=document.createElement('div');w.className='qbReviewPractice';w.dataset.qid=String(id);w.innerHTML='<button type="button">☆ あとで見る</button><span class="qbrlStatus">読み込み中…</span>';stem.insertAdjacentElement('afterend',w);
-  let on=false;try{on=await currentFlagged(id);setPracticeButtonState(w,on,'')}catch{setPracticeButtonState(w,false,'読み込み失敗')}
+  const card=stem.closest('.card'),head=card?.querySelector(':scope > .row'),count=head?.querySelector(':scope > .meta');if(!head)return;
+  let w=document.querySelector('.qbReviewPractice');if(w?.dataset.qid===String(id)&&w.parentElement===head)return;w?.remove();
+  w=document.createElement('div');w.className='qbReviewPractice';w.dataset.qid=String(id);w.innerHTML='<button type="button" aria-label="★を付ける" aria-pressed="false">☆</button>';
+  if(count)head.insertBefore(w,count);else head.appendChild(w);
+  let on=false;try{on=await currentFlagged(id);setPracticeButtonState(w,on)}catch(e){console.error('review star load',e);setPracticeButtonState(w,false)}
   w.querySelector('button').onclick=async()=>{
-    const b=w.querySelector('button');b.disabled=true;setPracticeButtonState(w,on,'保存中…');
+    const b=w.querySelector('button');b.disabled=true;
     try{
       const sb=await ctx();if(!sb)throw new Error('not authenticated');
       if(on){const r=await sb.from('user_question_flags').delete().eq('user_id',user.id).eq('question_id',id).eq('flag_type',FLAG);if(r.error)throw r.error;flags.delete(String(id));on=false}
       else{const r=await sb.from('user_question_flags').insert({user_id:user.id,question_id:id,flag_type:FLAG});if(r.error)throw r.error;flags.add(String(id));on=true}
-      setPracticeButtonState(w,on,on?'あとで見るに追加しました':'解除しました');window.dispatchEvent(new CustomEvent('qb-review-later-changed',{detail:{questionId:id,active:on}}));
-    }catch(e){console.error(e);setPracticeButtonState(w,on,'保存できませんでした')}
+      setPracticeButtonState(w,on);window.dispatchEvent(new CustomEvent('qb-review-later-changed',{detail:{questionId:id,active:on}}));
+    }catch(e){console.error('review star save',e);setPracticeButtonState(w,on)}
     finally{b.disabled=false}
   };
 }
@@ -97,7 +99,7 @@ async function ensureList(force=false){
   const xs=inputs();if(!xs.length)return;const f=fp();
   if(f!==loadedFingerprint){loadedFingerprint='';flags=new Set();sortPriority=false}
   if(loading)return;
-  if(force||loadedFingerprint!==f){loading=true;try{await loadFlags(xs.map(x=>x.dataset.q));loadedFingerprint=f}catch(e){console.error('review later load',e)}finally{loading=false}}
+  if(force||loadedFingerprint!==f){loading=true;try{await loadFlags(xs.map(x=>x.dataset.q));loadedFingerprint=f}catch(e){console.error('review star load',e)}finally{loading=false}}
   markRows();buildPanel();applyVisualSort();
 }
 function syncSelectedOrderBeforeStart(){
