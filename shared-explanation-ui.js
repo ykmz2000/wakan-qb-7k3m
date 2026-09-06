@@ -4,11 +4,14 @@ const V=document.getElementById('view');
 let raf=0;
 const esc=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function currentQuestion(){
+  const resolved=window.qbResolveCurrentQuestion?.();
+  if(resolved)return resolved;
   const qs=window.QB_QUESTIONS||[];
   if(!qs.length)return null;
   const stem=[...document.querySelectorAll('#view .qtext')].map(x=>(x.textContent||'').trim()).find(Boolean);
   if(!stem)return null;
-  return qs.find(q=>(q.stem||q.q||'').trim()===stem)||null;
+  const cand=qs.filter(q=>(q.stem||q.q||'').trim()===stem);
+  return cand.length===1?cand[0]:null;
 }
 window.pq=currentQuestion;
 function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}.qbChoiceDetail{margin-top:7px;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:13px;line-height:1.6;white-space:pre-wrap}.qbChoiceDetail b{font-size:12px;margin-right:5px}`;document.head.appendChild(s)}
