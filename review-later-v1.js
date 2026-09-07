@@ -6,7 +6,7 @@ const screen=()=>window.qbGetScreen?.()||'';
 const inputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
 const rows=()=>[...document.querySelectorAll('#view .problem')];
 const rowId=r=>r?.querySelector('input[data-q]')?.dataset?.q||null;
-const fp=()=>inputs().map(x=>x.dataset.q).filter(Boolean).join('|');
+const fp=()=>inputs().map(x=>x.dataset.q).filter(Boolean).sort().join('|');
 async function ctx(){
   if(ctxPromise)return ctxPromise;
   ctxPromise=(async()=>{const sb=window.qbSupabase;if(!sb)return null;const a=await sb.auth.getUser();user=a.data?.user||null;return user?sb:null})();
@@ -23,9 +23,10 @@ function css(){
 }
 async function loadFlags(ids){
   const sb=await ctx();if(!sb||!ids.length){flags=new Set();return}
-  const r=await sb.from('user_question_flags').select('question_id').eq('flag_type',FLAG).in('question_id',ids);
-  if(r.error)throw r.error;
-  flags=new Set((r.data||[]).map(x=>String(x.question_id)));
+  const chunks=[];for(let i=0;i<ids.length;i+=100)chunks.push(ids.slice(i,i+100));
+  const result=await Promise.all(chunks.map(chunk=>sb.from('user_question_flags').select('question_id').eq('user_id',user.id).eq('flag_type',FLAG).in('question_id',chunk)));
+  const out=[];for(const r of result){if(r.error)throw r.error;out.push(...(r.data||[]))}
+  flags=new Set(out.map(x=>String(x.question_id)));
 }
 function markRows(){
   rows().forEach(r=>{
