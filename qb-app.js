@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const V=document.getElementById('view'),C=document.getElementById('crumb'),H=document.getElementById('home'),M=document.getElementById('modal');
-let sb=null,user=null,grade=null,subjects=[],subject=null,units=[],unitQuestionIndex=[],questions=[],qstate={},ratings={},screen='subjects',unitId=null,selected=new Set(),practice=[],pi=0,submitted=false,reviewOnly=false,sel=new Set(),practiceMode='ordered',sessionId=null,resumeCheckTimer=null,resumeDismissed=null;
+let sb=null,user=null,grade=null,subjects=[],subject=null,units=[],unitQuestionIndex=[],questions=[],qstate={},ratings={},unitProgressLoaded=false,unitProgressToken=0,screen='subjects',unitId=null,selected=new Set(),practice=[],pi=0,submitted=false,reviewOnly=false,sel=new Set(),practiceMode='ordered',sessionId=null,resumeCheckTimer=null,resumeDismissed=null;
 const detailCache=new Map(),detailPending=new Map();
 const LIST_SELECT='id,canonical_key,stem,study_order,unit_id,question_occurrences(id,academic_year,exam_type,original_question_number)';
 const DETAIL_SELECT='id,canonical_key,stem,instruction,answer_mode,study_order,explanation_overview,examiner_intent,exam_summary,medical_verification_note,unit_id,subtopic_id,subtopics(id,name),choices(id,choice_key,choice_text,is_correct,sort_order,explanation,correction_text,correct_for_other_context,examiner_distinction),question_occurrences(id,academic_year,exam_type,original_question_number,official_answer,source_page,source_file)';
@@ -17,25 +17,36 @@ async function loadSubjects(){
   const g=await sb.from('grades').select('id,code,name,sort_order').eq('code','M4').maybeSingle();if(g.error)throw g.error;grade=g.data;
   const r=await sb.from('subjects').select('id,slug,name,sort_order').eq('grade_id',grade.id).eq('is_active',true).order('sort_order');if(r.error)throw r.error;subjects=r.data||[];
 }
+async function loadUnitProgress(subjectId,ids,token){
+  if(!ids.length){
+    if(token!==unitProgressToken||subject?.id!==subjectId)return;
+    qstate={};unitProgressLoaded=true;
+    if(screen==='units')renderUnits();
+    return
+  }
+  const chunks=[];for(let i=0;i<ids.length;i+=120)chunks.push(ids.slice(i,i+120));
+  const result=await Promise.all(chunks.map(chunk=>sb.from('user_question_state').select('question_id,has_viewed_explanation,has_answered,last_is_correct,last_answered_at').eq('user_id',user.id).in('question_id',chunk)));
+  if(token!==unitProgressToken||subject?.id!==subjectId)return;
+  const next={};
+  for(const r of result){if(r.error)throw r.error;(r.data||[]).forEach(x=>next[x.question_id]=x)}
+  qstate=next;unitProgressLoaded=true;
+  if(screen==='units')renderUnits();
+  window.dispatchEvent(new CustomEvent('qb-unit-progress-loaded',{detail:{subjectId}}))
+}
 async function chooseSubject(id){
   subject=subjects.find(x=>x.id===id);if(!subject)return;
   detailCache.clear();detailPending.clear();
+  const token=++unitProgressToken;
   V.innerHTML=`<div class="card"><div class="title">${esc(subject.name)}</div><div class="sub">単元を読み込んでいます…</div></div>`;
   const [u,q]=await Promise.all([
     sb.from('units').select('id,slug,name,sort_order').eq('subject_id',subject.id).eq('is_active',true).order('sort_order'),
     sb.from('questions').select('id,unit_id').eq('subject_id',subject.id).eq('status','published')
   ]);if(u.error)throw u.error;if(q.error)throw q.error;
   units=u.data||[];unitQuestionIndex=q.data||[];
-  const ids=unitQuestionIndex.map(x=>x.id);qstate={};ratings={};
-  if(ids.length){
-    const [st,rt]=await Promise.all([
-      sb.from('user_question_state').select('question_id,has_viewed_explanation,has_answered,last_is_correct,last_answered_at').eq('user_id',user.id).in('question_id',ids),
-      sb.from('question_ratings').select('question_id,rating').eq('user_id',user.id).in('question_id',ids)
-    ]);
-    (st.data||[]).forEach(x=>qstate[x.question_id]=x);(rt.data||[]).forEach(x=>ratings[x.question_id]=x.rating);
-  }
+  const ids=unitQuestionIndex.map(x=>x.id);qstate={};ratings={};unitProgressLoaded=false;
   window.qbLoadQuestionSeries?.(subject.id).catch?.(e=>console.error('question series preload',e));
   setScreen('units');
+  loadUnitProgress(subject.id,ids,token).catch(e=>{if(token===unitProgressToken&&subject?.id===id){unitProgressLoaded=true;if(screen==='units')renderUnits()}console.error('unit progress load',e)})
 }
 async function loadQuestionsForUnit(uid){
   unitId=uid;
@@ -70,7 +81,7 @@ function renderGrades(){C.textContent='学年を選択';V.innerHTML=`<div class=
 function renderSubjects(){C.textContent='M4 ＞ 科目を選択';V.innerHTML=`<div class="card"><div class="title">科目一覧</div><div class="sub">勉強する科目を選んでください。</div></div>${subjects.map(s=>`<button class="list" data-s="${s.id}"><div><div class="lt">${esc(s.name)}</div></div><div>›</div></button>`).join('')}`;V.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>chooseSubject(b.dataset.s).catch(showErr))}
 function renderUnits(){
   C.textContent=`M4 ＞ ${subject.name} ＞ 単元`;const rows=[{id:'__all__',name:'すべて（収録済み）'},...units];
-  V.innerHTML=`<div class="card"><div class="title">${esc(subject.name)}</div><div class="sub">学習する単元を選んでください。</div></div>`+rows.map(u=>{const ids=u.id==='__all__'?unitQuestionIndex.map(x=>x.id):unitQuestionIndex.filter(x=>x.unit_id===u.id).map(x=>x.id);const answered=ids.filter(id=>stateOf(id).has_answered).length,reviewed=ids.filter(id=>stateOf(id).has_viewed_explanation).length;return `<button class="list" data-u="${u.id}"><div style="flex:1"><div class="lt">${esc(u.name)}</div><div class="meta">${ids.length}問・解答済み ${answered}/${ids.length}・解説確認済み ${reviewed}/${ids.length}</div><div class="progress"><div style="width:${ids.length?answered/ids.length*100:0}%"></div></div></div><div>›</div></button>`}).join('');
+  V.innerHTML=`<div class="card"><div class="title">${esc(subject.name)}</div><div class="sub">学習する単元を選んでください。</div></div>`+rows.map(u=>{const ids=u.id==='__all__'?unitQuestionIndex.map(x=>x.id):unitQuestionIndex.filter(x=>x.unit_id===u.id).map(x=>x.id);const answered=ids.filter(id=>stateOf(id).has_answered).length,reviewed=ids.filter(id=>stateOf(id).has_viewed_explanation).length,meta=unitProgressLoaded?`${ids.length}問・解答済み ${answered}/${ids.length}・解説確認済み ${reviewed}/${ids.length}`:`${ids.length}問・学習状況を読み込み中…`;return `<button class="list" data-u="${u.id}"><div style="flex:1"><div class="lt">${esc(u.name)}</div><div class="meta">${meta}</div><div class="progress"><div style="width:${unitProgressLoaded&&ids.length?answered/ids.length*100:0}%"></div></div></div><div>›</div></button>`}).join('');
   V.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>loadQuestionsForUnit(b.dataset.u).catch(showErr));
 }
 function renderProblems(){
