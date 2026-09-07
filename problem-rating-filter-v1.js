@@ -31,7 +31,7 @@ function css(){
 `;
   document.head.appendChild(s);
 }
-function currentFingerprint(){return inputs().map(x=>x.dataset.q).filter(Boolean).join('|')}
+function currentFingerprint(){return allInputs().map(x=>x.dataset.q).filter(Boolean).sort().join('|')}
 function selectedCount(){return inputs().filter(x=>x.checked).length}
 function syncCoreUi(){
   const count=selectedCount(),total=inputs().length,start=document.getElementById('start'),toggle=document.getElementById('toggleAll');
