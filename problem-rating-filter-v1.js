@@ -70,12 +70,9 @@ function buildPanel(){
 async function loadRatings(ids){
   const sb=window.qbSupabase;if(!sb||!ids.length){ratingByQuestion=new Map();return}
   const a=await sb.auth.getUser(),user=a.data?.user;if(!user){ratingByQuestion=new Map();return}
-  const rows=[];
-  for(let i=0;i<ids.length;i+=100){
-    const r=await sb.from('question_ratings').select('question_id,rating').eq('user_id',user.id).in('question_id',ids.slice(i,i+100));
-    if(r.error)throw r.error;
-    rows.push(...(r.data||[]));
-  }
+  const chunks=[];for(let i=0;i<ids.length;i+=100)chunks.push(ids.slice(i,i+100));
+  const result=await Promise.all(chunks.map(chunk=>sb.from('question_ratings').select('question_id,rating').eq('user_id',user.id).in('question_id',chunk)));
+  const rows=[];for(const r of result){if(r.error)throw r.error;rows.push(...(r.data||[]))}
   ratingByQuestion=new Map(rows.map(x=>[String(x.question_id),x.rating]));
 }
 async function inject(force=false){
