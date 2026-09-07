@@ -45,7 +45,7 @@ function restoreSnapshot(snap){
 }
 function scheduleRestore(snap=lastSnapshot){
   if(!snap)return;
-  [180,520,1100,2200].forEach(ms=>setTimeout(()=>restoreSnapshot(snap),ms))
+  [180,520,1100].forEach(ms=>setTimeout(()=>restoreSnapshot(snap),ms))
 }
 function setMode(next,{skipConfirm=false}={}){
   if(next!=='open'&&next!=='reorder')return;
@@ -65,11 +65,9 @@ function setMode(next,{skipConfirm=false}={}){
 function refreshUi(){
   const wrap=document.getElementById('qsoModeWrap');if(!wrap)return;
   wrap.querySelectorAll('button[data-mode]').forEach(b=>{const on=b.dataset.mode===mode;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))});
-  const msg=document.querySelector('#qsoBar .qsoMsg');
-  if(!msg)return;
-  if(mode==='open')msg.textContent='問題を押すと、その1問だけ開きます。自己評価・★の選択状態には影響しません。';
-  else if(!document.getElementById('qsoSave')?.disabled)msg.textContent='順番を変更中です。保存するまでDBには反映されません。';
-  else msg.textContent='≡ をドラッグして並び替えできます。自己評価・★の選択状態は保持されます。'
+  const msg=document.querySelector('#qsoBar .qsoMsg');if(!msg)return;
+  const text=mode==='open'?'問題を押すと、その1問だけ開きます。自己評価・★の選択状態には影響しません。':(!document.getElementById('qsoSave')?.disabled?'順番を変更中です。保存するまでDBには反映されません。':'≡ をドラッグして並び替えできます。自己評価・★の選択状態は保持されます。');
+  if(msg.textContent!==text)msg.textContent=text
 }
 function wireBar(){
   clearTimeout(wireTimer);
@@ -110,7 +108,12 @@ function boot(){
   document.addEventListener('change',e=>{
     if(mode==='reorder'&&!restoring&&e.target?.matches?.('#view .problem input[data-q]'))setTimeout(()=>{if(!restoring)lastSnapshot=snapshot()},0)
   },true);
-  const root=document.body;new MutationObserver(()=>scheduleWire()).observe(root,{childList:true,subtree:true})
+  const root=document.body;
+  new MutationObserver(mutations=>{
+    if(screen()!=='problems'||document.getElementById('qsoModeWrap'))return;
+    const addedBar=mutations.some(m=>[...m.addedNodes].some(n=>n?.id==='qsoBar'||n?.querySelector?.('#qsoBar')));
+    if(addedBar)scheduleWire()
+  }).observe(root,{childList:true,subtree:true})
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
