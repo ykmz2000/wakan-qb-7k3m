@@ -24,7 +24,7 @@ body.qbPracticeDockV2On #view .nav{display:none!important}
 `;
   document.head.appendChild(s);
 }
-function explanationShown(){return !!document.querySelector('#ans .resultcard')}
+function explanationShown(){const a=document.getElementById('ans');return !!a&&!a.classList.contains('hidden')&&!!a.querySelector('.resultcard')}
 function hasSelection(){return !!document.querySelector('#view .choice.sel')}
 function fillInputs(){return [...document.querySelectorAll('#view .fbInput')]}
 function hasAnyInput(){return fillInputs().some(x=>x.value.trim())}
