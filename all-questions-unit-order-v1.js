@@ -4,7 +4,6 @@ const processed=new WeakSet(),unitCache=new Map();
 let timer=0;
 const screen=()=>window.qbGetScreen?.()||'';
 const pstate=()=>window.qbGetPracticeState?.()||{};
-function escAttr(v){return String(v??'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}
 async function unitRanks(subjectId){
   if(unitCache.has(subjectId))return unitCache.get(subjectId);
   const sb=window.qbSupabase;if(!sb)throw new Error('Supabase未初期化');
@@ -13,28 +12,17 @@ async function unitRanks(subjectId){
   const rows=r.data||[],rank=new Map(rows.map((u,i)=>[String(u.id),{sort:Number(u.sort_order)||0,index:i}]));
   unitCache.set(subjectId,rank);return rank
 }
-function clearSelection(){
-  const boxes=[...document.querySelectorAll('#view input[data-q]')],toggle=document.getElementById('toggleAll');
-  if(!toggle)return false;
-  const checked=boxes.filter(x=>x.checked).length;
-  if(checked===boxes.length&&boxes.length){toggle.click();return true}
-  toggle.click();
-  document.getElementById('toggleAll')?.click();
+function reorderDom(arr){
+  const rs=[...document.querySelectorAll('#view .problem')],parent=rs[0]?.parentElement;if(!parent||!rs.length)return false;
+  const map=new Map(rs.map(r=>[String(r.querySelector('input[data-q]')?.dataset?.q||''),r]));
+  if(arr.some(q=>!map.has(String(q.id))))return false;
+  arr.forEach((q,i)=>{const r=map.get(String(q.id));parent.appendChild(r);const n=r.querySelector('.qid');if(n)n.textContent=String(i+1)});
   return true
-}
-function restoreSelection(ids,allCount){
-  if(ids.size===allCount){document.getElementById('toggleAll')?.click();return}
-  for(const q of window.QB_QUESTIONS||[]){
-    if(!ids.has(String(q.id)))continue;
-    const box=document.querySelector(`#view input[data-q="${escAttr(q.id)}"]`);
-    if(!box)continue;box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}))
-  }
 }
 async function fix(){
   if(screen()!=='problems')return;
   const st=pstate();if(st.unitId!=='__all__'||!st.subjectId)return;
   const arr=window.QB_QUESTIONS;if(!Array.isArray(arr)||arr.length<2||processed.has(arr))return;
-  const selectedIds=new Set([...document.querySelectorAll('#view input[data-q]')].filter(x=>x.checked).map(x=>String(x.dataset.q)));
   const ranks=await unitRanks(st.subjectId);
   if(screen()!=='problems'||pstate().unitId!=='__all__'||window.QB_QUESTIONS!==arr)return;
   arr.sort((a,b)=>{
@@ -48,8 +36,7 @@ async function fix(){
     if(sa!==sb)return sa-sb;
     return String(a.id).localeCompare(String(b.id))
   });
-  processed.add(arr);
-  if(clearSelection())restoreSelection(selectedIds,arr.length)
+  processed.add(arr);reorderDom(arr)
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(()=>fix().catch(e=>console.error('all questions unit order',e)),25)}
 function boot(){window.addEventListener('qb-screen-change',schedule);window.addEventListener('qb-app-ready',schedule);schedule()}
