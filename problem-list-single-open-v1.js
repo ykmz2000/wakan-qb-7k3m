@@ -4,13 +4,12 @@ const FAKE_SESSION_ID='00000000-0000-0000-0000-000000000000';
 let opening=false,savedSelection=null,timer=null;
 const screen=()=>window.qbGetScreen?.()||'';
 const state=()=>window.qbGetPracticeState?.()||{};
-const reorderSuppressed=()=>window.QB_REORDER_MODE==='reorder'||Date.now()<Number(window.QB_SUPPRESS_SINGLE_OPEN_UNTIL||0)||!!window.QB_REORDER_ACTIVE;
+const reorderSuppressed=()=>Date.now()<Number(window.QB_SUPPRESS_SINGLE_OPEN_UNTIL||0)||!!window.QB_REORDER_ACTIVE;
 function css(){
   if(document.getElementById('qbSingleOpenCss'))return;
   const s=document.createElement('style');s.id='qbSingleOpenCss';s.textContent=`
 #view .problem.qbSingleOpenRow{cursor:pointer;border-radius:10px;transition:background .12s ease}
 #view .problem.qbSingleOpenRow:hover,#view .problem.qbSingleOpenRow:focus-visible{background:#f6fbff;outline:2px solid #126fb326;outline-offset:-2px}
-body.qsoReorderMode #view .problem.qbSingleOpenRow{cursor:default}body.qsoReorderMode #view .problem.qbSingleOpenRow:focus-visible{outline:none}
 #qbSingleOpenMask{position:fixed;inset:0;z-index:120;background:#f5f7fbdd;backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;color:#126fb3;font-weight:900}
 body.qbSingleProblemMode #qbPracticeDockV2 .qbpdInner{grid-template-columns:1fr 1fr 1.5fr 1fr!important}
 body.qbSingleProblemMode #qbPracticeDockV2 [data-a="prev"],body.qbSingleProblemMode #qbPracticeDockV2 [data-a="next"]{display:none!important}
@@ -98,7 +97,7 @@ function onKey(e){
 function boot(){
   css();schedule();
   document.addEventListener('click',onClick,true);document.addEventListener('keydown',onKey,true);
-  ['qb-screen-change','qb-app-ready','qb-answer-shown','qb-retry-current','qb-question-list-interaction-mode'].forEach(ev=>window.addEventListener(ev,schedule));
+  ['qb-screen-change','qb-app-ready','qb-answer-shown','qb-retry-current'].forEach(ev=>window.addEventListener(ev,schedule));
   const v=document.getElementById('view');if(v)new MutationObserver(schedule).observe(v,{childList:true,subtree:true});
   new MutationObserver(m=>{if(m.some(x=>x.target?.closest?.('#qbPracticeDockV2')||[...x.addedNodes].some(n=>n?.id==='qbPracticeDockV2'||n?.querySelector?.('#qbPracticeDockV2'))))schedule()}).observe(document.body,{childList:true,subtree:true})
 }
