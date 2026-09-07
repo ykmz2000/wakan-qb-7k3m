@@ -45,7 +45,7 @@ function restoreSnapshot(snap){
 }
 function scheduleRestore(snap=lastSnapshot){
   if(!snap)return;
-  [180,520,1100].forEach(ms=>setTimeout(()=>restoreSnapshot(snap),ms))
+  [180,520,1100,2200].forEach(ms=>setTimeout(()=>restoreSnapshot(snap),ms))
 }
 function setMode(next,{skipConfirm=false}={}){
   if(next!=='open'&&next!=='reorder')return;
@@ -90,6 +90,13 @@ function boot(){
   css();window.QB_REORDER_MODE=false;scheduleWire();
   ['qb-screen-change','qb-app-ready'].forEach(ev=>window.addEventListener(ev,()=>{mode='open';window.QB_REORDER_MODE=false;window.QB_REORDER_ACTIVE=false;document.body.classList.remove('qbQuestionReorderMode');scheduleWire()}));
   window.addEventListener('qb-question-order-updated',()=>{if(mode==='reorder'){scheduleRestore(lastSnapshot);setTimeout(refreshUi,150)}});
+  window.addEventListener('click',e=>{
+    if(mode!=='reorder')return;
+    const interactive=e.target?.closest?.('#view .problem input[data-q],#view .problem label,#view .problem .pick');
+    if(!interactive)return;
+    window.QB_REORDER_ACTIVE=false;
+    setTimeout(()=>{if(mode==='reorder')window.QB_REORDER_ACTIVE=true},0)
+  },true);
   document.addEventListener('pointerdown',e=>{if(mode==='reorder'&&e.target.closest?.('.qsoHandle'))lastSnapshot=snapshot()},true);
   document.addEventListener('pointerup',e=>{
     if(mode!=='reorder'||!e.target.closest?.('.qsoHandle'))return;
