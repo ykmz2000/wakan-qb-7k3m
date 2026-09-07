@@ -4,7 +4,7 @@ const FAKE_SESSION_ID='00000000-0000-0000-0000-000000000000';
 let opening=false,savedSelection=null,timer=null;
 const screen=()=>window.qbGetScreen?.()||'';
 const state=()=>window.qbGetPracticeState?.()||{};
-const reorderSuppressed=()=>Date.now()<Number(window.QB_SUPPRESS_SINGLE_OPEN_UNTIL||0)||!!window.QB_REORDER_ACTIVE;
+const reorderSuppressed=()=>!!window.QB_REORDER_MODE||Date.now()<Number(window.QB_SUPPRESS_SINGLE_OPEN_UNTIL||0)||!!window.QB_REORDER_ACTIVE;
 function css(){
   if(document.getElementById('qbSingleOpenCss'))return;
   const s=document.createElement('style');s.id='qbSingleOpenCss';s.textContent=`
