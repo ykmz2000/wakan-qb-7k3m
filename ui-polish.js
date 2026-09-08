@@ -1,6 +1,14 @@
 (()=>{
 'use strict';
 let initialGradeShown=false;
+function visualCss(){
+  if(document.getElementById('qbVisualPolishCss'))return;
+  const s=document.createElement('style');s.id='qbVisualPolishCss';s.textContent=`
+:root{--accent-gradient-end:color-mix(in srgb,var(--accent) 58%,white)}
+.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent),var(--accent-gradient-end))!important}
+`;
+  document.head.appendChild(s)
+}
 function clean(root=document.getElementById('view')||document){
   if(!root)return;
   const els=root.querySelectorAll?.('.sub,.meta,.crumb')||[];
@@ -22,7 +30,7 @@ function showGrade(){
   }
   return false;
 }
-function run(){clean();showGrade()}
+function run(){visualCss();clean();showGrade()}
 function boot(){
   run();
   window.addEventListener('qb-app-ready',run,{once:true});
