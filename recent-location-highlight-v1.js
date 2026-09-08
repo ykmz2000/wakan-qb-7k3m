@@ -17,7 +17,9 @@ async function load(force=false){
   pending=(async()=>{
     const sb=window.qbSupabase;if(!sb)return null;
     const a=await sb.auth.getUser();const uid=a.data?.user?.id;if(!uid)return null;
-    const r=await sb.from('practice_sessions').select('id,subject_id,unit_id,metadata,last_active_at,question_ids,current_index').eq('user_id',uid).eq('is_completed',false).order('last_active_at',{ascending:false}).limit(1).maybeSingle();
+    // 「前回」は再開可能セッションではなく、完了済みも含めた直近の演習場所を示す。
+    // 「前回の続きから」は別ロジックで未完了セッションのみを扱う。
+    const r=await sb.from('practice_sessions').select('id,subject_id,unit_id,metadata,last_active_at,question_ids,current_index,is_completed').eq('user_id',uid).order('last_active_at',{ascending:false}).limit(1).maybeSingle();
     if(r.error||!r.data||!(r.data.question_ids||[]).length){cache=null;cacheAt=Date.now();return null}
     const s=r.data;
     const sr=await sb.from('subjects').select('id,grade_id').eq('id',s.subject_id).maybeSingle();
@@ -69,7 +71,7 @@ function schedule(force=false,delay=25){clearTimeout(timer);timer=setTimeout(()=
 function boot(){
   css();
   ['qb-app-ready','qb-screen-change'].forEach(ev=>window.addEventListener(ev,()=>schedule(true,20)));
-  window.addEventListener('qb-answer-shown',()=>{cacheAt=0});
+  ['qb-answer-shown','qb-session-completed'].forEach(ev=>window.addEventListener(ev,()=>{cacheAt=0;schedule(true,20)}));
   const v=document.getElementById('view');if(v){observer=new MutationObserver(()=>schedule(false,35));observer.observe(v,{childList:true,subtree:true})}
   schedule(true,180)
 }
