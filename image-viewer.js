@@ -11,7 +11,7 @@ function css(){if(document.getElementById('qbImageViewerCss'))return;const s=doc
 document.head.appendChild(s)}
 function close(){document.getElementById('qbImageLightbox')?.remove();document.documentElement.style.overflow=''}
 function open(src,alt=''){if(!src)return;close();const d=document.createElement('div');d.id='qbImageLightbox';d.className='qbImageLightbox';d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');d.setAttribute('aria-label','画像を拡大表示');d.innerHTML=`<button class="qbImageLightboxClose" type="button" aria-label="閉じる">×</button><img src="${src.replace(/"/g,'&quot;')}" alt="${String(alt||'').replace(/"/g,'&quot;')}"><div class="qbImageLightboxHint">画像をタップすると閉じます</div>`;document.body.appendChild(d);document.documentElement.style.overflow='hidden';d.onclick=e=>{if(e.target===d||e.target.tagName==='IMG'||e.target.closest('.qbImageLightboxClose'))close()}}
-function isTarget(img){return img?.matches?.('.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img')}
+function isTarget(img){return img?.matches?.('.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img,.qsiImg')}
 function boot(){css();document.addEventListener('click',e=>{const img=e.target?.closest?.('img');if(!isTarget(img))return;e.preventDefault();e.stopPropagation();open(img.currentSrc||img.src,img.alt)},true);document.addEventListener('keydown',e=>{if(e.key==='Escape')close()})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
