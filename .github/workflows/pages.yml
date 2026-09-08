@@ -32,6 +32,8 @@ jobs:
           npm install --prefix /tmp/qb-inline-build --ignore-scripts --package-lock=false --no-audit --no-fund
           node scripts/build-inline-overview.cjs
           node --check inline-overview-v1.js
+          node --check current-question-identity-v1.js
+          node --check image-viewer.js
       - name: Verify editing before publication
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
@@ -41,6 +43,7 @@ jobs:
           node tests/explanation-format.browser.cjs
           node tests/editor-appearance-stem.browser.cjs
           node tests/inline-overview.browser.cjs
+          node tests/inline-stem.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
