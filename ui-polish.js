@@ -5,7 +5,8 @@ function visualCss(){
   if(document.getElementById('qbVisualPolishCss'))return;
   const s=document.createElement('style');s.id='qbVisualPolishCss';s.textContent=`
 :root{--accent-gradient-end:color-mix(in srgb,var(--accent) 58%,white)}
-.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent),var(--accent-gradient-end))!important}
+.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent),var(--accent-gradient-end))}
+.qbNextExamDate,.qbNextExamPeriod,.qbSubjectExamBadge{background:none;border-radius:0;padding:0;color:var(--muted)}
 `;
   document.head.appendChild(s)
 }
