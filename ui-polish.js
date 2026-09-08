@@ -4,8 +4,8 @@ let initialGradeShown=false;
 function visualCss(){
   if(document.getElementById('qbVisualPolishCss'))return;
   const s=document.createElement('style');s.id='qbVisualPolishCss';s.textContent=`
-:root{--accent-gradient-start:color-mix(in srgb,var(--accent) 82%,white);--accent-gradient-end:var(--accent)}
-.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))}
+:root{--accent-gradient-start:color-mix(in srgb,var(--accent) 84%,white);--accent-gradient-end:var(--accent)}
+.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))!important}
 .qbNextExamDate,.qbNextExamPeriod,.qbSubjectExamBadge{background:none;border-radius:0;padding:0;color:var(--muted)}
 .qbUnitSectionHeading{display:flex;align-items:center;gap:10px;margin:17px 2px 10px;color:var(--muted);font-size:12px;font-weight:900;line-height:1.2;white-space:nowrap}
 .qbUnitSectionHeading::before,.qbUnitSectionHeading::after{content:"";height:1px;background:var(--line);flex:1;min-width:18px}
