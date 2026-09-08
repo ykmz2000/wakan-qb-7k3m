@@ -1,0 +1,41 @@
+name: Inline overview manual-save regression
+on:
+  push:
+    branches: [feat/inline-overview-manual-save]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: inline-overview-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned build dependencies outside repository
+        run: |
+          mkdir -p /tmp/qb-inline-build
+          cp editor-build/package.json /tmp/qb-inline-build/package.json
+          npm install --prefix /tmp/qb-inline-build --ignore-scripts --package-lock=false --no-audit --no-fund
+      - name: Build local editor bundle
+        run: |
+          node scripts/build-inline-overview.cjs
+          node --check inline-overview-v1.js
+          node --check tests/inline-overview.browser.cjs
+      - name: Existing text-format unit tests
+        run: node --test tests/explanation-format.unit.cjs
+      - name: Install browser client
+        run: npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+      - name: Existing formatting and stem regressions
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: |
+          node tests/explanation-format.browser.cjs
+          node tests/editor-appearance-stem.browser.cjs
+      - name: Direct editing and unsaved-data regression
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/inline-overview.browser.cjs
