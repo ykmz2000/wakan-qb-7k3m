@@ -1,0 +1,40 @@
+name: Fill-blank reference choices regression
+on:
+  push:
+    branches: [main, fix/fill-blank-reference-choices-20260909]
+    paths:
+      - 'qb-app.js'
+      - 'fill-blank-v2.js'
+      - 'qb-practice-dock-v2.js'
+      - 'tests/fill-blank-reference.browser.cjs'
+      - '.github/workflows/fill-blank-reference-tests.yml'
+  pull_request:
+    paths:
+      - 'qb-app.js'
+      - 'fill-blank-v2.js'
+      - 'qb-practice-dock-v2.js'
+      - 'tests/fill-blank-reference.browser.cjs'
+      - '.github/workflows/fill-blank-reference-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fill-blank-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check syntax
+        run: |
+          node --check qb-app.js
+          node --check tests/fill-blank-reference.browser.cjs
+      - name: Install pinned browser client outside repository
+        run: npm install --prefix /tmp/qb-reference-tests --no-save --package-lock=false playwright@1.63.0
+      - name: Reference, short-answer, and MCQ regressions
+        env:
+          NODE_PATH: /tmp/qb-reference-tests/node_modules
+        run: node tests/fill-blank-reference.browser.cjs
