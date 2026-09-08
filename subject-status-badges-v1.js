@@ -6,11 +6,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function css(){
   if(document.getElementById('qbSubjectStatusCss'))return;
   const s=document.createElement('style');s.id='qbSubjectStatusCss';s.textContent=`
-.qbSubjectStatus{display:inline-flex;align-items:center;margin-top:7px;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:900;line-height:1.2}
-.qbSubjectStatus[data-status="coming_soon"]{background:#eef1f5;color:#6f7786}
-.qbSubjectStatus[data-status="in_progress"]{background:#fff3d9;color:#9a6500}
-.qbSubjectStatus[data-status="available"]{background:#e7f7ef;color:#087a55}
-#qbSubjectStatusAdmin{margin:0 0 10px}.qbSubjectStatusAdminHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.qbSubjectStatusToggle{border:1px solid #126fb3;background:#fff;color:#126fb3;border-radius:10px;padding:7px 10px;font-weight:900}.qbSubjectStatusPanel{margin-top:10px;border-top:1px solid #e5eaf0}.qbSubjectStatusRow{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #eef1f5}.qbSubjectStatusName{font-size:13px;font-weight:800}.qbSubjectStatusSelect{width:100%;min-height:36px;border:1px solid #dce3ec;border-radius:9px;background:#fff;padding:4px 8px;font:inherit;font-weight:800}@media(max-width:520px){.qbSubjectStatusRow{grid-template-columns:minmax(0,1fr) 112px}.qbSubjectStatusName{font-size:12px}}
+.qbSubjectStatus{display:block;margin:0 0 4px;color:var(--muted);font-size:10px;font-weight:900;line-height:1.2;letter-spacing:.01em}
+#view .list[data-s].qbSubjectMuted{background:#f1f3f5}
+#qbSubjectStatusAdmin{margin:0 0 10px}.qbSubjectStatusAdminHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.qbSubjectStatusToggle{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;padding:7px 10px;font-weight:900}.qbSubjectStatusPanel{margin-top:10px;border-top:1px solid #e5eaf0}.qbSubjectStatusRow{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #eef1f5}.qbSubjectStatusName{font-size:13px;font-weight:800}.qbSubjectStatusSelect{width:100%;min-height:36px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:4px 8px;font:inherit;font-weight:800}@media(max-width:520px){.qbSubjectStatusRow{grid-template-columns:minmax(0,1fr) 112px}.qbSubjectStatusName{font-size:12px}}
 `;
   document.head.appendChild(s);
 }
@@ -24,9 +22,12 @@ function subjectButtons(){return [...document.querySelectorAll('#view .list[data
 function paint(statusMap){
   subjectButtons().forEach(b=>{
     const status=statusMap.get(String(b.dataset.s))||'coming_soon';
+    b.classList.toggle('qbSubjectMuted',status!=='available');
+    const left=b.firstElementChild||b,title=left.querySelector?.('.lt');
     let badge=b.querySelector('.qbSubjectStatus');
-    if(!badge){badge=document.createElement('span');badge.className='qbSubjectStatus';const left=b.firstElementChild||b;left.appendChild(badge)}
+    if(!badge){badge=document.createElement('div');badge.className='qbSubjectStatus'}
     badge.dataset.status=status;badge.textContent=LABELS[status]||LABELS.coming_soon;
+    if(title&&badge.nextElementSibling!==title)left.insertBefore(badge,title);else if(!badge.parentElement)left.prepend(badge);
   });
 }
 function buildAdmin(statusMap){
