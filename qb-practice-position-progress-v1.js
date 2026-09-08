@@ -22,15 +22,24 @@ function practiceKey(){
   const ids=Array.isArray(st.questionIds)?st.questionIds:[];
   return [st.subjectId||'',st.unitId||'',ids.length,ids[0]||'',ids[ids.length-1]||''].join('|')
 }
+function targetKey(v){return clamp(v).toFixed(4)}
 function setWidthSmooth(fill,from,to,{initial=false}={}){
   from=clamp(from);to=clamp(to);
+  const key=targetKey(to);
+  // MutationObserverや解説表示イベントで同じゲージが再処理されても、
+  // 進行中のtransitionをリセットしない。
+  if(fill.dataset.qbProgressTarget===key)return;
+  fill.dataset.qbProgressTarget=key;
   if(reduceMotion()){fill.style.transition='none';fill.style.width=`${to}%`;return}
   fill.style.transition='none';fill.style.width=`${from}%`;
   void fill.offsetWidth;
   const dur=durationFor(from,to,initial?300:220,initial?700:480);
   requestAnimationFrame(()=>{
-    fill.style.transition=`width ${dur}ms cubic-bezier(.22,.61,.36,1)`;
-    fill.style.width=`${to}%`
+    requestAnimationFrame(()=>{
+      if(fill.dataset.qbProgressTarget!==key)return;
+      fill.style.transition=`width ${dur}ms cubic-bezier(.22,.61,.36,1)`;
+      fill.style.width=`${to}%`
+    })
   })
 }
 function renderPractice(){
@@ -64,7 +73,10 @@ function animateUnitFill(fill){
   if(reduceMotion())return;
   fill.style.transition='none';fill.style.width='0%';void fill.offsetWidth;
   const dur=durationFor(0,target,320,700);
-  requestAnimationFrame(()=>{fill.style.transition=`width ${dur}ms cubic-bezier(.22,.61,.36,1)`;fill.style.width=`${target}%`})
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    fill.style.transition=`width ${dur}ms cubic-bezier(.22,.61,.36,1)`;
+    fill.style.width=`${target}%`
+  }))
 }
 function scanUnitProgress(root=document){
   root.querySelectorAll?.('.progress>div').forEach(animateUnitFill)
@@ -78,8 +90,13 @@ function boot(){
   window.addEventListener('qb-answer-shown',()=>schedule(0));
   const v=document.getElementById('view');if(v){
     unitObserver=new MutationObserver(ms=>{
-      for(const m of ms)for(const n of m.addedNodes){if(n?.nodeType===1){if(n.matches?.('.progress>div'))animateUnitFill(n);scanUnitProgress(n)}}
-      schedule(20)
+      let needsPractice=false;
+      for(const m of ms)for(const n of m.addedNodes){
+        if(n?.nodeType!==1)continue;
+        if(n.matches?.('.progress>div'))animateUnitFill(n);scanUnitProgress(n);
+        if(!n.classList?.contains(HOST))needsPractice=true
+      }
+      if(needsPractice)schedule(20)
     });
     unitObserver.observe(v,{childList:true,subtree:true})
   }
