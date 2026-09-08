@@ -21,6 +21,6 @@ function choiceEditor(q){const card=section('各選択肢');if(!card)return;cons
 async function inject(){clearTimeout(timer);const q=Q();if(!q||!(await isAdmin())){clearStem();return}questionEditor(q);if(!document.querySelector('#ans .resultcard')){clear();return}choiceEditor(q);textEditor(q,'問題文のポイント','explanation_overview','overview');textEditor(q,'出題者の意図','examiner_intent','intent');textEditor(q,'試験用まとめ','exam_summary','summary');textEditor(q,'医学的検証メモ','medical_verification_note','verify')}
 function schedule(){clearTimeout(timer);timer=setTimeout(inject,20)}
 function shortcut(e){if(!(e.metaKey||e.ctrlKey)||String(e.key).toLowerCase()!=='s')return;const ed=e.target?.closest?.('.adeEditor,.adeStemEditor')||document.querySelector('.adeEditor,.adeStemEditor');if(!ed)return;e.preventDefault();ed.querySelector('.adeSave')?.click()}
-function boot(){css();schedule();['qb-screen-change','qb-answer-shown','qb-explanation-ready','qb-content-updated','qb-retry-current'].forEach(ev=>window.addEventListener(ev,schedule));document.addEventListener('keydown',shortcut,true)}
+function boot(){css();schedule();['qb-question-ready','qb-screen-change','qb-answer-shown','qb-explanation-ready','qb-content-updated','qb-retry-current'].forEach(ev=>window.addEventListener(ev,schedule));document.addEventListener('keydown',shortcut,true)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
