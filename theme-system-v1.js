@@ -9,7 +9,7 @@ const THEMES={
   orange:{label:'オレンジ',accent:'#a86114'},
   mono:{label:'モノクロ',accent:'#4b5563'}
 };
-let sb=null,user=null,current='blue',ready=false;
+let sb=null,user=null,current='blue',ready=false,authHooked=false;
 const valid=k=>Object.prototype.hasOwnProperty.call(THEMES,k)?k:'blue';
 function applyTheme(key){
   key=valid(key);current=key;const t=THEMES[key],r=document.documentElement.style;
@@ -39,12 +39,19 @@ function css(){
 `;
   document.head.appendChild(s)
 }
+function hookAuth(){
+  if(authHooked||!sb)return;authHooked=true;
+  sb.auth.onAuthStateChange((_event,session)=>{
+    if(session?.user){ready=false;user=null;setTimeout(()=>context().then(ok=>{if(ok){injectPicker();updatePickerState()}}),0)}
+    else{ready=false;user=null;current='blue';applyTheme('blue')}
+  })
+}
 async function context(){
   if(ready)return true;
-  sb=window.qbSupabase;if(!sb)return false;
+  sb=window.qbSupabase;if(!sb)return false;hookAuth();
   const a=await sb.auth.getUser();user=a.data?.user||null;if(!user)return false;
   const p=await sb.from('profiles').select('theme_key').eq('id',user.id).maybeSingle();
-  if(!p.error&&p.data?.theme_key)current=valid(p.data.theme_key);
+  if(!p.error&&p.data?.theme_key)current=valid(p.data.theme_key);else current='blue';
   applyTheme(current);ready=true;return true;
 }
 function updatePickerState(root=document){root.querySelectorAll?.('.qbThemeChoice').forEach(b=>b.classList.toggle('on',b.dataset.theme===current))}
@@ -65,6 +72,7 @@ function injectPicker(){
   const msg=host.querySelector('.qbThemeMsg');host.querySelectorAll('.qbThemeChoice').forEach(b=>b.onclick=()=>chooseTheme(b.dataset.theme,msg))
 }
 function observe(){const o=new MutationObserver(()=>injectPicker());o.observe(document.body,{childList:true,subtree:true});injectPicker()}
-async function boot(){css();applyTheme('blue');for(let i=0;i<60&&!await context();i++)await new Promise(r=>setTimeout(r,100));observe()}
+async function refresh(){ready=false;await context();injectPicker();updatePickerState()}
+async function boot(){css();applyTheme('blue');for(let i=0;i<60&&!await context();i++)await new Promise(r=>setTimeout(r,100));observe();window.addEventListener('qb-app-ready',()=>refresh().catch(console.error))}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
