@@ -1,4 +1,4 @@
-/* Explanation-only formatting. Plain text, question/choice source text and media stay unchanged.
+/* Plain-text formatting with separate metadata. Occurrence originals and media stay unchanged.
    No MutationObserver, document click interception, card replacement, or rating writes. */
 (()=>{
 'use strict';
@@ -45,25 +45,25 @@ function rebase(before,after,ranges){
   }
   return normalize(after,out);
 }
-function snapshot(raw,ranges){
-  const text=raw.trim(),offset=raw.length-raw.trimStart().length;
+function snapshot(raw,ranges,trim=true){
+  const text=trim?raw.trim():raw,offset=trim?raw.length-raw.trimStart().length:0;
   const next=normalize(text,ranges.map(r=>({...r,start:Math.max(0,r.start-offset),end:Math.min(text.length,r.end-offset)})));
   return next.length?{version:1,source_text:text,ranges:next}:null;
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={normalize,rangesFor,html,toggle,subtract,rebase,snapshot};
 if(typeof document==='undefined')return;
 const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap();
-const META='explanation_formatting';
+const META='explanation_formatting',STEM_META='stem_formatting';
 const QUESTION_FIELDS={overview:'explanation_overview',intent:'examiner_intent',summary:'exam_summary',verify:'medical_verification_note'};
 const CHOICE_FIELDS={cexp:'explanation',ccorr:'correction_text',calt:'correct_for_other_context',cdist:'examiner_distinction'};
-const LABELS={explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しく直すと',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
+const LABELS={stem:'問題文',explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しく直すと',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
 const current=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=q=>String(q?.id||q?.dbId||'');
 async function load(id,force=false){
   if(force){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}
   if(cache.has(id))return cache.get(id);if(pending.has(id))return pending.get(id);
   const version=versions.get(id)||0;
-  const task=(async()=>{const sb=window.qbSupabase;if(!sb)throw new Error('ログイン情報を読み込み中です');const r=await sb.from('questions').select('explanation_formatting,choices(id,explanation_formatting)').eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('解説の装飾情報を取得できません');if(version!==(versions.get(id)||0))return load(id);cache.set(id,r.data);return r.data})();
+  const task=(async()=>{const sb=window.qbSupabase;if(!sb)throw new Error('ログイン情報を読み込み中です');const r=await sb.from('questions').select('stem_formatting,explanation_formatting,choices(id,explanation_formatting)').eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('装飾情報を取得できません');if(version!==(versions.get(id)||0))return load(id);cache.set(id,r.data);return r.data})();
   pending.set(id,task);try{return await task}finally{if(pending.get(id)===task)pending.delete(id)}
 }
 function css(){
@@ -88,35 +88,36 @@ function mount(ta,field,record,initial){
   const refresh=()=>{if(composing)return;sync();draw()};
   ta.addEventListener('compositionstart',()=>{composing=true});ta.addEventListener('compositionend',()=>{composing=false;refresh()});ta.addEventListener('input',refresh);
   for(const [kind,text] of [['bold','太字'],['underline','下線'],['strike','取り消し線'],['marker','マーカー'],['accent','強調色'],['clear','書式解除']]){
-    const b=document.createElement('button');b.type='button';b.dataset.qbFormat=kind;b.textContent=text;tools.appendChild(b);
+    const b=document.createElement('button');b.type='button';b.dataset.qbFormat=kind;const sample=document.createElement('span');sample.className='qbFmtToolLabel';sample.textContent=text;b.appendChild(sample);tools.appendChild(b);
     let selected=null;
     b.addEventListener('pointerdown',e=>{selected=[ta.selectionStart,ta.selectionEnd];if(e.pointerType==='mouse')e.preventDefault()});
     b.addEventListener('mousedown',e=>e.preventDefault());
     b.addEventListener('click',()=>{if(composing)return;sync();const [start,end]=selected||[ta.selectionStart,ta.selectionEnd];selected=null;if(start===end){hint.textContent='装飾したい文字を先に選択してください。';return}try{ranges=kind==='clear'?normalize(raw,subtract(ranges,start,end)):toggle(raw,ranges,start,end,kind);draw();hint.textContent='装飾を変更しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,end)}catch(e){hint.textContent=e.message}});
   }
-  refresh();return{field,textarea:ta,read(){sync();return snapshot(raw,ranges)}};
+  refresh();return{field,textarea:ta,read(){sync();const spec=snapshot(raw,ranges,field!=='stem');return field==='stem'&&spec?{...spec,origin:'admin_display'}:spec}};
 }
 function prepareEditor(ed,q){
   if(editors.has(ed))return;
-  const key=ed.dataset.adeEditor||'',choice=key.startsWith('choice-')?(q?.choices||[]).find(c=>String(c.id)===key.slice(7)):null;
-  const defs=choice?Object.entries(CHOICE_FIELDS).map(([cls,field])=>({field,ta:ed.querySelector('.'+cls)})):QUESTION_FIELDS[key]?[{field:QUESTION_FIELDS[key],ta:ed.querySelector('textarea')}]:[];
+  const key=ed.dataset.adeEditor||'',isStem=key==='stem',choice=key.startsWith('choice-')?(q?.choices||[]).find(c=>String(c.id)===key.slice(7)):null;
+  const defs=isStem?[{field:'stem',ta:ed.querySelector('textarea')}]:choice?Object.entries(CHOICE_FIELDS).map(([cls,field])=>({field,ta:ed.querySelector('.'+cls)})):QUESTION_FIELDS[key]?[{field:QUESTION_FIELDS[key],ta:ed.querySelector('textarea')}]:[];
   if(!defs.length)return;
   const target=choice||q,id=qid(q),expected={},initial={};
   for(const d of defs){if(!d.ta)return;expected[d.field]=target[d.field]??null;initial[d.field]=d.ta.value}
   if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct}
-  const state={id,table:choice?'choices':'questions',targetId:String(target.id||target.dbId),expected,fields:[],error:null,ready:null};editors.set(ed,state);
-  state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];state.fields=defs.map(d=>mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
+  const state={id,table:choice?'choices':'questions',targetId:String(target.id||target.dbId),metaField:isStem?STEM_META:META,expected,fields:[],error:null,ready:null};editors.set(ed,state);
+  state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=isStem?{stem:meta[STEM_META]}:choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];state.fields=defs.map(d=>mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
 }
 async function saveEditor(ed,q,table,id,payload){
   const state=editors.get(ed);if(!state)throw new Error('編集欄を開き直してください');await state.ready;if(state.error)throw state.error;
   if(!ed.isConnected||state.id!==qid(q)||state.table!==table||state.targetId!==String(id))throw new Error('編集対象が変わりました。開き直してください');
   const keys=Object.keys(payload);if(keys.some(k=>!Object.prototype.hasOwnProperty.call(state.expected,k)))throw new Error('この欄では編集できない項目です');
-  const sb=window.qbSupabase,r=await sb.from(table).select([...keys,META,'updated_at'].join(',')).eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('編集対象を取得できません');
+  const column=state.metaField,sb=window.qbSupabase,r=await sb.from(table).select([...keys,column,'updated_at'].join(',')).eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('編集対象を取得できません');
   for(const k of keys){if((r.data[k]??'')!==(state.expected[k]??''))throw new Error('別の更新がありました。入力内容を控えてから開き直してください')}
-  const formats={...(r.data[META]||{})};for(const f of state.fields){const spec=f.read();if(spec)formats[f.field]=spec;else delete formats[f.field]}
-  const map=Object.keys(formats).length?formats:null;
-  const saved=await sb.from(table).update({...payload,[META]:map}).eq('id',id).eq('updated_at',r.data.updated_at).select('id').maybeSingle();if(saved.error)throw saved.error;if(!saved.data)throw new Error('保存中に別の更新がありました。開き直してください');
-  const meta=cache.get(state.id);if(meta){if(table==='questions')meta[META]=map;else{const c=(meta.choices||[]).find(c=>String(c.id)===String(id));if(c)c[META]=map}}
+  let map;
+  if(column===STEM_META){map=state.fields[0].read()}
+  else{const formats={...(r.data[META]||{})};for(const f of state.fields){const spec=f.read();if(spec)formats[f.field]=spec;else delete formats[f.field]}map=Object.keys(formats).length?formats:null}
+  const saved=await sb.from(table).update({...payload,[column]:map}).eq('id',id).eq('updated_at',r.data.updated_at).select('id').maybeSingle();if(saved.error)throw saved.error;if(!saved.data)throw new Error('保存中に別の更新がありました。開き直してください');
+  const meta=cache.get(state.id);if(meta){if(table==='questions')meta[column]=map;else{const c=(meta.choices||[]).find(c=>String(c.id)===String(id));if(c)c[column]=map}}
   return map;
 }
 function decorate(node,text,record){
@@ -148,14 +149,21 @@ function apply(root,q,meta){
 }
 let timer=0;
 async function render(){
-  const q=current(),root=document.getElementById('ans'),id=qid(q);if(!id||!root?.querySelector('.resultcard')||root.classList.contains('hidden'))return;
-  try{const meta=await load(id);if(document.getElementById('ans')!==root||qid(current())!==id||!root.isConnected||root.classList.contains('hidden'))return;apply(root,q,meta)}catch(e){console.warn('explanation formatting read',e.message)}
+  if(window.qbGetScreen?.()!=='practice')return;
+  const q=current(),root=document.getElementById('ans'),stem=document.querySelector('#view > .card > .qtext'),id=qid(q);if(!id||!stem)return;
+  try{
+    const meta=await load(id);
+    if(qid(current())!==id||!stem.isConnected||document.querySelector('#view > .card > .qtext')!==stem)return;
+    // Display-only spans; never infer emphasis from wording or rewrite a differently rendered stem.
+    if(stem.textContent===String(q.stem??''))decorate(stem,String(q.stem??''),meta[STEM_META]);
+    if(root&&document.getElementById('ans')===root&&root.isConnected&&!root.classList.contains('hidden')&&root.querySelector('.resultcard'))apply(root,q,meta);
+  }catch(e){console.warn('text formatting read',e.message)}
 }
 function schedule(e){
   if(e?.type==='qb-content-updated'&&!/^(personal-note|personal-note-image|official-image)/.test(e.detail?.type||'')){const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}}
   clearTimeout(timer);timer=setTimeout(render,50);
 }
 window.QBExplanationFormat={html,prepareEditor,saveEditor};
-function boot(){css();['qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
+function boot(){css();['qb-question-ready','qb-screen-change','qb-retry-current','qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
