@@ -6,7 +6,8 @@ function sync(){
   const me=document.querySelector('.qbLegendMe');if(!me)return;
   const inline=me.getAttribute('style')||'';
   const hasImage=inline.includes('background-image');
-  document.querySelectorAll('.qbLegendOther').forEach(x=>{x.style.background=hasImage?'var(--accent)':'#9aa4b2'});
+  const target=hasImage?'var(--accent)':'#9aa4b2';
+  document.querySelectorAll('.qbLegendOther').forEach(x=>{if(x.style.background!==target)x.style.background=target});
 }
 function schedule(){if(raf)return;raf=requestAnimationFrame(sync)}
 function boot(){
