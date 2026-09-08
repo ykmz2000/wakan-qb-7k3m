@@ -17,7 +17,10 @@ function render(){
     if(unitBtns.length!==1||unitBtns[0].dataset.u!=='__all__')return;
     const meta=unitBtns[0].querySelector('.meta')?.textContent||'';
     if(!/^0問(?:・|$)/.test(meta.trim()))return;
-    unitBtns[0].remove();
+    // Keep the synthetic __all__ button in the DOM (hidden) so shared unit-screen
+    // extensions can still detect the subject context, including public-guide editing.
+    unitBtns[0].style.display='none';
+    unitBtns[0].setAttribute('aria-hidden','true');
     const card=document.createElement('div');card.className='qbComingSoonCard';
     card.innerHTML='<div class="qbComingSoonTitle">Coming Soon</div><div class="qbComingSoonSub">この科目は現在準備中です。<br>単元・問題を順次追加していきます。</div>';
     V.appendChild(card)
