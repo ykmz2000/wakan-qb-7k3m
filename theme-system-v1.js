@@ -18,7 +18,7 @@ function applyTheme(key){
   r.setProperty('--accent-soft',`color-mix(in srgb, ${t.accent} 12%, white)`);
   r.setProperty('--accent-soft-strong',`color-mix(in srgb, ${t.accent} 20%, white)`);
   r.setProperty('--accent-border',`color-mix(in srgb, ${t.accent} 42%, white)`);
-  r.setProperty('--accent-gradient-start',`color-mix(in srgb, ${t.accent} 84%, white)`);
+  r.setProperty('--accent-gradient-start',`color-mix(in srgb, ${t.accent} 70%, white)`);
   r.setProperty('--accent-gradient-end',t.accent);
   document.documentElement.dataset.qbTheme=key;
   window.dispatchEvent(new CustomEvent('qb-theme-change',{detail:{themeKey:key,accent:t.accent}}));
@@ -26,7 +26,7 @@ function applyTheme(key){
 function css(){
   if(document.getElementById('qbThemeSystemCss'))return;
   const s=document.createElement('style');s.id='qbThemeSystemCss';s.textContent=`
-:root{--accent-soft:#edf6fd;--accent-soft-strong:#dfeffc;--accent-border:#b9d9ee;--accent-gradient-start:#73b2e1;--accent-gradient-end:var(--accent)}
+:root{--accent-soft:#edf6fd;--accent-soft-strong:#dfeffc;--accent-border:#b9d9ee;--accent-gradient-start:color-mix(in srgb,var(--accent) 70%,white);--accent-gradient-end:var(--accent)}
 .progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))!important}
 .primary,.filter.on,.authTabs button.on,.authPrimary,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
 .acctAvatar,.acctAvatarLarge{background-color:var(--accent)!important}
