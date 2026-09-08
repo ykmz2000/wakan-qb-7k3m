@@ -27,10 +27,10 @@ async function load(force=false){
   })().finally(()=>pending=null);
   return pending
 }
-function clear(){
-  document.querySelectorAll('.qbPreviousCard').forEach(x=>x.classList.remove('qbPreviousCard'));
-  document.querySelectorAll('.qbPreviousArea').forEach(x=>x.classList.remove('qbPreviousArea'));
-  document.querySelectorAll('.qbPreviousMark').forEach(x=>x.remove())
+function removeOtherDecorations(keepCards=[],keepAreas=[]){
+  const kc=new Set(keepCards),ka=new Set(keepAreas);
+  document.querySelectorAll('.qbPreviousCard').forEach(x=>{if(!kc.has(x)){x.classList.remove('qbPreviousCard');x.querySelectorAll('.qbPreviousMark').forEach(m=>m.remove())}});
+  document.querySelectorAll('.qbPreviousArea').forEach(x=>{if(!ka.has(x)){x.classList.remove('qbPreviousArea');x.querySelectorAll('.qbPreviousMark').forEach(m=>m.remove())}})
 }
 function addMark(host,before=null){
   if(!host||host.querySelector?.(':scope > .qbPreviousMark'))return;
@@ -38,31 +38,32 @@ function addMark(host,before=null){
   if(before&&before.parentElement===host)host.insertBefore(m,before);else host.prepend(m)
 }
 function decorateGrade(last){
-  const g=last?.gradeCode;if(!g)return;
-  const btn=document.getElementById('gradeM4');if(!btn)return;
-  const text=(btn.textContent||'').trim();if(!text.includes(g))return;
-  btn.classList.add('qbPreviousCard');
-  const host=btn.querySelector('div')||btn;const before=host.querySelector('.lt')||host.firstElementChild;addMark(host,before)
+  const g=last?.gradeCode;if(!g)return removeOtherDecorations();
+  const btn=document.getElementById('gradeM4');if(!btn||!(btn.textContent||'').includes(g))return removeOtherDecorations();
+  removeOtherDecorations([btn]);btn.classList.add('qbPreviousCard');
+  const host=btn.querySelector('div')||btn,before=host.querySelector('.lt')||host.firstElementChild;addMark(host,before)
 }
 function decorateSubject(last){
-  const btn=document.querySelector(`#view .list[data-s="${CSS.escape(String(last?.subject_id||''))}"]`);if(!btn)return;
-  btn.classList.add('qbPreviousCard');
+  const id=String(last?.subject_id||''),btn=[...document.querySelectorAll('#view .list[data-s]')].find(x=>String(x.dataset.s)===id);
+  if(!btn)return removeOtherDecorations();
+  removeOtherDecorations([btn]);btn.classList.add('qbPreviousCard');
   const host=btn.firstElementChild||btn,title=host.querySelector?.('.lt');addMark(host,title)
 }
 function decorateUnit(last){
-  const scope=String(last?.unitScope||'');if(!scope)return;
-  const matches=[...document.querySelectorAll(`#view .list[data-u="${CSS.escape(scope)}"]`)];
+  const scope=String(last?.unitScope||'');if(!scope)return removeOtherDecorations();
+  const matches=[...document.querySelectorAll('#view .list[data-u]')].filter(x=>String(x.dataset.u)===scope);
   if(matches.length){
-    matches.forEach(btn=>{btn.classList.add('qbPreviousCard');const host=btn.firstElementChild||btn,title=host.querySelector?.('.lt');addMark(host,title)});return
+    removeOtherDecorations(matches);matches.forEach(btn=>{btn.classList.add('qbPreviousCard');const host=btn.firstElementChild||btn,title=host.querySelector?.('.lt');addMark(host,title)});return
   }
   if(last?.emergencyArea){
-    const head=document.querySelector(`.qbEmArea[data-type="${CSS.escape(String(last.emergencyArea))}"] .qbEmAreaHead`);
-    if(head){head.classList.add('qbPreviousArea');const title=head.querySelector('.qbEmAreaTitle');addMark(head,title)}
+    const head=[...document.querySelectorAll('.qbEmArea[data-type] .qbEmAreaHead')].find(x=>String(x.closest('.qbEmArea')?.dataset.type)===String(last.emergencyArea));
+    if(head){removeOtherDecorations([],[head]);head.classList.add('qbPreviousArea');const title=head.querySelector('.qbEmAreaTitle');addMark(head,title);return}
   }
+  removeOtherDecorations()
 }
 async function render(force=false){
-  css();const last=await load(force);clear();if(!last)return;
-  const s=screen();if(s==='grades')decorateGrade(last);else if(s==='subjects')decorateSubject(last);else if(s==='units')decorateUnit(last)
+  css();const last=await load(force);if(!last){removeOtherDecorations();return}
+  const s=screen();if(s==='grades')decorateGrade(last);else if(s==='subjects')decorateSubject(last);else if(s==='units')decorateUnit(last);else removeOtherDecorations()
 }
 function schedule(force=false,delay=25){clearTimeout(timer);timer=setTimeout(()=>render(force).catch(e=>console.error('recent location highlight',e)),delay)}
 function boot(){
