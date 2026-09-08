@@ -18,6 +18,8 @@ body.qbGlobalDockOn .app{padding-bottom:calc(94px + env(safe-area-inset-bottom))
 #qbGlobalDock .qbgdInner{max-width:850px;margin:auto;display:grid;grid-template-columns:1fr .85fr 1.4fr .85fr 1fr;gap:4px}
 #qbGlobalDock button{border:0;background:transparent;color:#536174;min-height:56px;border-radius:12px;font-weight:900;font-size:10px;line-height:1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px}
 #qbGlobalDock button:disabled{opacity:.28}#qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:var(--accent-soft,#eef6fb);color:var(--accent)}#qbGlobalDock .qbgdIco{font-size:19px;line-height:1}#qbGlobalDock .qbgdResume .qbgdIco,#qbGlobalDock .qbgdStart .qbgdIco{font-size:20px}
+body.qbGlobalDockOn #modal{padding-bottom:calc(82px + env(safe-area-inset-bottom))!important}
+body.qbGlobalDockOn #modal .sheet{max-height:calc(100vh - 116px - env(safe-area-inset-bottom));max-height:calc(100dvh - 116px - env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 @media(max-width:390px){#qbGlobalDock .qbgdInner{grid-template-columns:.95fr .78fr 1.34fr .78fr .95fr}#qbGlobalDock button{font-size:9px}}
 `;
   document.head.appendChild(s)
