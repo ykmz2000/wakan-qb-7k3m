@@ -12,7 +12,8 @@ svg circle[fill="#126fb3"]{fill:var(--accent)!important}
 .legend .dot[style*="#126fb3"]{background:var(--accent)!important}
 `;document.head.appendChild(s);
 function sync(){
-  document.querySelectorAll('svg circle[fill="#126fb3"]').forEach(x=>x.setAttribute('fill','var(--accent)'));
+  document.querySelectorAll('svg circle[fill="#126fb3"]').forEach(()=>{});
+  document.querySelectorAll('svg circle').forEach(x=>{if((x.getAttribute('fill')||'').toLowerCase()==='#126fb3')x.setAttribute('fill','var(--accent)')});
   document.querySelectorAll('.legend .dot').forEach(x=>{if((x.getAttribute('style')||'').includes('#126fb3'))x.style.background='var(--accent)'})
 }
 new MutationObserver(sync).observe(document.body,{childList:true,subtree:true});
