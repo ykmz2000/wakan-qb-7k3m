@@ -1,10 +1,11 @@
 name: Explanation formatting regression tests
 on:
   push:
-    branches: [feat/explanation-formatting-v1]
+    branches: [feat/explanation-formatting-v1, feat/stem-formatting-editor-appearance]
   pull_request:
     paths:
       - '**.js'
+      - '**.css'
       - index.html
       - tests/**
       - .github/workflows/explanation-format-tests.yml
@@ -24,7 +25,9 @@ jobs:
         run: |
           node --check explanation-format-v1.js
           node --check admin-direct-edit-v2.js
+          node --check current-question-identity-v1.js
           node --check tests/explanation-format.browser.cjs
+          node --check tests/editor-appearance-stem.browser.cjs
       - name: Unit tests
         run: node --test tests/explanation-format.unit.cjs
       - name: Install pinned browser test client
@@ -33,3 +36,7 @@ jobs:
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: node tests/explanation-format.browser.cjs
+      - name: Editor appearance and question stem regression
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/editor-appearance-stem.browser.cjs
