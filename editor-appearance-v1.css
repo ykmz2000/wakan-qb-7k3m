@@ -18,3 +18,6 @@
 .qbFmtTools [data-qb-format="marker"] .qbFmtToolLabel{background:var(--accent-soft-strong,var(--accent-soft));color:var(--text);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 :is(.adeEditor,.adeStemEditor) .qbFmtTools [data-qb-format="accent"]{color:var(--accent)!important}
 .qbFmtTools [data-qb-format="clear"] .qbFmtToolLabel{font-weight:400;text-decoration:none}
+/* This button lives beside the displayed images, outside either text editor. */
+.qsiHost .qsiMoreBtn{background:var(--card)!important;border-color:var(--accent-border,var(--line))!important;color:var(--accent)!important}
+.qsiHost .qsiMoreBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
