@@ -13,6 +13,18 @@ function css(){
 .qbEmArea[data-type="new"] .qbEmAreaPriority{background:var(--accent-soft-strong)!important;color:var(--accent)!important}
 .qbEmAreaAll,.qbEmMask{color:var(--accent)!important}.qbEmAreaAll{border-color:var(--accent-border)!important}
 .qbGeneratedBanner{background:var(--accent-soft)!important;border-color:var(--accent-border)!important}
+#qsoBar{border-color:var(--accent-border)!important;background:var(--accent-soft)!important}
+#qsoModeWrap{border-color:var(--accent-border)!important}
+#qsoModeWrap button.on,#qsoSave{background:var(--accent)!important;color:#fff!important}
+.qsoHandle{color:var(--accent)!important;background:var(--accent-soft)!important}
+.problem.qsoDropTarget{box-shadow:inset 0 2px 0 var(--accent)!important}
+.problem.qsoDragging{background:var(--accent-soft)!important}
+#qbRatingFilterPanel{border-color:var(--accent-border)!important;background:var(--accent-soft)!important}
+#qbRatingFilterPanel .qbrfBtn{border-color:var(--accent-border)!important}
+#qbRatingFilterPanel .qbrfBtn.on{background:var(--accent)!important;border-color:var(--accent)!important;color:#fff!important}
+#qbRatingFilterPanel .qbrfTitle{color:var(--text,#172033)!important}
+#view .problem input[data-q],#toggleAll{accent-color:var(--accent)!important}
+#toggleAll,.qbSingleOpenRow .qid,#view .problem .qid{color:var(--accent)!important}
 `;
   document.head.appendChild(s)
 }
