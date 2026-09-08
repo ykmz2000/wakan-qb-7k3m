@@ -1,23 +1,24 @@
 (()=>{
 'use strict';
 const THEMES={
-  blue:{label:'ブルー',accent:'#126fb3'},
-  teal:{label:'ティール',accent:'#0b7f86'},
-  green:{label:'グリーン',accent:'#287a57'},
-  purple:{label:'パープル',accent:'#6b55b6'},
-  rose:{label:'ローズ',accent:'#ad4e70'},
-  orange:{label:'オレンジ',accent:'#a86114'},
-  mono:{label:'モノクロ',accent:'#4b5563'}
+  blue:{label:'ブルー',accent:'#4F9FDC'},
+  teal:{label:'ティール',accent:'#45BDB5'},
+  green:{label:'グリーン',accent:'#65B989'},
+  purple:{label:'パープル',accent:'#9274DA'},
+  rose:{label:'ローズ',accent:'#F27FA9'},
+  orange:{label:'オレンジ',accent:'#E9A34F'},
+  mono:{label:'モノクロ',accent:'#7A8793'}
 };
+window.QB_THEME_PALETTE=THEMES;
 let sb=null,user=null,current='blue',ready=false,authHooked=false;
 const valid=k=>Object.prototype.hasOwnProperty.call(THEMES,k)?k:'blue';
 function applyTheme(key){
   key=valid(key);current=key;const t=THEMES[key],r=document.documentElement.style;
   r.setProperty('--accent',t.accent);
-  r.setProperty('--accent-soft',`color-mix(in srgb, ${t.accent} 11%, white)`);
-  r.setProperty('--accent-soft-strong',`color-mix(in srgb, ${t.accent} 18%, white)`);
-  r.setProperty('--accent-border',`color-mix(in srgb, ${t.accent} 34%, white)`);
-  r.setProperty('--accent-gradient-start',`color-mix(in srgb, ${t.accent} 82%, white)`);
+  r.setProperty('--accent-soft',`color-mix(in srgb, ${t.accent} 12%, white)`);
+  r.setProperty('--accent-soft-strong',`color-mix(in srgb, ${t.accent} 20%, white)`);
+  r.setProperty('--accent-border',`color-mix(in srgb, ${t.accent} 42%, white)`);
+  r.setProperty('--accent-gradient-start',`color-mix(in srgb, ${t.accent} 84%, white)`);
   r.setProperty('--accent-gradient-end',t.accent);
   document.documentElement.dataset.qbTheme=key;
   window.dispatchEvent(new CustomEvent('qb-theme-change',{detail:{themeKey:key,accent:t.accent}}));
@@ -25,18 +26,19 @@ function applyTheme(key){
 function css(){
   if(document.getElementById('qbThemeSystemCss'))return;
   const s=document.createElement('style');s.id='qbThemeSystemCss';s.textContent=`
-:root{--accent-soft:#eaf4fb;--accent-soft-strong:#dcecf7;--accent-border:#b9d9ee;--accent-gradient-start:#4a8fc2;--accent-gradient-end:var(--accent)}
+:root{--accent-soft:#edf6fd;--accent-soft-strong:#dfeffc;--accent-border:#b9d9ee;--accent-gradient-start:#73b2e1;--accent-gradient-end:var(--accent)}
+.progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))!important}
 .primary,.filter.on,.authTabs button.on,.authPrimary,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
 .acctAvatar,.acctAvatarLarge{background-color:var(--accent)!important}
-.secondary,.qid,.pwToggle,.qbComingSoonTitle{color:var(--accent)!important}
-.choice.sel{border-color:var(--accent)!important;background:var(--accent-soft)!important}
+.secondary,.qid,.pwToggle,.qbComingSoonTitle,.qbRankBtn,.qbSubjectStatusToggle,#view .list[data-s] .lt,#view .list[data-u] .lt,.qbSubjectExamTitle,.qbExamItemButton,.choice:not(.good):not(.bad){color:var(--accent)!important}
+.choice.sel{border-color:var(--accent)!important;background:var(--accent-soft)!important;color:var(--accent)!important}
 .badge:not(.gray){background:var(--accent-soft)!important;color:var(--accent)!important}
 .resultcard.review{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 #qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:var(--accent-soft)!important;color:var(--accent)!important}
-#qbPracticeDockV2 button.qbpdMain{box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 22%,transparent)!important}
+#qbPracticeDockV2 button.qbpdMain{box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 24%,transparent)!important}
 .qbNextExamCard{border-color:var(--accent-border)!important;background:linear-gradient(180deg,var(--accent-soft),#fff)!important}.qbExamDay.qbExamNext{border-color:var(--accent)!important;background:var(--accent-soft)!important}.qbExamDayTag{background:var(--accent)!important}.qbExamItemButton{color:var(--accent)!important}
 .imageQueueBtn{color:var(--accent)!important;border-color:var(--accent-border)!important;background:var(--accent-soft)!important}
-#qbThemePicker{margin:8px 0 14px}.qbThemeGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.qbThemeChoice{border:1px solid var(--line,#dce3ec);background:#fff;border-radius:11px;padding:8px 6px;min-height:52px;font-size:11px;font-weight:900;color:var(--text,#172033);display:flex;align-items:center;gap:7px;justify-content:center}.qbThemeChoice.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}.qbThemeDot{width:17px;height:17px;border-radius:50%;background:var(--swatch);flex:0 0 auto}.qbThemeMsg{font-size:11px;color:var(--muted,#6f7786);margin-top:6px;min-height:16px}@media(max-width:440px){.qbThemeGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#qbThemePicker{margin:8px 0 14px}.qbThemeGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.qbThemeChoice{border:1px solid var(--line,#dce3ec);background:#fff;border-radius:11px;padding:8px 6px;min-height:52px;font-size:11px;font-weight:900;color:var(--text,#172033);display:flex;align-items:center;gap:7px;justify-content:center}.qbThemeChoice.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:var(--accent-soft)}.qbThemeDot{width:17px;height:17px;border-radius:50%;background:var(--swatch);flex:0 0 auto}.qbThemeMsg{font-size:11px;color:var(--muted,#6f7786);margin-top:6px;min-height:16px}@media(max-width:440px){.qbThemeGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 `;
   document.head.appendChild(s)
 }
