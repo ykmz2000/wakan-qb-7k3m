@@ -32,8 +32,16 @@ function matchesVisible(q,stem,vis){
 function resolve(){
   const qs=Array.isArray(window.QB_QUESTIONS)?window.QB_QUESTIONS:[];
   if(!qs.length)return null;
-  const stem=visibleStem();if(!stem)return null;
   const vis=visibleChoices();
+  // Only a live editor bound to this exact stem DOM node may pin identity.
+  // Never look up a question from the administrator's unsaved draft text.
+  const node=document.querySelector('#view > .card > .qtext');
+  const editing=window.QBInlineOverview?.editingStem?.(node);
+  if(editing){
+    const pinned=qs.find(q=>String(q?.id||q?.dbId)===editing.id);
+    return pinned&&(!vis.length||sameChoices(pinned,vis))?pinned:null;
+  }
+  const stem=visibleStem();if(!stem)return null;
   if(exactId){
     const exact=qs.find(q=>(q?.id||q?.dbId)===exactId);
     if(matchesVisible(exact,stem,vis))return exact;
@@ -53,8 +61,9 @@ window.addEventListener('qb-selection-change',e=>{const id=e.detail?.questionId;
 document.addEventListener('click',e=>{if(e.target?.closest?.('#prev,#next,#start,.mode,[data-u],[data-s]'))exactId=null},true);
 function annotateEditors(){
   const id=window.qbCurrentQuestionId?.();if(!id)return;
-  // Reuse the existing identity observer. Formatting spans retain textContent, so this emits only once per stem.
-  const node=document.querySelector('#view > .card > .qtext'),text=node?.textContent||'';
+  const node=document.querySelector('#view > .card > .qtext');
+  const editing=window.QBInlineOverview?.editingStem?.(node);
+  const text=editing?.sourceText??node?.textContent??'';
   if(window.qbGetScreen?.()==='practice'&&node&&(node!==announcedNode||id!==announcedId||text!==announcedText)){
     announcedNode=node;announcedId=id;announcedText=text;
     window.dispatchEvent(new CustomEvent('qb-question-ready',{detail:{questionId:id}}));
