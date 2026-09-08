@@ -1,0 +1,20 @@
+/* Editor-only appearance. No card, media, note, rating or navigation behavior changes. */
+:is(.adeEditor,.adeStemEditor){background:var(--bg)!important;border-color:var(--line)!important;color:var(--text)}
+:is(.adeEditor,.adeStemEditor) :is(textarea,.adeInput){background:var(--card)!important;border-color:var(--line)!important;color:var(--text)!important}
+:is(.adeEditor,.adeStemEditor) :is(.adeStatus,.adeStemHint,.oeiStatus,.oeiEmpty){color:var(--muted)!important}
+:is(.adeEditor,.adeStemEditor) .adeSave{background:var(--accent)!important;color:var(--card)!important;border-color:var(--accent)!important}
+:is(.adeEditor,.adeStemEditor) .adeCancel{background:var(--card)!important;color:var(--text)!important;border-color:var(--line)!important}
+.adeStemBtn{background:var(--card)!important;border-color:var(--accent-border,var(--line))!important;color:var(--accent)!important}
+:is(.adeEditor,.adeStemEditor) :is(.oeiBox,.oeiItem){background:var(--card)!important;border-color:var(--line)!important;color:var(--text)}
+:is(.adeEditor,.adeStemEditor) :is(.oeiBtn,.oeiMini){background:var(--card)!important;border-color:var(--accent-border,var(--line))!important;color:var(--accent)!important}
+:is(.adeEditor,.adeStemEditor) .oeiMini.danger{border-color:var(--bad)!important;color:var(--bad)!important}
+:is(.adeEditor,.adeStemEditor) .oeiPaste{background:var(--accent-soft)!important;border-color:var(--accent)!important;color:var(--text)!important}
+/* The sample is inside the button; pointer targets and selection handling are unchanged. */
+:is(.adeEditor,.adeStemEditor) .qbFmtTools button{background:var(--card)!important;border-color:var(--line)!important;color:var(--text)!important;font-weight:400}
+.qbFmtTools .qbFmtToolLabel{pointer-events:none}
+.qbFmtTools [data-qb-format="bold"] .qbFmtToolLabel{font-weight:800}
+.qbFmtTools [data-qb-format="underline"] .qbFmtToolLabel{text-decoration-line:underline;text-decoration-thickness:.1em;text-underline-offset:.18em}
+.qbFmtTools [data-qb-format="strike"] .qbFmtToolLabel{text-decoration-line:line-through;text-decoration-thickness:.1em}
+.qbFmtTools [data-qb-format="marker"] .qbFmtToolLabel{background:var(--accent-soft-strong,var(--accent-soft));color:var(--text);padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+:is(.adeEditor,.adeStemEditor) .qbFmtTools [data-qb-format="accent"]{color:var(--accent)!important}
+.qbFmtTools [data-qb-format="clear"] .qbFmtToolLabel{font-weight:400;text-decoration:none}
