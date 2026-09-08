@@ -20,9 +20,27 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Build pinned inline editor locally
+        run: |
+          mkdir -p /tmp/qb-inline-build
+          cp editor-build/package.json /tmp/qb-inline-build/package.json
+          npm install --prefix /tmp/qb-inline-build --ignore-scripts --package-lock=false --no-audit --no-fund
+          node scripts/build-inline-overview.cjs
+          node --check inline-overview-v1.js
+      - name: Verify editing before publication
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: |
+          npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+          node --test tests/explanation-format.unit.cjs
+          node tests/explanation-format.browser.cjs
+          node tests/editor-appearance-stem.browser.cjs
+          node tests/inline-overview.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
