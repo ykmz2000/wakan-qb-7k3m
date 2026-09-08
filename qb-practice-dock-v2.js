@@ -36,7 +36,7 @@ function actionState(){
   if(a&&!a.disabled)return 'answer';
   return 'review';
 }
-function mainLabel(){const a=actionState();return a==='retry'?'もう一度解く':a==='answer'?'解答する':'解説する'}
+function mainLabel(){const a=actionState();return a==='retry'?'もう一度解く':a==='answer'?'解答する':'解説を見る'}
 function mainIcon(){const a=actionState();return a==='retry'?'↻':a==='answer'?'✓':'▤'}
 function goSubjects(){window.qbOpenSubjects?.()}
 function goUnits(){
@@ -91,7 +91,7 @@ function render(){
 function schedule(){clearTimeout(timer);timer=setTimeout(render,0)}
 function boot(){
   css();schedule();
-  ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-app-ready'].forEach(ev=>window.addEventListener(ev,schedule));
+  ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-app-ready','qb-question-change'].forEach(ev=>window.addEventListener(ev,schedule));
   document.addEventListener('click',e=>{if(e.target.closest?.('#view .choice,#answer,#review,#showTextAnswer,#prev,#next'))setTimeout(schedule,20)},true);
   document.addEventListener('input',e=>{if(e.target.matches?.('.fbInput'))schedule()},true);
   const v=document.getElementById('view');if(v)new MutationObserver(schedule).observe(v,{childList:true,subtree:true});
