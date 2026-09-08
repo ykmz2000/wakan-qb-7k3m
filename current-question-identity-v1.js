@@ -2,6 +2,7 @@
 'use strict';
 const norm=s=>String(s??'').replace(/\s+/g,' ').trim();
 let exactId=null;
+let announcedNode=null,announcedId=null,announcedText=null;
 function visibleStem(){return norm(document.querySelector('#view > .card > .qtext')?.textContent||'')}
 function visibleChoices(){
   return [...document.querySelectorAll('#view > .card > .choices > .choice')].map(el=>{
@@ -52,6 +53,12 @@ window.addEventListener('qb-selection-change',e=>{const id=e.detail?.questionId;
 document.addEventListener('click',e=>{if(e.target?.closest?.('#prev,#next,#start,.mode,[data-u],[data-s]'))exactId=null},true);
 function annotateEditors(){
   const id=window.qbCurrentQuestionId?.();if(!id)return;
+  // Reuse the existing identity observer. Formatting spans retain textContent, so this emits only once per stem.
+  const node=document.querySelector('#view > .card > .qtext'),text=node?.textContent||'';
+  if(window.qbGetScreen?.()==='practice'&&node&&(node!==announcedNode||id!==announcedId||text!==announcedText)){
+    announcedNode=node;announcedId=id;announcedText=text;
+    window.dispatchEvent(new CustomEvent('qb-question-ready',{detail:{questionId:id}}));
+  }
   document.querySelectorAll('.adeEditor,.adeStemEditor,.oaiEditor,.qbNoteEditor,.oeiBox,.qsiEditor').forEach(ed=>{if(!ed.dataset.qbQuestionId)ed.dataset.qbQuestionId=id});
 }
 function nearestGuardedEditor(el){return el?.closest?.('.adeEditor,.adeStemEditor,.oaiEditor,.qbNoteEditor,.oeiBox,.qsiEditor')||null}
