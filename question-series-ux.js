@@ -39,18 +39,22 @@ async function preparePracticeIds(selectedIds,subjectId,availableIds,mode='order
   }
   return shuffleBlocks(blocks).flat()
 }
-function currentQuestionId(){try{const q=window.pq?.();return q?.id||q?.dbId||null}catch{return null}}
+function currentQuestionId(){
+  const st=window.qbGetPracticeState?.()||{},ids=Array.isArray(st.questionIds)?st.questionIds:[],i=Number(st.currentIndex)||0;
+  if(ids.length&&ids[i]!=null)return String(ids[i]);
+  try{const q=window.pq?.();return q?.id||q?.dbId||null}catch{return null}
+}
 function syncBadge(){
   document.getElementById('seriesBadge')?.remove();if(window.qbGetScreen?.()!=='practice')return;
   const id=String(currentQuestionId()||''),group=window.QB_SERIES_MAP?.[id];if(!id||!Array.isArray(group)||group.length<2)return;
-  const qtext=document.querySelector('#view .qtext');if(!qtext)return;const idx=group.indexOf(id);
-  const d=document.createElement('div');d.id='seriesBadge';d.className='badge gray';d.style.marginTop='8px';d.textContent=`連続問題 ${Math.max(0,idx)+1}/${group.length}`;qtext.insertAdjacentElement('afterend',d)
+  const head=document.querySelector('#view>.card>.row'),badgeHost=head?.querySelector(':scope > div:first-child');if(!badgeHost)return;
+  const idx=group.indexOf(id),d=document.createElement('span');d.id='seriesBadge';d.className='badge gray';d.textContent=`連続問題 ${Math.max(0,idx)+1}/${group.length}`;badgeHost.appendChild(d)
 }
 function patchBrand(){const brand=document.querySelector('.brand');if(!brand||brand.dataset.qbSeriesBrand==='1')return;brand.dataset.qbSeriesBrand='1';brand.style.cursor='pointer';brand.onclick=()=>{try{if(typeof window.showGradeScreen==='function')return window.showGradeScreen()}catch{}location.href=location.pathname}}
 function loadCurrentSubject(){const st=window.qbGetPracticeState?.()||{};if(!st.subjectId)return;loadSeries(st.subjectId).then(d=>{exposeMap(d);syncBadge()}).catch(e=>console.error('question series load',e))}
 window.qbLoadQuestionSeries=loadSeries;
 window.qbPreparePracticeIds=preparePracticeIds;
 window.qbInvalidateQuestionSeries=subjectId=>{if(subjectId){cache.delete(String(subjectId));pending.delete(String(subjectId))}else{cache.clear();pending.clear()}};
-function boot(){window.QB_SERIES_MAP={};patchBrand();['qb-screen-change','qb-app-ready','qb-answer-shown','qb-retry-current'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(()=>{patchBrand();loadCurrentSubject()},0)));loadCurrentSubject()}
+function boot(){window.QB_SERIES_MAP={};patchBrand();['qb-screen-change','qb-app-ready','qb-answer-shown','qb-retry-current','qb-question-change'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(()=>{patchBrand();loadCurrentSubject()},0)));loadCurrentSubject()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
