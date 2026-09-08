@@ -42,7 +42,7 @@ function normalizeExisting(root){
   const choices=cardBy(root,'各選択肢');if(choices)setHeading(choices,'選択肢解説');
   const summary=cardBy(root,'試験用まとめ');if(summary){setHeading(summary,'試験ポイント');summary.classList.add('qbExamPoints')}
   const verify=cardBy(root,'医学的検証メモ','医学的検証');if(verify){setHeading(verify,'公式解答についての注意');verify.classList.add('qbVerification')}
-  const intent=cardBy(root,'出題者の意図','出題意図');if(intent)intent.classList.add('qbExaminerIntent');
+  const intent=cardBy(root,'出題者の意図','出題意図');if(intent)intent.remove();
   dedupeByTitle(root,'解説');removeEmptyLegacy(root)
 }
 function addCard(root,title,body,cls='line',extra=''){
