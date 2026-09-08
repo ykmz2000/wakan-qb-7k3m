@@ -24,11 +24,11 @@ async function loadUnitProgress(subjectId,ids,token){
     if(screen==='units')renderUnits();
     return
   }
-  const chunks=[];for(let i=0;i<ids.length;i+=120)chunks.push(ids.slice(i,i+120));
-  const result=await Promise.all(chunks.map(chunk=>sb.from('user_question_state').select('question_id,has_viewed_explanation,has_answered,last_is_correct,last_answered_at').eq('user_id',user.id).in('question_id',chunk)));
+  const r=await sb.rpc('get_subject_question_progress_v2',{p_subject_id:subjectId});
   if(token!==unitProgressToken||subject?.id!==subjectId)return;
+  if(r.error)throw r.error;
   const next={};
-  for(const r of result){if(r.error)throw r.error;(r.data||[]).forEach(x=>next[x.question_id]=x)}
+  (r.data||[]).forEach(x=>next[x.question_id]=x);
   qstate=next;unitProgressLoaded=true;unitProgressError=false;
   if(screen==='units')renderUnits();
   window.dispatchEvent(new CustomEvent('qb-unit-progress-loaded',{detail:{subjectId}}))
@@ -56,7 +56,6 @@ async function loadQuestionsForUnit(uid){
   let z=sb.from('questions').select(LIST_SELECT).eq('subject_id',subject.id).eq('status','published').order('study_order');
   if(uid!=='__all__')z=z.eq('unit_id',uid);
   const r=await z;if(r.error)throw r.error;
-  const progress=unitProgressPromise;if(progress)await progress;
   const allow=new Set(expectedIds);questions=(r.data||[]).filter(x=>allow.has(String(x.id))).map(normalizeListQuestion);
   for(let i=0;i<questions.length;i++){const cached=detailCache.get(String(questions[i].id));if(cached)questions[i]=cached}
   window.QB_QUESTIONS=questions;selected=new Set(questions.map(x=>String(x.id)));setScreen('problems');
@@ -134,6 +133,7 @@ function scheduleResumePrompt(){clearTimeout(resumeCheckTimer);resumeCheckTimer=
 async function showResumePrompt(){document.getElementById('qbResumeV2')?.remove();if(screen==='practice'||!sb||!user)return;resumeCss();const r=await sb.from('practice_sessions').select('id,subject_id,unit_id,mode,question_ids,current_index,last_active_at,metadata').eq('user_id',user.id).eq('is_completed',false).order('last_active_at',{ascending:false}).limit(1).maybeSingle();if(r.error||!r.data||resumeDismissed===r.data.id||!(r.data.question_ids||[]).length)return;const s=r.data,d=document.createElement('div');d.id='qbResumeV2';d.innerHTML=`<button class="x" aria-label="閉じる">×</button><button class="go">続きから ${Math.min((s.current_index||0)+1,s.question_ids.length)}/${s.question_ids.length} ▶</button>`;document.body.appendChild(d);d.querySelector('.x').onclick=()=>{resumeDismissed=s.id;d.remove()};d.querySelector('.go').onclick=()=>resumeSession(s).catch(showErr)}
 async function resumeSession(s){document.getElementById('qbResumeV2')?.remove();const target=subjects.find(x=>x.id===s.subject_id);if(!target)throw new Error('保存された科目が見つかりません');const scope=s.metadata?.unit_scope||(s.unit_id||'__all__');if(subject?.id!==target.id)await chooseSubject(target.id);const requested=(s.question_ids||[]).map(String),availableHere=new Set(questions.map(q=>String(q.id))),canReuse=unitId===scope&&requested.every(id=>availableHere.has(id));if(!canReuse)await loadQuestionsForUnit(scope);const available=new Set(questions.map(q=>String(q.id)));practice=requested.filter(id=>available.has(id));if(!practice.length)throw new Error('保存された問題を読み込めません');selected=new Set(practice);pi=Math.max(0,Math.min(Number(s.current_index)||0,practice.length-1));practiceMode=s.mode||'ordered';sessionId=s.id;submitted=false;reviewOnly=false;sel=new Set();setScreen('practice')}
 M.querySelectorAll('[data-mode]').forEach(b=>b.onclick=async()=>{const mode=b.dataset.mode||'ordered',available=questions.map(q=>String(q.id)),chosen=available.filter(id=>selected.has(id));if(!chosen.length)return;practiceMode=mode;M.querySelectorAll('[data-mode]').forEach(x=>x.disabled=true);try{practice=typeof window.qbPreparePracticeIds==='function'?await window.qbPreparePracticeIds(chosen,subject?.id,available,mode):(mode==='shuffle'?[...chosen].sort(()=>Math.random()-.5):chosen)}catch(e){console.error('series-aware practice prepare',e);practice=mode==='shuffle'?[...chosen].sort(()=>Math.random()-.5):chosen}pi=0;submitted=false;reviewOnly=false;sel=new Set();sessionId=null;M.classList.add('hidden');M.querySelectorAll('[data-mode]').forEach(x=>x.disabled=false);setScreen('practice');saveSession(true)});document.getElementById('cancel').onclick=()=>M.classList.add('hidden');
+M.addEventListener('click',e=>{if(e.target===M)M.classList.add('hidden')});
 H.onclick=()=>{if(screen==='subjects')return setScreen('grades');if(screen==='units')return setScreen('subjects');if(screen==='problems')return setScreen('units');return setScreen('subjects')};
 window.qbGetScreen=()=>screen;window.qbOpenSubjects=()=>setScreen('subjects');window.qbOpenProblemList=()=>setScreen('problems');window.showGradeScreen=()=>setScreen('grades');window.qbRetryCurrent=retryCurrent;window.qbGetPracticeState=()=>({subjectId:subject?.id||null,unitId,questionIds:[...practice],currentIndex:pi,mode:practiceMode,sessionId});window.qbResumeSession=resumeSession;window.qbEnsureQuestionDetail=ensureQuestionDetail;
 window.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='practice')saveSession(false)});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
