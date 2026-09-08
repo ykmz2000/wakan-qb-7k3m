@@ -9,6 +9,10 @@ function css(){
 #gradeM4 .meta,#gradeM4 .muted,.gradeBtn .muted{color:var(--muted)!important}
 .qbThemeEditAction,.adeEditBtnV2,.adeStemBtn{color:var(--accent)!important}
 .qbSharedRating .rate:not(.on),#ans .rate[data-qb-rate]:not(.on){color:var(--accent)!important;border-color:var(--accent-border)!important;background:#fff!important}
+.qbEmArea[data-type="new"] .qbEmAreaHead{border-color:var(--accent-border)!important;background:var(--accent-soft)!important}
+.qbEmArea[data-type="new"] .qbEmAreaPriority{background:var(--accent-soft-strong)!important;color:var(--accent)!important}
+.qbEmAreaAll,.qbEmMask{color:var(--accent)!important}.qbEmAreaAll{border-color:var(--accent-border)!important}
+.qbGeneratedBanner{background:var(--accent-soft)!important;border-color:var(--accent-border)!important}
 `;
   document.head.appendChild(s)
 }
