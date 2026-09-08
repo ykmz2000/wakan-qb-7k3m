@@ -26,8 +26,13 @@ function css(){
   if(document.getElementById('qbThemeSystemCss'))return;
   const s=document.createElement('style');s.id='qbThemeSystemCss';s.textContent=`
 :root{--accent-soft:#eaf4fb;--accent-soft-strong:#dcecf7;--accent-border:#b9d9ee;--accent-gradient-start:#4a8fc2;--accent-gradient-end:var(--accent)}
-.authTabs button.on,.authPrimary,.acctAvatar,.acctAvatarLarge{background:var(--accent)!important}.pwToggle{color:var(--accent)!important}
+.primary,.filter.on,.authTabs button.on,.authPrimary,.acctAvatar,.acctAvatarLarge,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
+.secondary,.qid,.pwToggle,.qbComingSoonTitle{color:var(--accent)!important}
+.choice.sel{border-color:var(--accent)!important;background:var(--accent-soft)!important}
+.badge:not(.gray){background:var(--accent-soft)!important;color:var(--accent)!important}
+.resultcard.review{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 #qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:var(--accent-soft)!important;color:var(--accent)!important}
+#qbPracticeDockV2 button.qbpdMain{box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 22%,transparent)!important}
 .qbNextExamCard{border-color:var(--accent-border)!important;background:linear-gradient(180deg,var(--accent-soft),#fff)!important}.qbExamDay.qbExamNext{border-color:var(--accent)!important;background:var(--accent-soft)!important}.qbExamDayTag{background:var(--accent)!important}.qbExamItemButton{color:var(--accent)!important}
 .imageQueueBtn{color:var(--accent)!important;border-color:var(--accent-border)!important;background:var(--accent-soft)!important}
 #qbThemePicker{margin:8px 0 14px}.qbThemeGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.qbThemeChoice{border:1px solid var(--line,#dce3ec);background:#fff;border-radius:11px;padding:8px 6px;min-height:52px;font-size:11px;font-weight:900;color:var(--text,#172033);display:flex;align-items:center;gap:7px;justify-content:center}.qbThemeChoice.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}.qbThemeDot{width:17px;height:17px;border-radius:50%;background:var(--swatch);flex:0 0 auto}.qbThemeMsg{font-size:11px;color:var(--muted,#6f7786);margin-top:6px;min-height:16px}@media(max-width:440px){.qbThemeGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -59,9 +64,7 @@ function injectPicker(){
   anchor.insertAdjacentElement('afterend',host);
   const msg=host.querySelector('.qbThemeMsg');host.querySelectorAll('.qbThemeChoice').forEach(b=>b.onclick=()=>chooseTheme(b.dataset.theme,msg))
 }
-function observe(){
-  const o=new MutationObserver(()=>injectPicker());o.observe(document.body,{childList:true,subtree:true});injectPicker()
-}
+function observe(){const o=new MutationObserver(()=>injectPicker());o.observe(document.body,{childList:true,subtree:true});injectPicker()}
 async function boot(){css();applyTheme('blue');for(let i=0;i<60&&!await context();i++)await new Promise(r=>setTimeout(r,100));observe()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
