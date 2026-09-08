@@ -26,7 +26,8 @@ function css(){
   if(document.getElementById('qbThemeSystemCss'))return;
   const s=document.createElement('style');s.id='qbThemeSystemCss';s.textContent=`
 :root{--accent-soft:#eaf4fb;--accent-soft-strong:#dcecf7;--accent-border:#b9d9ee;--accent-gradient-start:#4a8fc2;--accent-gradient-end:var(--accent)}
-.primary,.filter.on,.authTabs button.on,.authPrimary,.acctAvatar,.acctAvatarLarge,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
+.primary,.filter.on,.authTabs button.on,.authPrimary,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
+.acctAvatar,.acctAvatarLarge{background-color:var(--accent)!important}
 .secondary,.qid,.pwToggle,.qbComingSoonTitle{color:var(--accent)!important}
 .choice.sel{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 .badge:not(.gray){background:var(--accent-soft)!important;color:var(--accent)!important}
