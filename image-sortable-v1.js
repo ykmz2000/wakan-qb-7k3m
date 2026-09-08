@@ -43,6 +43,12 @@ function statusFor(container){
   if(st?.classList?.contains('qbsortStatus'))return st;
   st=document.createElement('div');st.className='qbsortStatus';container.insertAdjacentElement('afterend',st);return st;
 }
+function emitRefresh(detail){
+  window.dispatchEvent(new CustomEvent('qb-content-updated',{detail}));
+  const map={'official-image-order':'official-image','question-image-order':'question-image','personal-note-image-order':'personal-note-image'};
+  const type=map[String(detail?.type||'')];
+  if(type)window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{...detail,type,source:'image-sortable-v1',orderSync:true}}));
+}
 async function persist(table,ids,status,detail){
   if(ids.length<2)return;
   const c=await ctx();if(!c)return;
@@ -51,7 +57,7 @@ async function persist(table,ids,status,detail){
     const results=await Promise.all(ids.map((id,i)=>c.sb.from(table).update({sort_order:(i+1)*10}).eq('id',id)));
     const bad=results.find(x=>x.error);if(bad?.error)throw bad.error;
     status.textContent='順番を保存しました';
-    window.dispatchEvent(new CustomEvent('qb-content-updated',{detail}));
+    emitRefresh(detail);
     setTimeout(()=>{if(status.isConnected)status.textContent=''},1500);
   }catch(e){
     console.error(e);status.textContent='並べ替えの保存に失敗しました';
