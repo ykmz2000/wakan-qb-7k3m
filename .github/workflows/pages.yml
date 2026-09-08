@@ -45,6 +45,7 @@ jobs:
           node tests/inline-overview.browser.cjs
           node tests/inline-stem.browser.cjs
           node tests/fill-blank-reference.browser.cjs
+          node tests/question-image-add-theme.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
