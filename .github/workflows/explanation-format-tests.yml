@@ -1,0 +1,35 @@
+name: Explanation formatting regression tests
+on:
+  push:
+    branches: [feat/explanation-formatting-v1]
+  pull_request:
+    paths:
+      - '**.js'
+      - index.html
+      - tests/**
+      - .github/workflows/explanation-format-tests.yml
+permissions:
+  contents: read
+concurrency:
+  group: explanation-format-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check script syntax
+        run: |
+          node --check explanation-format-v1.js
+          node --check admin-direct-edit-v2.js
+          node --check tests/explanation-format.browser.cjs
+      - name: Unit tests
+        run: node --test tests/explanation-format.unit.cjs
+      - name: Install pinned browser test client
+        run: npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+      - name: Chromium and WebKit interaction regression
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/explanation-format.browser.cjs
