@@ -27,6 +27,11 @@ async function run(browser,name){
     await p.evaluate(({platform,touch})=>{
       Object.defineProperty(navigator,'platform',{get:()=>platform});
       Object.defineProperty(navigator,'maxTouchPoints',{get:()=>touch});
+      if(touch){
+        // ProseMirror's iOS branch requires Apple's vendor plus touch support.
+        Object.defineProperty(navigator,'vendor',{get:()=> 'Apple Computer, Inc.'});
+        Object.defineProperty(navigator,'userAgent',{get:()=> 'Mozilla/5.0 AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15'});
+      }
       window.QB_INLINE_TEST=true;
     },{platform,touch});
     await p.addScriptTag({content:fs.readFileSync(path.join(root,'explanation-format-v1.js'),'utf8')});
