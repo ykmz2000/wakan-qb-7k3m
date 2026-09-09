@@ -126,7 +126,7 @@ async function bindPersonal(c,Q){
   for(const personal of personals){
     const grid=personal.querySelector('.qbNoteImageGrid');if(!grid||grid.dataset.qbNoteSortPrepared==='1')continue;
     const imgs=[...grid.querySelectorAll(':scope > img,:scope > .qbNoteImageWrap > img')];if(imgs.length<2)continue;
-    const rows=await noteRows(c,Q,personal);if(rows.length<2)continue;
+    const rows=await noteRows(c,Q,personal);if(rows.length<2||grid.dataset.qbNoteSortPrepared==='1'||!grid.isConnected)continue;
     const byPath=new Map(rows.map(r=>[r.image_path,r]));
     for(let i=0;i<imgs.length;i++){
       const img=imgs[i],path=decodeStoragePath(img.src,'user-note-images'),row=byPath.get(path)||rows[i];if(!row)continue;
@@ -150,7 +150,7 @@ function scan(delay=80){
 }
 function addedRelevant(node){
   if(node?.nodeType!==1)return false;
-  const sel='.oeiGrid,.oeiItem,.qsiGrid,.qsiImgWrap,.qbPersonal,.qbNoteImageGrid,.adeEditor';
+  const sel='.oeiGrid,.oeiItem,.qsiGrid,.qsiImgWrap,.qbPersonal,.qbNoteImageGrid,.qbNoteImageWrap,.adeEditor';
   return node.matches?.(sel)||!!node.querySelector?.(sel);
 }
 function boot(){

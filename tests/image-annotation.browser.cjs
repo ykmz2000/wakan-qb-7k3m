@@ -97,6 +97,11 @@ async function integration(browser,name){
   const user=await fixture.exports.boot(browser,{role:'user',db});const u=user.page;await augment(u);await u.locator('.qbExportButton').waitFor();assert.equal(await u.locator('.adeStemBtn').count(),0);
   const note=u.locator('.qbPersonal').first();await note.locator('.qbPencil').click();await note.locator('textarea').fill('画像追加中のメモ下書き');await paste(u,'.qbPersonal .qbNoteEditor textarea');await confirm(u);assert.equal(await note.locator('textarea').inputValue(),'画像追加中のメモ下書き');assert.equal(await u.evaluate(()=>testDB.user_notes[0].note_text),'以前からの個人メモ');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).note_id),'n1');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).user_id),'u1');
   await note.locator('.qbNoteImageWrap .qbImageWriteActions').first().waitFor();
+  await u.evaluate(()=>{window.Sortable=class{constructor(container,options){container.testSortOptions=options}}});await u.addScriptTag({content:read('image-sortable-v1.js')});
+  await u.waitForFunction(()=>document.querySelectorAll('.qbPersonal .qbNoteImageWrap.qbsortNoteItem').length===2);
+  assert.equal(await note.locator('.qbNoteImageWrap .qbImageWriteActions').count(),2);
+  await note.locator('.qbNoteImageGrid').evaluate(async grid=>{grid.prepend(grid.querySelector('.qbsortNoteItem:last-child'));await grid.testSortOptions.onEnd()});
+  assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).sort_order),10);
   const denied=await u.evaluate(async()=>{try{await QBImageStore.authorize({sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',host:document.querySelector('.qtext')});return false}catch{return true}});assert.ok(denied);
   console.log(name+' PASS personal image save stays private, retains note draft and rejects general-user official edits');
   // Export pixels really render, text never clips, and output does not write app records.
