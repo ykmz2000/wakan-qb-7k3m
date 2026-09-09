@@ -14,7 +14,7 @@ async function run(browser,name){
   await drag(p,map,[[100,100],[500,100]]);await settle(p);
   const solid=await p.locator('.qbDrawCanvas').evaluate((c,{a,b})=>{const r=c.getBoundingClientRect(),d=c.width/r.width,x=c.getContext('2d');let gaps=0;for(let px=a.x;px<b.x;px+=2){const v=x.getImageData(Math.round((px-r.left)*d),Math.round((a.y-r.top)*d),1,1).data;if(v[0]<150||v[1]>130)gaps++}return gaps},{a:map(130,100),b:map(470,100)});assert.equal(solid,0,'live pen must stay solid across consecutive render frames');
   console.log(name+' PASS live handwriting remains a continuous solid line');
-  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,200],[300,280]]);await drag(p,map,[[200,240],[400,300]]);
+  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,200],[300,280]]);await drag(p,map,[[100,240],[300,300]]);
   await p.locator('[data-tool=arrow]').click();await drag(p,map,[[100,400],[300,400]]);await drag(p,map,[[200,400],[400,430]]);
   await p.locator('[data-tool=text]').click();let t=map(110,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('MOVE');await p.locator('[data-tool=rect]').click();
   t=map(150,515);await p.mouse.click(t.x,t.y);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'first click selects without entering text');
