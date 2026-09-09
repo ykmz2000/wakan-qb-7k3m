@@ -9,3 +9,9 @@ Output modes are questions, questions with answers, or full explanations (defaul
 The pinned MIT PDF-LIB 1.17.1 browser distribution is vendored with its license. It is loaded only on PDF creation. No build/dependency changes are required for the existing application.
 
 Validation: `node --test tests/unit-pdf-layout.unit.cjs`; `node tests/unit-pdf-export.browser.cjs` with the repository's pinned Playwright client. Browser fixtures use synthetic data and reject all unexpected network traffic and writes. Tests inspect the generated PDF page sizes, covers, ordering, complete images, section boundaries, independent card events, cancellation, retry and original navigation. Existing Pages regression checks remain in place.
+
+Compact image layout: each image is at most 50mm tall, with up to three columns per row and a 12px logical gutter. Wide images may span two or three columns. Image order and section/choice membership are preserved; each caption wraps within its image cell. A whole image row with captions is an indivisible pagination atom. Single images do not expand to full page width.
+
+Image quality: PNG source pixels are embedded directly as separate PDF image objects. Other formats are normalized to lossless PNG at their native decoded dimensions to preserve orientation and avoid another JPEG compression pass. The old 2100/2700px downsampling is removed. Only the text/background uses the existing page raster; source images are drawn above it as separate objects, preserving detail during PDF zoom. Native image conversion runs sequentially and temporary canvases are released. The small QA preview canvas is never used as the PDF source.
+
+Saving downloads the PDF bytes directly. Optional file sharing passes only the PDF File, without a title, text or URL item. Subject and unit covers retain native PDF link annotations and a QR code for the app URL.

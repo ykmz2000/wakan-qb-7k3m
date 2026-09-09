@@ -1,7 +1,7 @@
 name: Unit PDF export regression
 on:
   push:
-    branches: [feat/unit-pdf-export, fix/pdf-save-links]
+    branches: [feat/unit-pdf-export, fix/pdf-save-links, feat/pdf-compact-images]
   workflow_dispatch:
 permissions:
   contents: read

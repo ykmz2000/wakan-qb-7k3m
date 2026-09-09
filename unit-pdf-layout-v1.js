@@ -59,12 +59,26 @@ function textAtoms(ctx,text,options={}){
 function heading(ctx,text){const lines=textLines(ctx,text,{size:16,bold:true});return{type:'heading',lines,height:lines.length*25.6+10,keepNext:true}}
 function buildGroups(ctx,Q,images,mode='full'){
   const groups=[],consumed=new Set(),choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)||String(a.id).localeCompare(String(b.id)));
-  function media(rows){return rows.map(row=>{consumed.add(row.id);const caption=row.caption?textLines(ctx,row.caption,{size:13}):[],captionHeight=caption.length*20.8;
-    const maxHeight=PAGE.bottom-PAGE.top-90-captionHeight;
-    if(maxHeight<80)throw Error('画像の説明文が長すぎます。');
-    const scale=Math.min((PAGE.width-PAGE.left-PAGE.right)/row.image.width,maxHeight/row.image.height,1),w=row.image.width*scale,h=row.image.height*scale;
-    return{type:'image',image:row.image,width:w,imageHeight:h,caption,height:h+captionHeight+12,imageId:row.id};
-  })}
+  function media(rows){
+    const width=PAGE.width-PAGE.left-PAGE.right,gap=12,column=(width-gap*2)/3,maxHeight=PAGE.height*50/297;
+    const result=[];let cells=[],used=0;
+    const flush=()=>{if(!cells.length)return;result.push({type:'imageRow',cells,height:Math.max(...cells.map(c=>c.imageHeight+(c.caption.length?6+c.caption.length*20.8:0)))+12});cells=[];used=0};
+    for(const row of rows){
+      consumed.add(row.id);const naturalWidth=row.image.width,naturalHeight=row.image.height;
+      if(!(naturalWidth>0&&naturalHeight>0))throw Error('画像の寸法を確認できませんでした。');
+      const wantedWidth=naturalWidth*Math.min(1,maxHeight/naturalHeight);
+      let span=Math.max(1,Math.min(3,Math.ceil((wantedWidth+gap)/(column+gap))));
+      let cellWidth=column*span+gap*(span-1),caption=row.caption?textLines(ctx,row.caption,{size:13,width:cellWidth}):[];
+      // A very long caption gets a full row, while remaining attached to its image.
+      if(caption.length*20.8+maxHeight+90>PAGE.bottom-PAGE.top){span=3;cellWidth=width;caption=row.caption?textLines(ctx,row.caption,{size:13,width:cellWidth}):[]}
+      if(used+span>3)flush();
+      const scale=Math.min(cellWidth/naturalWidth,maxHeight/naturalHeight,1),w=naturalWidth*scale,h=naturalHeight*scale;
+      if(h+caption.length*20.8+90>PAGE.bottom-PAGE.top)throw Error('画像の説明文が長すぎます。');
+      cells.push({image:row.preview||row.image,pdfImage:row.pdfImage,width:w,imageHeight:h,caption,imageId:row.id,x:PAGE.left+used*(column+gap)+(cellWidth-w)/2,captionX:PAGE.left+used*(column+gap),cellWidth,span});
+      used+=span;if(used===3)flush();
+    }
+    flush();return result;
+  }
   function group(id,title,items){if(items.length)groups.push({id,items:[...(title?[heading(ctx,title)]:[]),...items]})}
   const noChoice=row=>!row.choice_id;
   const rows=(placement,choiceId=null)=>images.filter(r=>r.placement===placement&&(choiceId?String(r.choice_id)===String(choiceId):noChoice(r)));
@@ -124,8 +138,11 @@ function drawLines(ctx,lines,x,y,theme){
     if(active.includes('underline')||active.includes('strike')){ctx.fillStyle=active.includes('accent')?theme.accent:'#172033';if(active.includes('underline'))ctx.fillRect(rx,y+line.size*1.25,run.width,1);if(active.includes('strike'))ctx.fillRect(rx,y+line.size*.65,run.width,1)}
   }y+=line.height}return y;
 }
-function drawItems(ctx,items,theme){for(const item of items){
-  if(item.type==='image'){const x=(PAGE.width-item.width)/2;ctx.drawImage(item.image,x,item.y,item.width,item.imageHeight);drawLines(ctx,item.caption,PAGE.left,item.y+item.imageHeight+6,theme)}
+function drawItems(ctx,items,theme,{images=true}={}){for(const item of items){
+  if(item.type==='imageRow'){
+    for(const cell of item.cells){if(images)ctx.drawImage(cell.image,cell.x,item.y,cell.width,cell.imageHeight);drawLines(ctx,cell.caption,cell.captionX,item.y+cell.imageHeight+6,theme)}
+  }
+  else if(item.type==='image'){const x=(PAGE.width-item.width)/2;ctx.drawImage(item.image,x,item.y,item.width,item.imageHeight);drawLines(ctx,item.caption,PAGE.left,item.y+item.imageHeight+6,theme)}
   else drawLines(ctx,item.lines,PAGE.left,item.y+(item.type==='heading'?3:0),theme);
 }}
 const api={PAGE,FONT,rangesFor,textLines,textAtoms,heading,paginate,buildGroups,answerText,drawLines,drawItems};

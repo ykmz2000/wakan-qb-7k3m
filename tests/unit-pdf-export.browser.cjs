@@ -21,6 +21,7 @@ async function run(type,name){
       q1.stem_formatting={version:1,source_text:q1.stem,ranges:[{start:7,end:13,kind:'underline'}]};
       q1.explanation_formatting={explanation_overview:{version:1,source_text:q1.explanation_overview,ranges:[{start:0,end:6,kind:'bold'},{start:0,end:6,kind:'accent'},{start:0,end:6,kind:'underline'}]}};
       window.pdfDB={grades:[{id:'g',code:'M4'}],subjects:[{id:'s1',grade_id:'g',is_active:true,name:'テスト医学',sort_order:1}],units:[{id:'u2',subject_id:'s1',name:'第2単元',sort_order:2,is_active:true},{id:'u1',subject_id:'s1',name:'第1単元・画像と解説',sort_order:1,is_active:true}],questions:[q1,q2,q3,{...question('draft','u1',0),status:'draft'},{...question('other','u1',0),subject_id:'other'}],question_images:[{id:'i1',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'one.png',caption:'第1の画像の説明',sort_order:1},{id:'i2',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'two.png',caption:'第2の画像の説明',sort_order:2}]};
+      for(let n=3;n<=7;n++)pdfDB.question_images.push({id:'i'+n,question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:n===7?'wide.png':'extra'+n+'.png',caption:'第'+n+'の画像の説明',sort_order:n});
       window.pdfReads=[];window.pdfWrites=[];window.failPDF=false;window.delayPDF=false;
       class Query{
         constructor(t){this.t=t;this.filters=[];this.orders=[];this.n=200;this.one=false;this.signal=null}
@@ -37,7 +38,7 @@ async function run(type,name){
       }
       window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'user1'}}})},from:t=>new Query(t),rpc:async()=>({data:[],error:null}),storage:{from:()=>({download:async file=>{
         if(failPDF)return{data:null,error:{message:'synthetic missing image'}};
-        const c=document.createElement('canvas');c.width=900;c.height=1000;const x=c.getContext('2d');x.fillStyle=file==='one.png'?'#c5e6ef':'#f8d8e6';x.fillRect(0,0,900,1000);x.fillStyle='#172033';x.font='40px sans-serif';x.fillText(file,60,100);x.strokeStyle='#172033';x.strokeRect(60,200,700,600);return{data:await new Promise(r=>c.toBlob(r,'image/png')),error:null};
+        const c=document.createElement('canvas');c.width=file==='one.png'?3600:file==='wide.png'?3600:900;c.height=file==='one.png'?4000:file==='wide.png'?1200:1000;const x=c.getContext('2d');x.fillStyle=file==='one.png'?'#c5e6ef':'#f8d8e6';x.fillRect(0,0,c.width,c.height);x.fillStyle='#172033';x.font='40px sans-serif';x.fillText(file,60,100);x.strokeStyle='#172033';x.strokeRect(60,200,700,600);return{data:await new Promise(r=>c.toBlob(r,file==='two.png'?'image/jpeg':'image/png')),error:null};
       }})}};
       window.pdfSnapshot=JSON.stringify(pdfDB);
     });
@@ -60,7 +61,8 @@ async function run(type,name){
       const doc=await PDFLib.PDFDocument.load(await r.blob.arrayBuffer());window.pdfBytes=Array.from(new Uint8Array(await r.blob.arrayBuffer()));
       window.pdfCoverPixels=(()=>{const c=document.createElement('canvas');c.width=444;c.height=444;const x=c.getContext('2d');return new Promise(resolve=>{const i=new Image();i.onload=()=>{x.drawImage(i,180,2538,444,444,0,0,444,444);resolve(Array.from(x.getImageData(0,0,444,444).data))};i.src=pdfPageImages[0]})})();
       const links=doc.getPages().map(page=>{const a=page.node.Annots();return a?a.asArray().map(ref=>{const v=doc.context.lookup(ref);return {uri:v.lookup(PDFLib.PDFName.of('A')).lookup(PDFLib.PDFName.of('URI')).decodeText(),rect:v.lookup(PDFLib.PDFName.of('Rect')).asArray().map(n=>n.asNumber())}}):[]});
-      return{questions:r.questions,pages:r.pages,sizes:doc.getPages().map(p=>p.getSize()),meta:pdfMeta,links};
+      const imageSizes=doc.getPages().flatMap(page=>{const xo=page.node.Resources().lookup(PDFLib.PDFName.of('XObject'));return xo.keys().map(k=>{const d=xo.lookup(k).dict;return{width:d.lookup(PDFLib.PDFName.of('Width')).asNumber(),height:d.lookup(PDFLib.PDFName.of('Height')).asNumber()}})});
+      return{questions:r.questions,pages:r.pages,sizes:doc.getPages().map(p=>p.getSize()),meta:pdfMeta,links,imageSizes};
     });
     const qr=jsQR(new Uint8ClampedArray(await p.evaluate(()=>pdfCoverPixels)),444,444);assert.equal(qr?.data,siteURL);
     result.links.forEach((links,i)=>{assert.equal(links.length,result.meta[i].type.endsWith('cover')?2:0);for(const link of links){assert.equal(link.uri,siteURL);assert.ok(link.rect[0]>=0&&link.rect[2]<=595.28&&link.rect[1]>=0&&link.rect[3]<=841.89)}});
@@ -68,8 +70,14 @@ async function run(type,name){
     assert.deepEqual(result.meta.filter(m=>m.type.includes('cover')).map(m=>[m.type,m.subtitle]),[['subject-cover',''],['unit-cover','第1単元・画像と解説'],['unit-cover','第2単元']]);
     assert.deepEqual([...new Set(result.meta.filter(m=>m.questionId).map(m=>m.questionId))],['q2','q1','q3']);
     assert.ok(result.meta.filter(m=>m.questionId==='q2').length>1);
+    assert.ok(result.imageSizes.some(s=>s.width===3600&&s.height===4000),'native pixels must survive embedding');
+    assert.ok(result.imageSizes.some(s=>s.width===3600&&s.height===1200),'wide native picture must remain intact');
+    assert.ok(result.imageSizes.some(s=>s.width===900&&s.height===1000),'JPEG normalization must keep native size');
+    const imageRows=result.meta.flatMap(m=>m.items||[]).filter(i=>i.type==='imageRow');
+    assert.deepEqual(imageRows.map(r=>r.images.length),[3,3,1]);
+    imageRows.forEach(r=>r.images.forEach(i=>assert.ok(i.imageHeight/1123*297<=50.001)));
     for(const m of result.meta.filter(m=>m.items))for(const i of m.items)assert.ok(i.y>=86&&i.y+i.height<=1065,JSON.stringify(i));
-    assert.deepEqual(result.meta.flatMap(m=>m.items||[]).filter(i=>i.imageId).map(i=>i.imageId),['i1','i2']);
+    assert.deepEqual(result.meta.flatMap(m=>m.items||[]).flatMap(i=>i.images||[]).map(i=>i.imageId),['i1','i2','i3','i4','i5','i6','i7']);
     assert.equal(await p.evaluate(()=>JSON.stringify(pdfDB)===pdfSnapshot),true);assert.equal(await p.evaluate(()=>pdfWrites.length),0);
     assert.equal(await p.evaluate(()=>JSON.stringify(qbGetPracticeState())),state);assert.equal(await p.evaluate(()=>qbGetScreen()),'units');
     fs.writeFileSync(path.join(out,name+'-all.pdf'),Buffer.from(await p.evaluate(()=>pdfBytes)));

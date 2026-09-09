@@ -71,19 +71,36 @@ async function loadLibrary(){
   if(!libraryPromise)libraryPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('vendor/pdf-lib-1.17.1.min.js',assetBase).href;script.onload=()=>resolve(window.PDFLib);script.onerror=()=>{script.remove();libraryPromise=null;reject(Error('PDF出力機能を読み込めませんでした。'))};document.head.append(script)});
   return libraryPromise;
 }
-async function loadImages(sb,rows,signal){
+async function loadImages(sb,rows,signal,pdf){
   const out=[];
   try{
-  for(const row of rows){aborted(signal);
-    const file=await cancellable(sb.storage.from('question-media').download(row.image_path),signal);if(file.error||!file.data)throw Error('画像を取得できませんでした。画像を省略せず、出力を中止しました。');
-    const url=URL.createObjectURL(file.data),img=new Image();
-    try{await cancellable(new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('画像を読み込めませんでした。'));img.src=url}),signal);
-      const scale=Math.min(1,2100/img.naturalWidth,2700/img.naturalHeight),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);out.push({...row,image:canvas});
-    }finally{URL.revokeObjectURL(url);img.src=''}
-  }
-  return out;
-  }catch(e){out.forEach(r=>{r.image.width=r.image.height=1});throw e}
+    for(const row of rows){
+      aborted(signal);
+      const file=await cancellable(sb.storage.from('question-media').download(row.image_path),signal);
+      if(file.error||!file.data)throw Error('画像を取得できませんでした。画像を省略せず、出力を中止しました。');
+      const url=URL.createObjectURL(file.data),img=new Image();let native=null,preview=null;
+      try{
+        await cancellable(new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('画像を読み込めませんでした。'));img.src=url}),signal);
+        const width=img.naturalWidth,height=img.naturalHeight;
+        let bytes=new Uint8Array(await file.data.arrayBuffer());
+        const png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);
+        if(!png){
+          // Normalize other formats at native dimensions (including EXIF orientation), without JPEG recompression.
+          native=document.createElement('canvas');native.width=width;native.height=height;const nativeCtx=native.getContext('2d');
+          if(!nativeCtx)throw Error('元画像の画質を保持して変換できませんでした。');
+          nativeCtx.drawImage(img,0,0,width,height);
+          const blob=await new Promise((resolve,reject)=>native.toBlob(b=>b?resolve(b):reject(Error('元画像の画質を保持して変換できませんでした。')),'image/png'));
+          bytes=new Uint8Array(await blob.arrayBuffer());native.width=native.height=1;
+        }
+        aborted(signal);const pdfImage=await pdf.embedPng(bytes);await pdfImage.embed();
+        // A small preview is used only for QA canvases. The PDF receives the native image object.
+        const scale=Math.min(1,600/width,600/height);preview=document.createElement('canvas');preview.width=Math.max(1,Math.round(width*scale));preview.height=Math.max(1,Math.round(height*scale));
+        preview.getContext('2d').drawImage(img,0,0,preview.width,preview.height);
+        out.push({...row,image:{width,height},preview,pdfImage});preview=null;
+      }finally{URL.revokeObjectURL(url);img.src='';if(native)native.width=native.height=1;if(preview)preview.width=preview.height=1}
+    }
+    return out;
+  }catch(e){out.forEach(r=>{r.preview.width=r.preview.height=1});throw e}
 }
 function sourceLines(q){return(q.question_occurrences||[]).map(o=>`${o.academic_year?o.academic_year+'年度':'年度不明'}・${o.exam_type||'試験区分不明'}${o.original_question_number?'・問'+o.original_question_number:''}${o.source_file?'　'+o.source_file:''}${o.source_page?' p.'+o.source_page:''}`).join('\n')}
 function filename(scope){return [scope.subject.name,scope.all?'すべて':scope.unit.name].join('-').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,150)+'.pdf'}
@@ -100,10 +117,14 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
   let count=0,currentUnit=null;
   function reset(){canvas.width=L.PAGE.width*3;canvas.height=L.PAGE.height*3;ctx.scale(3,3);ctx.fillStyle='#fff';ctx.fillRect(0,0,L.PAGE.width,L.PAGE.height);ctx.textBaseline='top'}
   function draw(text,x,y,size=14,bold=false,width=690){return L.drawLines(ctx,L.textLines(ctx,text,{size,bold,width}),x,y,theme)}
-  async function savePage(meta){
+  async function savePage(meta,items=[]){
     aborted(signal);count++;draw(String(count),L.PAGE.width-80,1086,12);
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('ページ画像を作成できませんでした。')),'image/jpeg',.94));
     aborted(signal);const image=await pdf.embedJpg(await blob.arrayBuffer()),page=pdf.addPage([595.28,841.89]);page.drawImage(image,{x:0,y:0,width:595.28,height:841.89});
+    const sx=595.28/L.PAGE.width,sy=841.89/L.PAGE.height;
+    for(const item of items)if(item.type==='imageRow')for(const cell of item.cells){
+      page.drawImage(cell.pdfImage,{x:cell.x*sx,y:841.89-(item.y+cell.imageHeight)*sy,width:cell.width*sx,height:cell.imageHeight*sy});
+    }
     if(meta.type.endsWith('cover')){
       // The page artwork is rasterized; add real PDF URI annotations above it.
       for(const [x,y,width,height] of [[60,846,148,148],[230,872,504,72]]){
@@ -112,7 +133,11 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
         page.node.addAnnot(pdf.context.register(annotation));
       }
     }
-    if(onPage)await onPage({...meta,page:count},canvas);await new Promise(r=>setTimeout(r,0));
+    if(onPage){
+      // Add preview pictures only after the text/background image has been embedded.
+      for(const item of items)if(item.type==='imageRow')for(const cell of item.cells)ctx.drawImage(cell.image,cell.x,item.y,cell.width,cell.imageHeight);
+      await onPage({...meta,page:count},canvas);
+    }await new Promise(r=>setTimeout(r,0));
   }
   async function cover(title,subtitle,type){reset();ctx.fillStyle=theme.accent;ctx.fillRect(60,310,54,5);let y=draw(title,60,350,30,true,674);if(subtitle)draw(subtitle,60,y+24,24,true,674);// Crisp QR modules with a four-module white quiet zone on every side.
     const moduleSize=4,qrX=60,qrY=846;ctx.fillStyle='#fff';ctx.fillRect(qrX,qrY,148,148);ctx.fillStyle='#000';
@@ -134,7 +159,7 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
         let rows=await readAll(()=>sb.from('question_images').select('id,image_path,caption,alt_text,placement,choice_id,sort_order,created_at').eq('question_id',q.id),signal);
         rows.sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)||String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
         if(mode!=='full')rows=rows.filter(r=>r.placement==='question');
-        const images=await loadImages(sb,rows,signal);
+        const images=await loadImages(sb,rows,signal,pdf);
         try{
           const groups=L.buildGroups(ctx,q,images,mode),sources=sourceLines(q);
           if(sources)groups.unshift({id:'source',items:L.textAtoms(ctx,sources,{size:12})});
@@ -144,10 +169,10 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
             L.drawLines(ctx,[header[0]],52,24,theme);if(header.length>1)draw('…',728,24,12);
             draw(`問${start+n+1}${part?'（続き '+(part+1)+'）':''}`,52,51,18,true);
             ctx.strokeStyle='#dce3ec';ctx.beginPath();ctx.moveTo(52,77);ctx.lineTo(742,77);ctx.stroke();
-            L.drawItems(ctx,pages[part].items,theme);
-            await savePage({type:'question',questionId:q.id,part:part+1,items:pages[part].items.map(({group,type,y,height,imageId})=>({group,type,y,height,imageId}))});
+            L.drawItems(ctx,pages[part].items,theme,{images:false});
+            await savePage({type:'question',questionId:q.id,part:part+1,items:pages[part].items.map(({group,type,y,height,cells})=>({group,type,y,height,images:cells?.map(({imageId,x,width,imageHeight,caption,cellWidth})=>({imageId,x,width,imageHeight,captionHeight:caption.length*20.8,cellWidth}))}))},pages[part].items);
           }
-        }finally{images.forEach(r=>{r.image.width=r.image.height=1})}
+        }finally{images.forEach(r=>{r.preview.width=r.preview.height=1})}
         onProgress({done:start+n+1,total:scope.index.length});
       }
     }
