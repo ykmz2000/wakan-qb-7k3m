@@ -19,7 +19,7 @@ async function boot(browser){
     testDB.question_images.forEach((r,i)=>r.created_at='2026-09-01T00:00:00.000Z');
     for(let i=1;i<=45;i++)testDB.question_images.push({id:'img-'+String(i).padStart(3,'0'),image_path:'fixture-'+i+'.png',question_id:i<=25?'q2':'q3',placement:'explanation_overview',choice_id:null,created_at:i<=25?'2026-09-02T00:00:00.000Z':'2026-09-03T00:00:00.000Z'});
     testDB.question_images.push({...testDB.question_images.find(r=>r.id==='img-020'),id:'duplicate-path'});
-    window.testPickerReads=[];window.testDownloads=[];window.testUploadPaths=[];window.pickerResult=null;window.failPickerImages=false;window.failPickerCatalog=false;window.slowPickerScope='';
+    window.testPickerReads=[];window.testPublicPaths=[];window.testDownloads=[];window.testUploadPaths=[];window.pickerResult=null;window.failPickerImages=false;window.failPickerCatalog=false;window.slowPickerScope='';
     class ReadQuery{
       constructor(t){this.table=t;this.filters=[];this.orders=[];this.cols='';this.n=null;this.bounds=null;this.one=false}
       select(c){this.cols=c;return this}eq(k,v){this.filters.push([k,'eq',v]);return this}lt(k,v){this.filters.push([k,'lt',v]);return this}not(k,op,v){this.filters.push([k,'not',v]);return this}
@@ -48,6 +48,7 @@ async function boot(browser){
     };
     const storage=qbSupabase.storage.from.bind(qbSupabase.storage);
     qbSupabase.storage.from=bucket=>{const api=storage(bucket),upload=api.upload;return{...api,
+      getPublicUrl:p=>{testPublicPaths.push(p);return api.getPublicUrl(p)},
       download:async p=>{testDownloads.push(p);return{data:new Blob(['synthetic copied image'],{type:'image/png'}),error:null}},
       upload:async(p,file,options)=>{testUploadPaths.push(p);return upload(p,file,options)}
     }};
@@ -161,11 +162,11 @@ async function run(browser,name){
   await open(p);await finish(p);const versionIds=await ids(p);
   assert.ok(versionIds.includes('versioned')&&versionIds.includes('versioned:before-annotation'));
   assert.ok(!versionIds.includes('legacy:before-annotation')&&!versionIds.includes('stale:before-annotation'));
-  const sources=await p.locator('.qbripItem img').evaluateAll(es=>es.map(e=>e.src));
+  const sources=await p.evaluate(()=>testPublicPaths);
   for(const absent of ['before-crop.png','unknown-original.png','obsolete-base.png'])assert.ok(sources.every(s=>!s.endsWith(absent)));
   const beforeVersion=p.locator('[data-id="versioned:before-annotation"]');assert.ok((await beforeVersion.textContent()).includes('書き込み前'));
   await beforeVersion.focus();await p.keyboard.press('Alt+Enter');await p.locator('.qbripPreview').waitFor();
-  assert.ok((await p.locator('.qbripPreview img').getAttribute('src')).endsWith('after-crop.png'));await p.locator('.qbripPreviewClose').click();
+  assert.equal(await p.evaluate(()=>testPublicPaths.at(-1)),'after-crop.png');await p.locator('.qbripPreviewClose').click();
   await beforeVersion.click();await p.locator('[data-id="versioned"]').click();assert.equal(await p.locator('.qbripItem.on').count(),2);
   await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
   pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
