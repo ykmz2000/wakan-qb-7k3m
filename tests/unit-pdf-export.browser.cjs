@@ -9,7 +9,7 @@ async function run(type,name){
   try{
     p.setDefaultTimeout(20000);p.on('pageerror',e=>errors.push(e.message));
     // The only network fixture is the app document; all other network requests fail closed.
-    await p.route('**/*',route=>route.request().url()==='https://fixture.test/'?route.fulfill({contentType:'text/html',body:source('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<link\b[^>]*>/gi,'')}):route.abort());
+    await p.route('**/*',route=>route.request().url()==='https://fixture.test/'?route.fulfill({contentType:'text/html',body:source('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<link\b[^>]*>/gi,'')}):route.request().url().startsWith('blob:')?route.continue():route.abort());
     await p.goto('https://fixture.test/');
     await p.evaluate(()=>{
       document.documentElement.classList.remove('qb-auth-pending');

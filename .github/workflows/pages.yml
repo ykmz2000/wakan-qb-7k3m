@@ -39,12 +39,15 @@ jobs:
           node --check image-edit-integration-v1.js
           node --check image-edit-storage-v1.js
           node --check question-image-export-v1.js
+          node --check unit-pdf-layout-v1.js
+          node --check unit-pdf-export-v1.js
       - name: Verify editing before publication
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: |
           npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 cropperjs@1.6.2
-          node --test tests/image-annotation.unit.cjs
+          node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs
+          node tests/unit-pdf-export.browser.cjs
           node tests/image-interaction.browser.cjs
           node tests/image-annotation.browser.cjs
           node tests/problem-source-filter.browser.cjs
