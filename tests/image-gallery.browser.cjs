@@ -111,7 +111,11 @@ async function run(browser,name){
   assert.deepEqual(await p.evaluate(()=>({draft:document.getElementById('draft').value,focus:document.activeElement.id,inert:document.getElementById('fixture').inert,other:document.getElementById('alreadyInert').inert,html:document.documentElement.style.overflow,priority:document.documentElement.style.getPropertyPriority('overflow'),body:document.body.style.overflow,escapes:outsideEscapes,scroll:scrollY===beforeScroll})),{draft:'未保存のメモ',focus:'draft',inert:false,other:true,html:'auto',priority:'important',body:'scroll',escapes:0,scroll:true});
   console.log(name+' PASS Escape and focus trap affect only the viewer; draft, focus, scroll and existing inert/overflow states are restored');
   await p.locator('#stem img').first().click();await ready(p);await p.evaluate(()=>dispatchEvent(new CustomEvent('qb-screen-change')));assert.equal(await p.locator('#qbImageLightbox').count(),0);
-  await p.evaluate(()=>{const g=document.getElementById('stem');g.querySelector('img').src='data:image/png;base64,invalid';g.querySelector('img').click()});
+  await p.evaluate(()=>{document.querySelector('#stem img').src='data:image/png;base64,invalid'});
+  // currentSrc still points at the previous displayed image in the same task.
+  // Wait for the replacement to fail before opening the failed image itself.
+  await p.waitForFunction(()=>{const i=document.querySelector('#stem img');return i.complete&&i.naturalWidth===0});
+  await p.evaluate(()=>document.querySelector('#stem img').click());
   await p.locator('.qbImageLightboxRetry').waitFor();await count(p,'1 / 3');await p.locator('.qbImageLightboxNext').click();await ready(p);await count(p,'2 / 3');await close(p);
   console.log(name+' PASS screen change closes the old group; failed images retain navigation and retry controls');
   if(name==='Chromium'){
