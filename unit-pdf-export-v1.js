@@ -3,9 +3,10 @@
 'use strict';
 const assetBase=new URL('.',document.currentScript?.src||location.href);
 // Fixed public app URL; QR generated with ReportLab, error correction M, quiet zone drawn below.
+const COVER_NOTICE='内容に誤りが含まれる場合があります。誤りがあった際はご容赦ください。\n気になる箇所は授業資料や教科書などで確認してください。';
 const SITE_URL="https://ykmz2000.github.io/wakan-qb-7k3m/";
 const SITE_QR=["11111110011000100011101111111", "10000010011101111110101000001", "10111010100110111010101011101", "10111010111111100110101011101", "10111010101001000111101011101", "10000010110001010100001000001", "11111110101010101010101111111", "00000000100110100010000000000", "10111110001011010101001111100", "00111001011000101111101010001", "00111110000011011010010000000", "11101000101100110000111001010", "01101110001001111100110101100", "11010001100111001111101110001", "10100011111100111100110111100", "11101001011000111000010100010", "01100110000111000111010001100", "10111000110111000111101110101", "10101111001101110100110100100", "10011000010000101001110000010", "10001110101010000100111110111", "00000000101111001000100011111", "11111110000001111101101011100", "10000010100111010001100010000", "10111010110110110100111110111", "10111010100001001010110001111", "10111010101101111011101111110", "10000010010111000000110111010", "11111110100100000100010001100"];
-const DETAIL='id,unit_id,stem,instruction,answer_mode,answer_fields,source_answer,study_order,stem_formatting,explanation_overview,examiner_intent,exam_summary,medical_verification_note,explanation_formatting,choices(id,choice_key,choice_text,is_correct,sort_order,explanation,correction_text,correct_for_other_context,examiner_distinction,explanation_formatting),question_occurrences(id,academic_year,exam_type,original_question_number,official_answer,source_page,source_file)';
+const DETAIL='id,unit_id,stem,instruction,answer_mode,answer_fields,source_answer,study_order,stem_formatting,explanation_overview,examiner_intent,exam_summary,explanation_formatting,choices(id,choice_key,choice_text,is_correct,sort_order,explanation,correction_text,correct_for_other_context,examiner_distinction,explanation_formatting),question_occurrences(id,academic_year,exam_type,original_question_number,official_answer,source_page,source_file)';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let dialog=null,libraryPromise=null;
 const icon='<svg viewBox="0 0 32 36" width="27" height="31" aria-hidden="true"><path d="M7 2h13l7 7v24H7zM20 2v8h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="1" y="16" width="30" height="14" rx="3" fill="currentColor"/><text x="16" y="26.3" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="white">PDF</text></svg>';
@@ -142,9 +143,10 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
   async function cover(title,subtitle,type){reset();ctx.fillStyle=theme.accent;ctx.fillRect(60,310,54,5);let y=draw(title,60,350,30,true,674);if(subtitle)draw(subtitle,60,y+24,24,true,674);// Crisp QR modules with a four-module white quiet zone on every side.
     const moduleSize=4,qrX=60,qrY=846;ctx.fillStyle='#fff';ctx.fillRect(qrX,qrY,148,148);ctx.fillStyle='#000';
     SITE_QR.forEach((row,y)=>[...row].forEach((bit,x)=>{if(bit==='1')ctx.fillRect(qrX+(x+4)*moduleSize,qrY+(y+4)*moduleSize,moduleSize,moduleSize)}));
+    draw(COVER_NOTICE,60,714,15,false,674);
     draw('定期テスト対策QBを開く',230,880,18,true,504);
     draw(SITE_URL,230,916,13,false,504);
-    draw('定期テスト対策QB',60,1010,14);await savePage({type,title,subtitle})}
+    draw('定期テスト対策QB',60,1010,14);await savePage({type,title,subtitle,notice:COVER_NOTICE})}
   try{
     await cover(scope.subject.name,scope.all?'':scope.unit.name,scope.all?'subject-cover':'unit-cover');
     for(let start=0;start<scope.index.length;start+=20){
@@ -158,6 +160,7 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
         onProgress({done:start+n,total:scope.index.length});
         let rows=await readAll(()=>sb.from('question_images').select('id,image_path,caption,alt_text,placement,choice_id,sort_order,created_at').eq('question_id',q.id),signal);
         rows.sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)||String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
+        rows=rows.filter(r=>r.placement!=='medical_verification');
         if(mode!=='full')rows=rows.filter(r=>r.placement==='question');
         const images=await loadImages(sb,rows,signal,pdf);
         try{

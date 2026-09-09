@@ -58,6 +58,8 @@ function textAtoms(ctx,text,options={}){
 }
 function heading(ctx,text){const lines=textLines(ctx,text,{size:16,bold:true});return{type:'heading',lines,height:lines.length*25.6+10,keepNext:true}}
 function buildGroups(ctx,Q,images,mode='full'){
+  // Verification-only attachments are intentionally omitted from the study PDF.
+  images=images.filter(row=>row.placement!=='medical_verification');
   const groups=[],consumed=new Set(),choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)||String(a.id).localeCompare(String(b.id)));
   function media(rows){
     const width=PAGE.width-PAGE.left-PAGE.right,gap=12,column=(width-gap*2)/3,maxHeight=PAGE.height*50/297;
@@ -92,7 +94,7 @@ function buildGroups(ctx,Q,images,mode='full'){
   if(mode==='questions')return groups;
   group('answer','解答',textAtoms(ctx,answerText(Q)));
   if(mode!=='full')return groups;
-  const fields=[['explanation_overview','問題文のポイント','explanation_overview'],['examiner_intent','出題者の意図','examiner_intent'],['exam_summary','試験用まとめ','exam_summary'],['medical_verification_note','医学的検証メモ','medical_verification']];
+  const fields=[['explanation_overview','問題文のポイント','explanation_overview'],['examiner_intent','出題者の意図','examiner_intent'],['exam_summary','試験用まとめ','exam_summary']];
   function section([field,label,placement]){
     const pictureRows=rows(placement);if(field==='explanation_overview')pictureRows.push(...rows('explanation'));
     group(field,label,[...(Q[field]?textAtoms(ctx,Q[field],{format:Q.explanation_formatting?.[field]}):[]),...media(pictureRows)]);

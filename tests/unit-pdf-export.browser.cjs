@@ -22,6 +22,8 @@ async function run(type,name){
       q1.explanation_formatting={explanation_overview:{version:1,source_text:q1.explanation_overview,ranges:[{start:0,end:6,kind:'bold'},{start:0,end:6,kind:'accent'},{start:0,end:6,kind:'underline'}]}};
       window.pdfDB={grades:[{id:'g',code:'M4'}],subjects:[{id:'s1',grade_id:'g',is_active:true,name:'テスト医学',sort_order:1}],units:[{id:'u2',subject_id:'s1',name:'第2単元',sort_order:2,is_active:true},{id:'u1',subject_id:'s1',name:'第1単元・画像と解説',sort_order:1,is_active:true}],questions:[q1,q2,q3,{...question('draft','u1',0),status:'draft'},{...question('other','u1',0),subject_id:'other'}],question_images:[{id:'i1',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'one.png',caption:'第1の画像の説明',sort_order:1},{id:'i2',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'two.png',caption:'第2の画像の説明',sort_order:2}]};
       for(let n=3;n<=7;n++)pdfDB.question_images.push({id:'i'+n,question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:n===7?'wide.png':'extra'+n+'.png',caption:'第'+n+'の画像の説明',sort_order:n});
+      q2.medical_verification_note='PDFには出力しない医学的疑義の検証用メモ';q2.has_verification_issue=true;
+      pdfDB.question_images.push({id:'verification',question_id:'q2',placement:'medical_verification',image_path:'verification-only.png',caption:'疑義専用画像',sort_order:99});
       window.pdfReads=[];window.pdfWrites=[];window.failPDF=false;window.delayPDF=false;
       class Query{
         constructor(t){this.t=t;this.filters=[];this.orders=[];this.n=200;this.one=false;this.signal=null}
@@ -37,6 +39,7 @@ async function run(type,name){
         }
       }
       window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'user1'}}})},from:t=>new Query(t),rpc:async()=>({data:[],error:null}),storage:{from:()=>({download:async file=>{
+        if(file==='verification-only.png')throw Error('Excluded verification image must not be downloaded');
         if(failPDF)return{data:null,error:{message:'synthetic missing image'}};
         const c=document.createElement('canvas');c.width=file==='one.png'?3600:file==='wide.png'?3600:900;c.height=file==='one.png'?4000:file==='wide.png'?1200:1000;const x=c.getContext('2d');x.fillStyle=file==='one.png'?'#c5e6ef':'#f8d8e6';x.fillRect(0,0,c.width,c.height);x.fillStyle='#172033';x.font='40px sans-serif';x.fillText(file,60,100);x.strokeStyle='#172033';x.strokeRect(60,200,700,600);return{data:await new Promise(r=>c.toBlob(r,file==='two.png'?'image/jpeg':'image/png')),error:null};
       }})}};
@@ -66,6 +69,8 @@ async function run(type,name){
     });
     const qr=jsQR(new Uint8ClampedArray(await p.evaluate(()=>pdfCoverPixels)),444,444);assert.equal(qr?.data,siteURL);
     result.links.forEach((links,i)=>{assert.equal(links.length,result.meta[i].type.endsWith('cover')?2:0);for(const link of links){assert.equal(link.uri,siteURL);assert.ok(link.rect[0]>=0&&link.rect[2]<=595.28&&link.rect[1]>=0&&link.rect[3]<=841.89)}});
+    assert.ok(result.meta.filter(m=>m.type.endsWith('cover')).every(m=>m.notice==='内容に誤りが含まれる場合があります。誤りがあった際はご容赦ください。\n気になる箇所は授業資料や教科書などで確認してください。'));
+    assert.ok(!result.meta.flatMap(m=>m.items||[]).some(i=>i.group==='medical_verification_note'));
     assert.equal(result.questions,3);assert.equal(result.pages,result.meta.length);assert.ok(result.sizes.every(s=>Math.abs(s.width-595.28)<.01&&Math.abs(s.height-841.89)<.01));
     assert.deepEqual(result.meta.filter(m=>m.type.includes('cover')).map(m=>[m.type,m.subtitle]),[['subject-cover',''],['unit-cover','第1単元・画像と解説'],['unit-cover','第2単元']]);
     assert.deepEqual([...new Set(result.meta.filter(m=>m.questionId).map(m=>m.questionId))],['q2','q1','q3']);

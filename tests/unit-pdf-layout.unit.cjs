@@ -61,3 +61,13 @@ test('image rows and their individual wrapped captions travel together across pa
   assert.equal(rows.flatMap(r=>r.cells).length,16);
   rows.forEach(r=>{assert.ok(r.y+r.height<=L.PAGE.bottom);r.cells.forEach(c=>{assert.ok(r.height>=c.imageHeight+6+c.caption.length*20.8);c.caption.forEach(l=>assert.ok(l.runs.reduce((n,x)=>n+x.width,0)<=c.cellWidth))})});
 });
+
+test('study PDF omits verification notes and attachments without changing source data',()=>{
+  const q={stem:'問題',medical_verification_note:'検証用の疑義メモ',has_verification_issue:true,exam_summary:'覚える知識'},images=[picture('verification',900,1000,{placement:'medical_verification'}),picture('overview')];
+  const before=JSON.stringify({q,images});
+  const groups=L.buildGroups(ctx,q,images);
+  assert.ok(!groups.some(g=>g.id==='medical_verification_note'));
+  assert.deepEqual(groups.flatMap(g=>g.items).flatMap(i=>i.cells||[]).map(c=>c.imageId),['overview']);
+  const text=groups.flatMap(g=>g.items).flatMap(i=>i.lines||[]).flatMap(l=>l.runs).map(r=>r.char).join('');
+  assert.ok(!text.includes('検証用の疑義メモ'));assert.ok(text.includes('覚える知識'));assert.equal(JSON.stringify({q,images}),before);
+});
