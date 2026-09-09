@@ -39,7 +39,7 @@ jobs:
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: |
-          npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+          npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 cropperjs@1.6.2
           node --test tests/explanation-format.unit.cjs
           node tests/explanation-format.browser.cjs
           node tests/editor-appearance-stem.browser.cjs
@@ -49,6 +49,7 @@ jobs:
           node tests/fill-blank-reference.browser.cjs
           node tests/question-image-add-theme.browser.cjs
           node tests/recent-image-scope-preview.browser.cjs
+          node tests/image-crop.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
@@ -58,4 +59,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
 

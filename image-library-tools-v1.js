@@ -31,28 +31,7 @@ async function chooseRecent(input,status,button){
     if(!dispatchFiles(input,files))throw new Error('この端末では画像の受け渡しに失敗しました');
   }catch(e){if(status)status.textContent='最近の画像の追加失敗: '+(e?.message||e)}finally{setTimeout(()=>{if(button.isConnected)button.disabled=false},300)}
 }
-function ensureCropper(){
-  if(window.Cropper)return Promise.resolve();
-  return new Promise((resolve,reject)=>{
-    if(!document.getElementById('cropperCss')){const l=document.createElement('link');l.id='cropperCss';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css';document.head.appendChild(l)}
-    const old=document.getElementById('cropperJs');if(old){if(window.Cropper)return resolve();old.addEventListener('load',()=>resolve(),{once:true});old.addEventListener('error',()=>reject(new Error('Cropper.jsの読み込みに失敗しました')),{once:true});return}
-    const s=document.createElement('script');s.id='cropperJs';s.src='https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js';s.onload=()=>resolve();s.onerror=()=>reject(new Error('Cropper.jsの読み込みに失敗しました'));document.head.appendChild(s)
-  })
-}
-async function cropModal(src){
-  await ensureCropper();
-  return new Promise((resolve,reject)=>{
-    const d=document.createElement('div');d.className='oeiCropModal';d.innerHTML=`<div class="oeiCropPanel"><div class="oeiCropHead"><b>問題画像をトリミング</b><button type="button" class="oeiCropClose">×</button></div><div class="oeiCropHint">角・辺をドラッグして範囲変更／画像をドラッグして位置調整／ピンチで拡大縮小</div><div class="oeiCropStage"><img class="oeiCropImage" src="${String(src).replace(/"/g,'&quot;')}" alt="トリミング対象"></div><div class="oeiAspect"><button type="button" data-r="NaN" class="on">自由</button><button type="button" data-r="1">1:1</button><button type="button" data-r="1.333333">4:3</button><button type="button" data-r="1.777778">16:9</button></div><div class="oeiCropFoot"><button type="button" class="oeiCropCancel">キャンセル</button><button type="button" class="oeiCropSave">この範囲で保存</button></div></div>`;
-    document.body.appendChild(d);const oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';
-    const img=d.querySelector('.oeiCropImage');let cropper=null;
-    const close=()=>{try{cropper?.destroy()}catch{}d.remove();document.documentElement.style.overflow=oldOverflow};
-    img.onload=()=>{try{cropper=new Cropper(img,{viewMode:1,dragMode:'move',autoCropArea:.9,responsive:true,restore:false,checkOrientation:true,modal:true,guides:true,center:true,highlight:true,background:true,cropBoxMovable:true,cropBoxResizable:true,toggleDragModeOnDblclick:false,zoomOnTouch:true,zoomOnWheel:false,movable:true,zoomable:true,scalable:false,rotatable:false})}catch(e){close();reject(e)}};
-    img.onerror=()=>{close();reject(new Error('画像を読み込めませんでした'))};
-    d.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{d.querySelectorAll('[data-r]').forEach(x=>x.classList.remove('on'));b.classList.add('on');cropper?.setAspectRatio(Number(b.dataset.r))});
-    d.querySelector('.oeiCropClose').onclick=d.querySelector('.oeiCropCancel').onclick=()=>{close();resolve(null)};
-    d.querySelector('.oeiCropSave').onclick=()=>{if(!cropper)return;const canvas=cropper.getCroppedCanvas({maxWidth:4096,maxHeight:4096,imageSmoothingEnabled:true,imageSmoothingQuality:'high'});canvas.toBlob(blob=>{close();if(!blob)return reject(new Error('トリミング画像の生成に失敗しました'));resolve(blob)},'image/jpeg',0.94)};
-  })
-}
+function cropModal(src){return window.QBImageCrop.open(src,{title:'問題画像をトリミング',rotatable:false})}
 async function cropStem(button){
   const wrap=button.closest('.qsiImgWrap'),rowId=wrap?.dataset.row,Q=q(),id=qid(Q),sb=window.qbSupabase;if(!rowId||!id||!sb)return;
   const oldText=button.textContent;
@@ -90,3 +69,4 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
