@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const M=require('../image-annotation-model-v1.js');
+test('stabilization zero preserves input and strength reduces jitter with bounded lag',()=>{const p={x:0,y:0},q={x:2,y:3};assert.deepEqual(M.stabilize(p,q,0),q);assert.ok(M.stabilize(p,q,100).y<M.stabilize(p,q,20).y);let previous=p;for(let x=1;x<100;x++){const raw={x,y:x%2?2:-2};previous=M.stabilize(previous,raw,100);assert.ok(Math.hypot(previous.x-raw.x,previous.y-raw.y)<8)}const scaled=M.stabilize(p,{x:4,y:6},100,.5),base=M.stabilize(p,q,100,1);assert.ok(Math.abs(scaled.x-base.x*2)<1e-10)});
 test('palette is exactly the seven agreed colors',()=>assert.deepEqual(M.colors.map(c=>c.name),['赤','青','オレンジ','緑','水色','ピンク','黄色']));
 test('rectangle can be dragged in every direction without an aspect lock',()=>{
   assert.deepEqual(M.rect({x:300,y:100},{x:20,y:140}),{x:20,y:100,w:280,h:40});

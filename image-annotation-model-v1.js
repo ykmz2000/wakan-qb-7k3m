@@ -22,6 +22,7 @@ class History{
   undo(){if(!this.past.length)return copy(this.current);this.future.push(this.current);this.current=this.past.pop();return copy(this.current)}
   redo(){if(!this.future.length)return copy(this.current);this.past.push(this.current);this.current=this.future.pop();return copy(this.current)}
 }
-const api={colors,copy,rect,bounds,union,inside,lasso,transform,hit,fitSize,History};
+function stabilize(previous,point,strength,zoom=1){const radius=Math.max(0,Math.min(100,Number(strength)||0))*.08/Math.max(.02,zoom);if(!radius)return{...point};const distance=Math.hypot(point.x-previous.x,point.y-previous.y),alpha=1-Math.exp(-distance/radius);return{...point,x:previous.x+(point.x-previous.x)*alpha,y:previous.y+(point.y-previous.y)*alpha}}
+const api={colors,copy,rect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.QBImageModel=api;
 })();
