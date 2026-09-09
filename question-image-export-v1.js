@@ -15,7 +15,8 @@ function wrappedLines(ctx,text,width){
   const out=[];for(const paragraph of String(text??'').replace(/\r\n?/g,'\n').split('\n')){let line='';for(const char of Array.from(paragraph)){if(line&&ctx.measureText(line+char).width>width){out.push(line);line=char}else line+=char}out.push(line)}return out;
 }
 function imageFromBlob(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('問題画像を読み込めませんでした。'))};img.src=url})}
-async function render(Q){
+async function render(Q,options={}){
+  const requestedWidth=[2400,3600,4800].includes(options.width)?options.width:3600;
   const sb=window.qbSupabase,id=qid(Q);if(!sb||!id)throw Error('問題の情報を読み込み中です。');
   const record=await sb.from('questions').select('stem,stem_formatting').eq('id',id).maybeSingle();if(record.error)throw record.error;
   const r=await sb.from('question_images').select('image_path,caption,alt_text,sort_order,created_at').eq('question_id',id).eq('placement','question').is('choice_id',null).order('sort_order').order('created_at');if(r.error)throw r.error;
@@ -30,7 +31,7 @@ async function render(Q){
   const choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   if(choices.length){if(Q.answer_mode==='fill_blank')text('参考選択肢',24,true,14);for(const c of choices)text(`${c.choice_key}. ${c.choice_text}`,30,false,12)}
   y+=22;blocks.push({type:'line',y});y+=24;text('解答',28,true,12);text(answers(Q),30,false,0);y+=pad;
-  const dim=window.QBImageModel.fitSize(width*2,y*2,24000000);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
+  const scale=requestedWidth/width,dim=window.QBImageModel.fitSize(requestedWidth,y*scale,24000000);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
   const theme=getComputedStyle(document.documentElement),accent=theme.getPropertyValue('--accent').trim()||'#126fb3',marker=theme.getPropertyValue('--accent-soft').trim()||'#eaf4fb';
   for(const b of blocks){
     if(b.type==='image'){ctx.drawImage(b.image,b.x,b.y,b.w,b.h);continue}
@@ -46,23 +47,27 @@ async function render(Q){
     });
   }
   const blob=await new Promise((resolve,reject)=>{canvas.toBlob(b=>b?resolve(b):reject(Error('画像の作成に失敗しました。')),'image/png')});canvas.width=canvas.height=1;
-  return{blob,width:dim.width,height:dim.height,filename:`問題と解答-${id.slice(0,8)}.png`};
+  return{blob,width:dim.width,height:dim.height,requestedWidth,adjusted:dim.width<requestedWidth,filename:`問題と解答-${id.slice(0,8)}.png`};
 }
 function close(){if(!menu)return;menu.remove();menu=null}
 async function show(button){
   if(menu){close();return}const Q=q();if(!Q)return;const snapshot=JSON.parse(JSON.stringify(Q)),panel=document.createElement('section');panel.className='qbExportMenu';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','問題・解答を画像として出力');
   const title=document.createElement('b');title.textContent='問題・解答を画像として出力';const info=document.createElement('p');info.textContent='問題文・問題画像・選択肢・解答を1枚の画像にまとめます。';const status=document.createElement('p');status.setAttribute('role','status');status.textContent='画像を準備中…';const actions=document.createElement('div');actions.className='qbExportActions';
-  const save=document.createElement('button'),copy=document.createElement('button'),cancel=document.createElement('button');save.textContent='画像として保存';copy.textContent='画像としてコピー';cancel.textContent='閉じる';[save,copy,cancel].forEach(b=>b.type='button');save.disabled=copy.disabled=true;cancel.onclick=()=>{close();button.focus()};actions.append(save,copy,cancel);panel.append(title,info,status,actions);document.body.append(panel);menu=panel;cancel.focus();
+  const qualityLabel=document.createElement('label'),quality=document.createElement('select');qualityLabel.className='qbExportQuality';qualityLabel.append(document.createTextNode('画質 '),quality);quality.setAttribute('aria-label','出力画質');for(const [width,label] of [[2400,'軽量（横2,400px）'],[3600,'標準（横3,600px）'],[4800,'最高画質（横4,800px）']]){const option=document.createElement('option');option.value=width;option.textContent=label;quality.append(option)}quality.value='3600';
+  const save=document.createElement('button'),copy=document.createElement('button'),cancel=document.createElement('button');save.textContent='画像として保存';copy.textContent='画像としてコピー';cancel.textContent='閉じる';[save,copy,cancel].forEach(b=>b.type='button');save.disabled=copy.disabled=true;cancel.onclick=()=>{close();button.focus()};actions.append(save,copy,cancel);panel.append(title,info,qualityLabel,status,actions);document.body.append(panel);menu=panel;cancel.focus();
   panel.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();cancel.click()}});
-  try{
-    const result=await render(snapshot);if(menu!==panel)return;save.disabled=false;copy.disabled=!navigator.clipboard?.write||typeof ClipboardItem==='undefined';status.textContent=copy.disabled?'この環境では画像コピーが使えません。画像として保存できます。':'';
-    const file=new File([result.blob],result.filename,{type:'image/png'});
-    copy.onclick=async()=>{copy.disabled=true;try{await navigator.clipboard.write([new ClipboardItem({'image/png':result.blob})]);status.textContent='画像をコピーしました。'}catch(e){status.textContent='コピーできませんでした。「画像として保存」をご利用ください。'}finally{copy.disabled=false}};
-    save.onclick=async()=>{try{
+  let result=null;
+  function setBusy(busy){quality.disabled=busy;save.disabled=busy||!result;copy.disabled=busy||!result||!navigator.clipboard?.write||typeof ClipboardItem==='undefined'}
+  async function prepare(){result=null;setBusy(true);status.textContent='画像を準備中…';try{
+    const output=await render(snapshot,{width:Number(quality.value)});if(menu!==panel)return;result=output;status.textContent=`${result.width.toLocaleString()} × ${result.height.toLocaleString()}px`+(result.adjusted?' — 長い問題のため、全体が収まる解像度に調整しました。':'');if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')status.textContent+=' この環境では画像コピーが使えません。画像として保存できます。';
+  }catch(e){if(menu===panel)status.textContent='画像を作成できませんでした：'+(e.message||e)}finally{if(menu===panel)setBusy(false)}}
+  quality.onchange=prepare;
+  copy.onclick=async()=>{if(!result)return;setBusy(true);try{await navigator.clipboard.write([new ClipboardItem({'image/png':result.blob})]);status.textContent='画像をコピーしました。'}catch(e){status.textContent='コピーできませんでした。「画像として保存」をご利用ください。'}finally{if(menu===panel)setBusy(false)}};
+  save.onclick=async()=>{if(!result)return;setBusy(true);const file=new File([result.blob],result.filename,{type:'image/png'});try{
       if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'問題と解答'});status.textContent='共有・保存の操作を完了しました。'}
       else{const url=URL.createObjectURL(result.blob),a=document.createElement('a');a.href=url;a.download=result.filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent='画像の保存を開始しました。'}
-    }catch(e){if(e.name!=='AbortError')status.textContent='保存を開始できませんでした。もう一度お試しください。'}};
-  }catch(e){if(menu===panel)status.textContent='画像を作成できませんでした：'+(e.message||e)}
+    }catch(e){if(e.name!=='AbortError')status.textContent='保存を開始できませんでした。もう一度お試しください。'}finally{if(menu===panel)setBusy(false)}};
+  await prepare();
 }
 function mount(){
   if(raf)return;raf=requestAnimationFrame(()=>{raf=0;const stem=document.querySelector('#view > .card > .qtext'),Q=q();if(!stem||!Q||window.qbGetScreen?.()!=='practice')return;let bar=stem.parentElement.querySelector(':scope > .adeStemToolbar'),own=stem.parentElement.querySelector(':scope > .qbExportToolbar');
