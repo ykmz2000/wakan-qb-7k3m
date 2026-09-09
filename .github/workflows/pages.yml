@@ -47,6 +47,7 @@ jobs:
         run: |
           npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 jsqr@1.4.0 cropperjs@1.6.2
           node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs
+          node tests/recent-image-scope-preview.browser.cjs
           node tests/unit-pdf-export.browser.cjs
           node tests/image-interaction.browser.cjs
           node tests/image-annotation.browser.cjs
@@ -61,7 +62,6 @@ jobs:
           node tests/inline-enter.browser.cjs
           node tests/fill-blank-reference.browser.cjs
           node tests/question-image-add-theme.browser.cjs
-          node tests/recent-image-scope-preview.browser.cjs
           node tests/image-crop.browser.cjs
           node tests/image-gallery.browser.cjs
       - name: Setup Pages

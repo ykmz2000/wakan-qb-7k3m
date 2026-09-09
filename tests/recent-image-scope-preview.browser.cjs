@@ -166,7 +166,7 @@ async function run(browser,name){
   for(const absent of ['before-crop.png','unknown-original.png','obsolete-base.png'])assert.ok(sources.every(s=>!s.endsWith(absent)));
   const beforeVersion=p.locator('[data-id="versioned:before-annotation"]');assert.ok((await beforeVersion.textContent()).includes('書き込み前'));
   await beforeVersion.focus();await p.keyboard.press('Alt+Enter');await p.locator('.qbripPreview').waitFor();
-  assert.equal(await p.evaluate(()=>testPublicPaths.at(-1)),'after-crop.png');await p.locator('.qbripPreviewClose').click();
+  assert.equal(await p.evaluate(()=>testPublicPaths.at(-1)),'after-crop.png');await p.keyboard.press('Escape');await p.locator('.qbripPreview').waitFor({state:'detached'});
   await beforeVersion.click();await p.locator('[data-id="versioned"]').click();assert.equal(await p.locator('.qbripItem.on').count(),2);
   await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
   pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
