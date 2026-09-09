@@ -10,19 +10,19 @@ const DETAIL='id,unit_id,stem,instruction,answer_mode,answer_fields,source_answe
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let dialog=null,libraryPromise=null;
 const icon='<svg viewBox="0 0 32 36" width="27" height="31" aria-hidden="true"><path d="M7 2h13l7 7v24H7zM20 2v8h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="1" y="16" width="30" height="14" rx="3" fill="currentColor"/><text x="16" y="26.3" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="white">PDF</text></svg>';
-function rowHTML(card,subjectId,unitId,name){return `<div class="qbPdfUnitRow"><button type="button" class="qbPdfIcon" data-pdf-subject="${esc(subjectId)}" data-pdf-unit="${esc(unitId)}" aria-label="${esc(name)}をPDF出力" title="${esc(name)}をPDF出力">${icon}</button>${card}</div>`}
+function rowHTML(card,subjectId,unitId,name){return `<div class="qbPdfUnitRow">${card}<button type="button" class="qbPdfIcon" data-pdf-subject="${esc(subjectId)}" data-pdf-unit="${esc(unitId)}" aria-label="${esc(name)}をPDF出力" title="${esc(name)}をPDF出力">${icon}</button></div>`}
 function wrapCard(card,questionIds=null){
   const existing=card.closest('.qbPdfUnitRow');if(existing)return existing;
   const sid=window.qbGetPracticeState?.().subjectId;if(!sid)return card;
   const container=document.createElement('div');container.innerHTML=rowHTML('',sid,card.dataset.u,card.querySelector('.lt')?.textContent||'単元');
-  const row=container.firstElementChild;row.append(card);
+  const row=container.firstElementChild;row.prepend(card);
   if(questionIds)row.querySelector('.qbPdfIcon').dataset.pdfQuestions=JSON.stringify(questionIds);
   return row;
 }
 function css(){
   if(document.getElementById('qbUnitPdfCss'))return;
   const s=document.createElement('style');s.id='qbUnitPdfCss';s.textContent=`
-.qbPdfUnitRow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:6px;align-items:center;margin-bottom:10px;min-width:0}
+.qbPdfUnitRow{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:6px;align-items:center;margin-bottom:10px;min-width:0}
 .qbPdfUnitRow>.list{margin-bottom:0;min-width:0;max-width:100%;overflow-wrap:anywhere}
 .qbPdfUnitRow>.list>div:first-child{min-width:0}
 .qbPdfIcon{display:flex;align-items:center;justify-content:center;min-height:44px;width:44px;border:0;border-radius:9px;background:transparent;color:var(--accent);cursor:pointer;padding:5px}
