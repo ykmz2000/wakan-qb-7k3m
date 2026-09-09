@@ -51,7 +51,7 @@ async function run(type,name){
     for(const width of [375,768]){
       await p.setViewportSize({width,height:1024});await p.waitForTimeout(50);
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      const b=await p.locator('[data-pdf-unit="u1"]').boundingBox(),c=await p.locator('[data-u="u1"]').boundingBox();assert.ok(b.x+b.width<=c.x);assert.ok(b.height>=44);
+      const b=await p.locator('[data-pdf-unit="u1"]').boundingBox(),c=await p.locator('[data-u="u1"]').boundingBox();assert.ok(c.x+c.width<=b.x);assert.ok(b.height>=44);
     }
     const state=await p.evaluate(()=>JSON.stringify(qbGetPracticeState()));await p.locator('[data-pdf-unit="__all__"]').click();
     assert.equal(await p.evaluate(()=>qbGetScreen()),'units');assert.equal(await p.evaluate(()=>JSON.stringify(qbGetPracticeState())),state);
