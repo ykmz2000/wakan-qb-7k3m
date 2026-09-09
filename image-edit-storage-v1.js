@@ -47,5 +47,13 @@ async function add(c,blob,original){
 }
 async function restore(c,row){await authorize(c);if(!row.original_image_path||row.original_image_path===row.image_path)return;const r=await scoped(c,c.sb.from(table(c)).update({image_path:row.original_image_path,updated_at:new Date().toISOString()}).eq('id',row.id).eq('image_path',row.image_path)).select('id').maybeSingle();if(r.error||!r.data)throw r.error||Error('別の画像更新がありました。開き直してください。')}
 async function download(c,path){const r=await c.sb.storage.from(c.bucket).download(path);if(r.error)throw r.error;return r.data}
-window.QBImageStore={authorize,get,replace,add,restore,download};
+async function remove(c,row){
+  await authorize(c);
+  let z=scoped(c,c.sb.from(table(c)).delete().eq('id',row.id).eq('image_path',row.image_path));
+  if(row.updated_at)z=z.eq('updated_at',row.updated_at);
+  const r=await z.select('id').maybeSingle();
+  if(r.error||!r.data)throw r.error||Error('画像が更新されています。最新の状態でやり直してください。');
+  // Storage objects may also be referenced by another question. Keep them intact.
+}
+window.QBImageStore={authorize,get,replace,add,restore,download,remove};
 })();

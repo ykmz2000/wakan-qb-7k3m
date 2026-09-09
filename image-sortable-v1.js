@@ -51,16 +51,36 @@ function emitRefresh(detail){
 }
 async function persist(table,ids,status,detail){
   if(ids.length<2)return;
-  const c=await ctx();if(!c)return;
   status.textContent='順番を保存中…';
   try{
-    const results=await Promise.all(ids.map((id,i)=>c.sb.from(table).update({sort_order:(i+1)*10}).eq('id',id)));
+    const host=status.previousElementSibling;
+    const c=table==='user_note_images'?host?.closest('.qbPersonal')?.qbImageContext?.():{sb:window.qbSupabase,bucket:'question-media',questionId:detail.questionId,host};
+    await window.QBImageStore.authorize(c);
+    const results=await Promise.all(ids.map((id,i)=>{
+      let z=c.sb.from(table).update({sort_order:(i+1)*10}).eq('id',id).eq('question_id',detail.questionId);
+      if(c.userId)z=z.eq('user_id',c.userId);
+      return z.select('id').maybeSingle();
+    }));
     const bad=results.find(x=>x.error);if(bad?.error)throw bad.error;
+    if(results.some(x=>!x.data))throw Error('画像の更新権限または登録状態を確認できません。');
     status.textContent='順番を保存しました';
     emitRefresh(detail);
     setTimeout(()=>{if(status.isConnected)status.textContent=''},1500);
   }catch(e){
     console.error(e);status.textContent='並べ替えの保存に失敗しました';
+  }
+}
+async function bindPublic(c,Q){
+  if(!c.admin||!Q)return;
+  for(const grid of document.querySelectorAll('.qbMediaHostV2')){
+    const items=[...grid.querySelectorAll(':scope > .qbPublicImageWrap')];if(items.length<2)continue;
+    for(const item of items){
+      if(item.querySelector('.qbsortHandle'))continue;
+      const bar=item.querySelector('.qbImageWriteActions');if(!bar)continue;
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle';b.textContent='☰ 並べ替え';bar.prepend(b);
+    }
+    const first=items[0];
+    await bindSortable(grid,'.qbPublicImageWrap',x=>x.dataset.row,(ids,status)=>persist('question_images',ids,status,{questionId:qid(Q),type:'official-image-order',placement:first.dataset.placement,choiceId:first.dataset.choice||null}));
   }
 }
 async function bindSortable(container,itemSelector,idOf,onSave){
@@ -142,7 +162,7 @@ async function bindPersonal(c,Q){
 async function runScan(){
   try{
     css();const Q=q(),c=await ctx();if(!Q||!c)return;
-    await bindOfficialEditors(c,Q);await bindQuestionStem(c,Q);await bindPersonal(c,Q);
+    await bindOfficialEditors(c,Q);await bindQuestionStem(c,Q);await bindPersonal(c,Q);await bindPublic(c,Q);
   }catch(e){console.error(e)}
 }
 function scan(delay=80){
@@ -150,7 +170,7 @@ function scan(delay=80){
 }
 function addedRelevant(node){
   if(node?.nodeType!==1)return false;
-  const sel='.oeiGrid,.oeiItem,.qsiGrid,.qsiImgWrap,.qbPersonal,.qbNoteImageGrid,.qbNoteImageWrap,.adeEditor';
+  const sel='.oeiGrid,.oeiItem,.qsiGrid,.qsiImgWrap,.qbPersonal,.qbNoteImageGrid,.qbNoteImageWrap,.adeEditor,.qbPublicImageWrap,.qbImageWriteActions';
   return node.matches?.(sel)||!!node.querySelector?.(sel);
 }
 function boot(){

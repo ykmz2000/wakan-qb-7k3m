@@ -97,6 +97,17 @@ async function integration(browser,name){
     return{old,row,restored,conflict,failure,unchanged:(await QBImageStore.get(c,'stem-image')).image_path===restored.image_path,removed:testRemoved};
   });assert.equal(storage.row.original_image_path,storage.old.image_path);assert.equal(storage.restored.image_path,storage.old.image_path);assert.ok(storage.conflict&&storage.failure&&storage.unchanged);assert.deepEqual(storage.removed,[]);
   console.log(name+' PASS original retained/restored, stale image conflict rejected, failed upload leaves original untouched');
+  await p.evaluate(()=>{window.Sortable=class{constructor(container,options){container.testSortOptions=options}}});await p.addScriptTag({content:read('image-sortable-v1.js')});
+  await p.waitForFunction(()=>[...document.querySelectorAll('.qbMediaHostV2')].some(g=>g.querySelectorAll('.qbPublicImageWrap').length>1&&g.testSortOptions));
+  const reordered=await p.evaluate(async()=>{const g=[...document.querySelectorAll('.qbMediaHostV2')].find(g=>g.querySelectorAll('.qbPublicImageWrap').length>1&&g.testSortOptions),last=g.querySelector('.qbPublicImageWrap:last-child'),id=last.dataset.row;g.prepend(last);await g.testSortOptions.onEnd();return testDB.question_images.find(r=>r.id===id).sort_order});assert.equal(reordered,10);
+  const publicImage=p.locator('.qbPublicImageWrap').first();await publicImage.getByRole('button',{name:'削除',exact:true}).waitFor();const deleteId=await publicImage.getAttribute('data-row');
+  const changedPath=await p.evaluate(async id=>{const w=document.querySelector('.qbPublicImageWrap'),c={sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:w.dataset.placement,choiceId:w.dataset.choice||null,host:w},row=await QBImageStore.get(c,id),changed=await QBImageStore.replace(c,row,testImage);QBImageIntegration.notify('q1',c.placement,c.choiceId);return changed.image_path},deleteId);
+  await publicImage.getByRole('button',{name:'元画像に戻す',exact:true}).waitFor();p.once('dialog',d=>d.dismiss());await publicImage.getByRole('button',{name:'元画像に戻す',exact:true}).click();assert.equal(await p.evaluate(id=>testDB.question_images.find(r=>r.id===id).image_path,deleteId),changedPath);
+  p.once('dialog',d=>d.accept());await publicImage.getByRole('button',{name:'元画像に戻す',exact:true}).click();await p.waitForFunction(id=>{const r=testDB.question_images.find(r=>r.id===id);return r.image_path===r.original_image_path},deleteId);
+  await publicImage.getByRole('button',{name:'元画像に戻す',exact:true}).waitFor({state:'detached'});
+  p.once('dialog',d=>{assert.equal(d.type(),'confirm');d.dismiss()});await publicImage.getByRole('button',{name:'削除',exact:true}).click();assert.ok(await p.evaluate(id=>testDB.question_images.some(r=>r.id===id),deleteId));
+  p.once('dialog',d=>d.accept());await publicImage.getByRole('button',{name:'削除',exact:true}).click();await p.waitForFunction(id=>!testDB.question_images.some(r=>r.id===id),deleteId);assert.deepEqual(await p.evaluate(()=>testRemoved),[]);
+  console.log(name+' PASS inline official reorder and confirmed deletion; cancellation and shared storage are preserved');
   assert.deepEqual(errors,[]);const db=await p.evaluate(()=>testDB);await p.close();
   const user=await fixture.exports.boot(browser,{role:'user',db});const u=user.page;await augment(u);await u.locator('.qbExportButton').waitFor();assert.equal(await u.locator('.adeStemBtn').count(),0);
   const note=u.locator('.qbPersonal').first();await note.locator('.qbPencil').click();await note.locator('textarea').fill('画像追加中のメモ下書き');await pasteAndWait(u,'.qbPersonal .qbNoteEditor textarea',true);assert.equal(await note.locator('textarea').inputValue(),'画像追加中のメモ下書き');assert.equal(await u.evaluate(()=>testDB.user_notes[0].note_text),'以前からの個人メモ');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).note_id),'n1');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).user_id),'u1');
@@ -107,6 +118,7 @@ async function integration(browser,name){
   assert.equal(await note.locator('.qbNoteImageWrap .qbImageWriteActions').count(),2);
   await note.locator('.qbNoteImageGrid').evaluate(async grid=>{grid.prepend(grid.querySelector('.qbsortNoteItem:last-child'));await grid.testSortOptions.onEnd()});
   assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).sort_order),10);
+  const personalImage=note.locator('.qbNoteImageWrap').first(),personalId=await personalImage.getAttribute('data-row');u.once('dialog',d=>d.accept());await personalImage.getByRole('button',{name:'削除',exact:true}).click();await u.waitForFunction(id=>!testDB.user_note_images.some(r=>r.id===id),personalId);assert.equal(await note.locator('textarea').inputValue(),'画像追加中のメモ下書き');
   const denied=await u.evaluate(async()=>{try{await QBImageStore.authorize({sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',host:document.querySelector('.qtext')});return false}catch{return true}});assert.ok(denied);
   console.log(name+' PASS personal image save stays private, retains note draft and rejects general-user official edits');
   // Export pixels really render, text never clips, and output does not write app records.
