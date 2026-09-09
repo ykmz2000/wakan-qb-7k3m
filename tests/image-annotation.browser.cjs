@@ -70,7 +70,6 @@ async function augment(p){
 }
 async function paste(p,selector,image=true){
   await p.locator(selector).first().evaluate((n,image)=>{n.focus();const d=new DataTransfer();if(image)d.items.add(new File([window.testImage],'clipboard.png',{type:'image/png'}));else d.setData('text/plain','テキスト貼付');n.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}))},image);
-  if(image)await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
 }
 async function confirm(p){await p.locator('.qbDrawSave').click();await p.locator('.qbDrawModal').waitFor({state:'detached'})}
 async function pasteAndWait(p,selector,note=false){const before=await p.evaluate(note=>(note?testDB.user_note_images:testDB.question_images).length,note);await paste(p,selector);await p.waitForFunction(({before,note})=>(note?testDB.user_note_images:testDB.question_images).length===before+1,{before,note});assert.equal(await p.locator('.qbDrawModal').count(),0)}
