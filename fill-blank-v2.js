@@ -72,9 +72,8 @@ function renderResult(Q,response,reviewOnly){
   const fields=fieldsFor(Q),a=official(Q);
   const mine=reviewOnly?'':`<div class="fbAnswerGroup"><b>あなたの解答</b>${fields.map(f=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(response[f.key]||'')}</strong></div>`).join('')}</div>`;
   const off=`<div class="fbAnswerGroup"><b>公式解答</b>${fields.map((f,i)=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(answerValue(a,f,i,fields))}</strong></div>`).join('')}${extraOfficial(a)}</div>`;
-  // Overview and intent are rendered once by shared-explanation-ui.js with existing edit/media/note hooks.
-  const verify=Q?.medical_verification_note?`<div class="card"><b>■ 医学的検証メモ</b><div class="line">${esc(Q.medical_verification_note)}</div></div>`:'';
-  ans.innerHTML=`<div class="card resultcard ${reviewOnly?'review':'fillblank'}"><div class="result">${reviewOnly?'解説モード（未解答）':'解答確認'}</div>${mine}${off}<div class="meta" style="margin-top:8px">${reviewOnly?'解答済みには含めません。':'自動採点はしません。自己評価で理解度を記録してください。'}</div></div>${verify}`;
+  // Shared explanations render each section once, with verification last and existing edit/media/note hooks intact.
+  ans.innerHTML=`<div class="card resultcard ${reviewOnly?'review':'fillblank'}"><div class="result">${reviewOnly?'解説モード（未解答）':'解答確認'}</div>${mine}${off}<div class="meta" style="margin-top:8px">${reviewOnly?'解答済みには含めません。':'自動採点はしません。自己評価で理解度を記録してください。'}</div></div>`;
   window.dispatchEvent(new CustomEvent('qb-answer-shown'));setTimeout(()=>ans.scrollIntoView({behavior:'smooth',block:'start'}),80)
 }
 function syncButton(box){const fields=[...box.querySelectorAll('.fbInput')],b=box.querySelector('#answer');if(b)b.disabled=!fields.length||fields.some(x=>!x.value.trim())}

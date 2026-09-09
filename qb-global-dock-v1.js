@@ -18,6 +18,7 @@ body.qbGlobalDockOn .app{padding-bottom:calc(94px + env(safe-area-inset-bottom))
 #qbGlobalDock .qbgdInner{max-width:850px;margin:auto;display:grid;grid-template-columns:1fr .85fr 1.4fr .85fr 1fr;gap:4px}
 #qbGlobalDock button{border:0;background:transparent;color:#536174;min-height:56px;border-radius:12px;font-weight:900;font-size:10px;line-height:1.08;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px}
 #qbGlobalDock button:disabled{opacity:.28}#qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:var(--accent-soft,#eef6fb);color:var(--accent)}#qbGlobalDock .qbgdIco{font-size:19px;line-height:1}#qbGlobalDock .qbgdResume .qbgdIco,#qbGlobalDock .qbgdStart .qbgdIco{font-size:20px}
+#qbGlobalDock .qbgdAvatar{width:24px;height:24px;flex:none;font-size:12px;line-height:1;background-color:var(--accent,#126fb3)}
 body.qbGlobalDockOn #modal{padding-bottom:calc(82px + env(safe-area-inset-bottom))!important}
 body.qbGlobalDockOn #modal .sheet{max-height:calc(100vh - 116px - env(safe-area-inset-bottom));max-height:calc(100dvh - 116px - env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 @media(max-width:390px){#qbGlobalDock .qbgdInner{grid-template-columns:.95fr .78fr 1.34fr .78fr .95fr}#qbGlobalDock button{font-size:9px}}
@@ -59,6 +60,14 @@ async function latestResume(force=false){
 function ensureDock(){
   let d=document.getElementById('qbGlobalDock');if(d)return d;d=document.createElement('nav');d.id='qbGlobalDock';d.setAttribute('aria-label','ページナビゲーション');document.body.appendChild(d);return d
 }
+function syncAccountAvatar(){
+  const avatar=document.querySelector('#qbGlobalDock .qbgdAvatar');if(!avatar)return;
+  const source=document.querySelector('#acctBtn .acctAvatar');
+  const initial=source?.textContent||'U',background=source?.style.backgroundImage||'';
+  if(avatar.textContent!==initial)avatar.textContent=initial;
+  if(avatar.style.backgroundImage!==background)avatar.style.backgroundImage=background;
+  const color=background?'transparent':'';if(avatar.style.color!==color)avatar.style.color=color;
+}
 async function render(){
   css();const s=screen(),d=document.getElementById('qbGlobalDock');
   if(s==='practice'||!ready){document.body.classList.remove('qbGlobalDockOn');d?.remove();return}
@@ -74,8 +83,9 @@ async function render(){
       ?`<button class="qbgdStart" data-a="start" ${startDisabled?'disabled':''}><span class="qbgdIco">▶</span><span>演習開始</span></button>`
       :`<button class="qbgdResume" data-a="resume" ${hasResume?'':'disabled'}><span class="qbgdIco">↻</span><span>前回の続きから</span></button>`}
     <button data-a="forward" ${forwardStack.length?'':'disabled'}><span class="qbgdIco">›</span><span>進む</span></button>
-    <button data-a="mypage"><span class="qbgdIco">◉</span><span>マイページ</span></button>
+    <button data-a="mypage" aria-label="マイページ"><span class="acctAvatar qbgdAvatar" aria-hidden="true"></span><span>マイページ</span></button>
   </div>`;
+  syncAccountAvatar();
   dock.querySelector('[data-a="home"]').onclick=()=>go({screen:'grades'},'normal');
   dock.querySelector('[data-a="back"]').onclick=()=>{const t=backStack.pop();if(t)go(t,'back')};
   dock.querySelector('[data-a="forward"]').onclick=()=>{const t=forwardStack.pop();if(t)go(t,'forward')};
@@ -92,6 +102,8 @@ function onScreen(){
 function initHistory(){ready=true;current=stateNow();backStack=[];forwardStack=[];scheduleRender()}
 function boot(){
   css();window.addEventListener('qb-screen-change',onScreen);window.addEventListener('qb-app-ready',()=>setTimeout(initHistory,260));
+  window.addEventListener('qb-avatar-updated',syncAccountAvatar);
+  const header=document.querySelector('.header');if(header)new MutationObserver(syncAccountAvatar).observe(header,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']});
   document.addEventListener('change',e=>{if(screen()==='problems'&&e.target?.matches?.('[data-q]'))scheduleRender()});
   document.addEventListener('click',e=>{if(screen()==='problems'&&e.target?.closest?.('#toggleAll'))setTimeout(scheduleRender,0)});
   if(window.QB_DB_READY)setTimeout(initHistory,260);else setTimeout(()=>{if(!ready&&window.qbGetScreen)initHistory()},1200)
