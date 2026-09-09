@@ -198,8 +198,16 @@ function keyAction(e){
 }
 function handleShortcut(e){
   const s=active;if(!s||s.closed)return false;
-  if(!s.body.contains(e.target)&&!s.tools.contains(e.target)&&!s.actions.contains(e.target))return false;
   const action=keyAction(e);if(!action)return false;
+  const inText=s.body.contains(e.target)||s.tools.contains(e.target)||s.actions.contains(e.target);
+  if(action==='save'){
+    // Image controls and focus lost to the page still belong to the active draft.
+    // Do not take the shortcut from private notes, dialogs or a different editor.
+    const target=e.target;
+    if(target.closest?.('.qbPersonal,[role="dialog"],[aria-modal="true"]'))return false;
+    const inImages=s.media.contains(target)||(s.mode==='stem'&&s.host.querySelector(':scope > .qsiHost')?.contains(target));
+    if(!inText&&!inImages&&target.closest?.('input,textarea,[contenteditable="true"],.adeEditor,.adeStemEditor'))return false;
+  }else if(!inText)return false;
   e.preventDefault();e.stopImmediatePropagation();if(e.repeat||s.view.composing)return true;
   if(action==='save')save(s);else format(s,action);return true;
 }
@@ -362,3 +370,4 @@ window.addEventListener('click',captureClick,true);
 window.addEventListener('keydown',handleShortcut,true);
 window.QBInlineOverview={open,mountField,registerChoiceEditor,releaseChoiceEditor,requestLeave:mayLeave,isEditing:()=>!!active||!!choiceGroup,hasUnsavedChanges:()=>!!active?.dirty||!!choiceGroup?.dirty(),editingStem};
 if(window.QB_INLINE_TEST)window.QBInlineOverview.codec={docFrom,readDoc};
+

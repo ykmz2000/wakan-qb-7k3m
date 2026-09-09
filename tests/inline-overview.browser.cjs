@@ -60,6 +60,26 @@ async function run(browser,name){
   await p.locator('.qbInlineImageToggle').click();await p.locator('.qbInlineImageManager .oeiFile').waitFor({state:'attached'});await popup(p,'.qbInlineImageManager .oeiGrid img');
   await p.locator('.qbInlineImageManager .oeiFile').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuQAAAAASUVORK5CYII=','base64')});
   await p.waitForFunction(n=>testDB.question_images.length===n+1,beforeImages);assert.equal(await p.locator('.qbInlineRich').textContent(),draft);assert.equal(await writes(p),beforeWrites);await cancel(p);assert.equal(await p.evaluate(()=>testDB.question_images.length),beforeImages+1);assert.equal(await p.evaluate(()=>testDB.user_notes[0].note_text),'個人メモだけ変更');assert.equal(await p.locator('.qbMediaHostV2.hidden').count(),0);pass('image upload is independent and survives text cancellation; existing image controls reused');
+  for(const [key,focus] of [['Meta+s','paste'],['Control+s','page']]){
+    await open(p);await select(p,0,0);await p.keyboard.insertText('画像後保存 ');
+    const expected=await p.locator('.qbInlineRich').textContent(),imageCount=await p.evaluate(()=>testDB.question_images.length),writeCount=await writes(p);
+    await p.locator('.qbInlineImageToggle').click();await p.locator('.qbInlineImageManager .oeiFile').waitFor({state:'attached'});
+    await p.locator('.qbInlineImageManager .oeiFile').setInputFiles({name:'shortcut.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuQAAAAASUVORK5CYII=','base64')});
+    await p.waitForFunction(n=>testDB.question_images.length===n+1,imageCount);
+    if(focus==='paste')await p.locator('.qbInlineImageManager .oeiPaste').evaluate(el=>{el.classList.remove('hidden');el.focus()});
+    else await p.evaluate(()=>{document.activeElement?.blur()});
+    assert.equal(await p.locator('.qbInlineRich').evaluate(el=>el.contains(document.activeElement)),false);
+    await p.keyboard.press(key);await p.locator('.qbInlineRich').waitFor({state:'detached'});
+    assert.equal(await p.evaluate(()=>testDB.questions[0].explanation_overview),expected);
+    assert.equal(await writes(p),writeCount+1,'shortcut saves the active draft exactly once');
+    assert.equal(await p.evaluate(()=>testDB.question_images.length),imageCount+1);
+  }
+  pass('Cmd/Ctrl-S saves after image upload from image paste controls and unfocused page');
+  await open(p);await select(p,0,0);await p.keyboard.insertText('メモとは独立 ');
+  await note.locator('.qbPencil').click();await note.locator('textarea').fill('メモ入力中');
+  const protectedWrites=await writes(p);await p.keyboard.press('Meta+s');
+  assert.equal(await p.locator('.qbInlineRich').count(),1);assert.equal(await writes(p),protectedWrites,'private note shortcut must not save official draft');
+  await cancel(p);
   await open(p);await select(p,0,0);await p.keyboard.insertText('未保存 ');p.once('dialog',d=>d.dismiss());await p.locator('#next').click();assert.equal(await p.evaluate(()=>testNavigation),0);assert.equal(await p.locator('.qbInlineRich').count(),1);
   const unload=await p.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented});assert.equal(unload,true);
   p.once('dialog',d=>d.accept());await p.locator('#next').click();assert.equal(await p.evaluate(()=>testNavigation),1);assert.equal(await p.locator('.qbInlineRich').count(),0);pass('dirty navigation can be cancelled or discarded; reload protection registered only while dirty');
@@ -76,3 +96,4 @@ async function run(browser,name){
   console.log(name+' '+passed+' inline checks passed');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+
