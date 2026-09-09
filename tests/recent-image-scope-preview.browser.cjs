@@ -122,14 +122,35 @@ async function run(browser,name){
   await p.locator('.adeStemBtn').click();const rich=p.locator('.qtext .qbInlineRich[contenteditable="true"]');await rich.waitFor();await rich.press('End');await p.keyboard.insertText(' 未保存の本文');const draft=await rich.textContent();
   await p.locator('.qbInlineImageToggle').click();await p.locator('.qsiHost .qsiRecentBtn').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);
   await hold(p);await p.locator('.qbripPreviewClose').click();assert.equal(await rich.textContent(),draft);
-  const chosen=await p.locator('.qbripItem').first().getAttribute('data-id');const sourcePath=await p.evaluate(id=>testDB.question_images.find(r=>r.id===id).image_path,chosen);
-  const beforeImages=await p.evaluate(()=>testDB.question_images.length);await p.locator('.qbripItem').first().click();await p.locator('.qbripUse').click();await p.waitForFunction(n=>testDB.question_images.length===n+1,beforeImages);await p.waitForTimeout(200);
+  const chosen=await p.locator('.qbripItem').evaluateAll(es=>[es[1].dataset.id,es[0].dataset.id]);
+  const sourcePaths=await p.evaluate(ids=>ids.map(id=>testDB.question_images.find(r=>r.id===id).image_path),chosen);
+  const beforeImages=await p.evaluate(()=>testDB.question_images.length);
+  const previousOrder=await p.evaluate(()=>Math.max(0,...testDB.question_images.filter(r=>r.question_id==='q1'&&r.placement==='question'&&!r.choice_id).map(r=>r.sort_order||0)));
+  await p.locator('.qbripItem').nth(1).click();await p.locator('.qbripItem').first().click();
+  assert.equal(await p.locator('.qbripItem').nth(1).locator('.qbripCheck').textContent(),'1');assert.equal(await p.locator('.qbripItem').first().locator('.qbripCheck').textContent(),'2');
+  // Deselecting then selecting returns to the end, with contiguous visible numbers.
+  await p.locator('.qbripItem').nth(1).click();assert.equal(await p.locator('.qbripItem').first().locator('.qbripCheck').textContent(),'1');
+  await p.locator('.qbripItem').nth(1).click();assert.equal(await p.locator('.qbripItem').nth(1).locator('.qbripCheck').textContent(),'2');
+  sourcePaths.reverse();await p.locator('.qbripUse').click();await p.waitForFunction(n=>testDB.question_images.length===n+2,beforeImages);await p.waitForTimeout(200);
   assert.equal(await rich.textContent(),draft);assert.equal(await p.evaluate(()=>testDB.questions[0].stem),await p.evaluate(()=>testQ.stem));
-  const copy=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(copy.question_id,'q1');assert.equal(copy.placement,'question');assert.notEqual(copy.image_path,sourcePath);
-  assert.equal(await p.evaluate(id=>testDB.question_images.find(r=>r.id===id).image_path,chosen),sourcePath);assert.ok((await p.evaluate(()=>testDownloads)).includes(sourcePath));
-  await p.locator('.qbInlineCancel').click();assert.equal(await p.evaluate(()=>testDB.question_images.length),beforeImages+1);pass('real question-image reuse still creates an independent copy; dirty stem and manual cancellation are preserved');
+  const copies=await p.evaluate(()=>testDB.question_images.slice(-2));assert.deepEqual(copies.map(r=>r.sort_order),[previousOrder+10,previousOrder+20]);
+  for(const copy of copies){assert.equal(copy.question_id,'q1');assert.equal(copy.placement,'question');assert.ok(!sourcePaths.includes(copy.image_path))}
+  assert.deepEqual(await p.evaluate(()=>testDownloads.slice(-2)),sourcePaths);
+  await p.waitForFunction(ids=>{const shown=[...document.querySelectorAll('.qsiGrid .qsiImgWrap')].map(e=>e.dataset.row);return JSON.stringify(shown.slice(-2))===JSON.stringify(ids)},copies.map(r=>r.id));
+  await p.locator('.qbInlineCancel').click();assert.equal(await p.evaluate(()=>testDB.question_images.length),beforeImages+2);pass('selection numbers follow taps and reselection; question copies append and display in that order while preserving the dirty draft');
   const note=p.locator('.qbPersonal').first();await note.locator('.qbPencil').click();await note.locator('textarea').fill('個人メモは独立');await note.locator('.qbNoteSave').click();await p.waitForFunction(()=>testDB.user_notes[0].note_text==='個人メモは独立');await popup(p,'.qbNoteImageGrid img');pass('personal-note editing and private-image enlargement remain independent');
   await p.locator('[data-ade-v2="overview"]').click();const overview=p.locator('#ans .qbInlineRich');await overview.waitFor();await overview.press('End');await p.keyboard.insertText(' 解説の下書き');const overviewDraft=await overview.textContent();await p.locator('.qbInlineImageToggle').click();await p.locator('.oeiRecentBtn').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);await hold(p);await p.locator('.qbripPreviewClose').click();await p.locator('.qbripCancel').click();assert.equal(await overview.textContent(),overviewDraft);await p.locator('.qbInlineCancel').click();pass('same scoped picker works from overview image controls without saving or losing its draft');
+  // Repeat the actual copy route for explanation images, whose upload code is separate.
+  await p.locator('[data-ade-v2="overview"]').click();await p.locator('#ans .qbInlineRich').waitFor();await p.locator('.qbInlineImageToggle').click();await p.locator('.oeiRecentBtn').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);
+  const officialChosen=await p.locator('.qbripItem').evaluateAll(es=>[es[1].dataset.id,es[0].dataset.id]);
+  const officialPaths=await p.evaluate(ids=>ids.map(id=>testDB.question_images.find(r=>r.id===id).image_path),officialChosen);
+  const officialBefore=await p.evaluate(()=>({count:testDB.question_images.length,order:Math.max(0,...testDB.question_images.filter(r=>r.question_id==='q1'&&r.placement==='explanation_overview'&&!r.choice_id).map(r=>r.sort_order||0))}));
+  await p.locator('.qbripItem').nth(1).click();await p.locator('.qbripItem').first().click();await p.locator('.qbripUse').click();
+  await p.waitForFunction(n=>testDB.question_images.length===n+2,officialBefore.count);
+  const officialCopies=await p.evaluate(()=>testDB.question_images.slice(-2));assert.deepEqual(officialCopies.map(r=>r.sort_order),[officialBefore.order+10,officialBefore.order+20]);
+  assert.ok(officialCopies.every(r=>r.placement==='explanation_overview'));assert.deepEqual(await p.evaluate(()=>testDownloads.slice(-2)),officialPaths);
+  await p.waitForFunction(ids=>JSON.stringify([...document.querySelectorAll('.oeiGrid .oeiItem')].map(e=>e.dataset.id).slice(-2))===JSON.stringify(ids),officialCopies.map(r=>r.id));
+  await p.locator('.qbInlineCancel').click();pass('explanation copies preserve reversed tap order in persisted and rendered order');
   await p.evaluate(()=>{
     const image=(id,image_path,extra={})=>({id,image_path,question_id:'q1',placement:'question',created_at:'2026-09-09T00:00:00.000Z',...extra});
     testDB.question_images.push(

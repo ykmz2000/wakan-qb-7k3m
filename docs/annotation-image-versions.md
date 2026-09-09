@@ -27,3 +27,7 @@ Verified all four columns are nullable text; RLS remains enabled on both existin
 - Chromium and WebKit: moving the border, marker ink inside an already selected rectangle, saved PNG pixels; real write action and provenance, repeated annotation, crop/reset/cached-client invalidation; picker preview and independent version selection; exclusion of unknown and pre-crop originals.
 - Existing Pages deployment gate runs these with editing, image, learning and PDF regressions before publication.
 
+
+## Recent-image selection order
+
+Picker selection uses Map insertion order. Visible 1-based badges are recomputed after each toggle; deselect/reselect appends to the end. Both stem and official-image upload routes allocate increasing sort_order values after the existing target placement/choice maximum, preserving file/selection order. No old rows are reordered. Browser regressions check selection badges, reselection, actual storage downloads, independent inserts and DOM order for both routes.

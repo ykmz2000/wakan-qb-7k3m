@@ -92,7 +92,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
   const context=currentQuestion(),pageSize=Math.max(10,Math.min(60,Number(limit)||DEFAULT_PAGE_SIZE));
   return new Promise(resolve=>{
     const origin=document.activeElement,d=document.createElement('div');d.className='qbripModal';
-    d.innerHTML=`<div class="qbripPanel" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><div class="qbripHead"><b>${esc(title)}</b><button type="button" class="qbripClose" aria-label="画像一覧を閉じる">×</button></div><div class="qbripSub">短くタップして選択、長押しで拡大できます。選んだ画像は追加先用に独立したコピーを保存します。</div><div class="qbripFilters"><label>科目<select class="qbripSubject" disabled aria-label="科目"><option value="">全科目</option></select></label><label>単元<select class="qbripUnit" disabled aria-label="単元"><option value="">すべて</option></select></label></div><div class="qbripFilterStatus" role="status">科目・単元を読み込み中…</div><button type="button" class="qbripFilterRetry hidden">分類を再読み込み</button><div class="qbripGrid"></div><div class="qbripEmpty hidden">この条件の画像はありません。</div><button type="button" class="qbripLoader" data-state="loading" disabled aria-label="さらに画像を読み込む"></button><div class="qbripFoot"><button type="button" class="qbripCancel">キャンセル</button><button type="button" class="qbripUse" disabled>選択した画像を追加</button></div></div>`;
+    d.innerHTML=`<div class="qbripPanel" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><div class="qbripHead"><b>${esc(title)}</b><button type="button" class="qbripClose" aria-label="画像一覧を閉じる">×</button></div><div class="qbripSub">短くタップして選択、長押しで拡大できます。選択した順に追加します。長押しでは選択順は変わりません。</div><div class="qbripFilters"><label>科目<select class="qbripSubject" disabled aria-label="科目"><option value="">全科目</option></select></label><label>単元<select class="qbripUnit" disabled aria-label="単元"><option value="">すべて</option></select></label></div><div class="qbripFilterStatus" role="status">科目・単元を読み込み中…</div><button type="button" class="qbripFilterRetry hidden">分類を再読み込み</button><div class="qbripGrid"></div><div class="qbripEmpty hidden">この条件の画像はありません。</div><button type="button" class="qbripLoader" data-state="loading" disabled aria-label="さらに画像を読み込む"></button><div class="qbripFoot"><button type="button" class="qbripCancel">キャンセル</button><button type="button" class="qbripUse" disabled>選択した画像を追加</button></div></div>`;
     document.body.appendChild(d);
     const oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';
     const panel=d.querySelector('.qbripPanel'),grid=d.querySelector('.qbripGrid'),loader=d.querySelector('.qbripLoader'),empty=d.querySelector('.qbripEmpty'),use=d.querySelector('.qbripUse');
@@ -123,14 +123,14 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       preview.querySelector('.qbripPreviewClose').onclick=()=>closePreview();
       preview.querySelector('.qbripPreviewClose').focus({preventScroll:true});
     }
-    function syncUse(){use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}枚を追加`:'選択した画像を追加'}
+    function syncUse(){use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}枚を追加`:'選択した画像を追加';const order=new Map([...selected.keys()].map((key,i)=>[key,i+1]));for(const b of grid.querySelectorAll('.qbripItem')){const n=order.get(b.dataset.id);b.querySelector('.qbripCheck').textContent=n||'';b.setAttribute('aria-label',imageLabel(rowByButton.get(b))+(n?`、${n}番目に追加`:'')+'。長押しまたはAlt+Enterで拡大')}}
     function selectRow(row,b){const key=selectionKey(row);selected.has(key)?selected.delete(key):selected.set(key,row);b.classList.toggle('on',selected.has(key));b.setAttribute('aria-pressed',String(selected.has(key)));syncUse()}
     function appendRows(rows){
       for(const row of rows.flatMap(variants)){
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}"><span class="qbripCheck" aria-hidden="true">✓</span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}"><span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
