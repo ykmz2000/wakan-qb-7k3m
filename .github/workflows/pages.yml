@@ -34,6 +34,7 @@ jobs:
           node --check inline-overview-v1.js
           node --check current-question-identity-v1.js
           node --check image-viewer.js
+          node --check recent-image-picker-v1.js
       - name: Verify editing before publication
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
@@ -46,6 +47,7 @@ jobs:
           node tests/inline-stem.browser.cjs
           node tests/fill-blank-reference.browser.cjs
           node tests/question-image-add-theme.browser.cjs
+          node tests/recent-image-scope-preview.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
