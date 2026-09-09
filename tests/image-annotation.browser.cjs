@@ -44,6 +44,7 @@ async function core(browser,name){
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
   console.log(name+' PASS transparent arbitrary rectangle, move/undo/redo, translucent marker, handwriting, arrow, Japanese text, flattened PNG');
   await straightMarker(p,name);
+  await marginsAndPaste(p,name);
   await launch(p);map=await mapping(p);
   // Add an image through the clipboard, crop in a separate dialog, then resize/move it.
   await p.evaluate(async()=>{const c=document.createElement('canvas');c.width=120;c.height=80;const x=c.getContext('2d');x.fillStyle='#2463d3';x.fillRect(0,0,120,80);const b=await new Promise(r=>c.toBlob(r));const d=new DataTransfer();d.items.add(new File([b],'added.png',{type:'image/png'}));document.querySelector('.qbDrawCanvas').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}))});
@@ -62,6 +63,35 @@ async function core(browser,name){
   await p.evaluate(({a,b,palm})=>{const c=document.querySelector('.qbDrawCanvas'),event=(type,id,kind,point)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:kind,button:0,buttons:type==='pointerup'?0:1,clientX:point.x,clientY:point.y}));event('pointerdown',41,'pen',a);event('pointerdown',42,'touch',palm);event('pointerdown',43,'touch',{x:palm.x+30,y:palm.y});event('pointermove',41,'pen',b);event('pointerup',43,'touch',{x:palm.x+30,y:palm.y});event('pointerup',42,'touch',palm);event('pointerup',41,'pen',b)}, {a,b,palm});
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const pen=await pixels(p,[[180,120],[400,300]]);assert.ok(pen.colors[0][0]>180&&pen.colors[0][1]<100);assert.deepEqual(pen.colors[1],[255,255,255,255]);assert.deepEqual(errors,[]);await p.close();
   console.log(name+' PASS phone/tablet/landscape layout, pointer pencil input and concurrent palm-touch isolation');
+}
+async function marginsAndPaste(p,name){
+  await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);x.fillStyle='#22b8dc';x.fillRect(40,40,80,80);localStorage.setItem('qb-image-editor-settings-v1','{}');window.drawResult=undefined;QBImageEditor.open(c.toDataURL()).then(b=>window.drawResult=b)});
+  await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
+  await p.locator('[data-tool=rect]').click();let map=await mapping(p);await drag(p,map,[[160,160],[260,240]]);
+  if(name==='chromium')await p.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await p.evaluate(async native=>{const c=document.createElement('canvas');c.width=120;c.height=80;const x=c.getContext('2d');x.fillStyle='#2463d3';x.fillRect(0,0,120,80);window.pasteTestBlob=await new Promise(r=>c.toBlob(r));if(native)await navigator.clipboard.write([new ClipboardItem({'image/png':pasteTestBlob})])},name==='chromium');
+  // Exercise both non-editable focus locations. Chromium uses the real clipboard.
+  for(const selector of ['.qbDrawCanvas','[data-tool=rect]']){
+    await p.locator(selector).focus();
+    if(name==='chromium')await p.keyboard.press('Control+v');
+    else await p.evaluate(()=>{document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'v',metaKey:true,bubbles:true,cancelable:true}));if(!document.activeElement.classList.contains('qbDrawPasteTarget'))throw Error('Paste receiver was not focused');const d=new DataTransfer();d.items.add(new File([pasteTestBlob],'pasted.png',{type:'image/png'}));document.activeElement.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}))});
+    await p.waitForFunction(()=>document.querySelector('.qbDrawStatus').textContent.includes('画像を追加しました'));
+    // Move each image away from the paste position so a duplicate insertion is visible.
+    map=await mapping(p);await drag(p,map,[[400,300],[600,400]]);
+    if(selector==='.qbDrawCanvas')await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();
+    if(selector==='.qbDrawCanvas')await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();
+  }
+  await p.getByRole('button',{name:'左に余白',exact:true}).click();await p.getByRole('button',{name:'上に余白',exact:true}).click();
+  for(let i=0;i<2;i++)await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();
+  for(let i=0;i<2;i++)await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const out=await pixels(p,[[100,400],[400,100],[280,330],[360,450],[800,650],[600,550]]);
+  assert.deepEqual([out.width,out.height],[1000,850]);
+  for(const i of [0,1,5])assert.deepEqual(out.colors[i],[255,255,255,255],'new margin or vacated image position must stay white');
+  assert.deepEqual(out.colors[2],[34,184,220,255],'base image shifts with margins');
+  assert.ok(out.colors[3][0]>180&&out.colors[3][1]<100,'rectangle shifts with base');
+  assert.deepEqual(out.colors[4],[36,99,211,255],'pasted image shifts with base');
+  console.log(name+' PASS left/top margins preserve base, annotations and pasted images; undo/redo; keyboard paste from canvas and toolbar');
 }
 async function straightMarker(p,name){
   await launch(p);await p.locator('[data-tool=marker]').click();

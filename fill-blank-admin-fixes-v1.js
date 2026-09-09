@@ -57,7 +57,7 @@ function dedupeFieldButtons(){
 }
 async function sync(){
   dedupeFieldButtons();const q=Q();if(!q||q.answer_mode!=='fill_blank'||hasOccurrence(q))return;
-  const groups=[...document.querySelectorAll('#ans .fbAnswerGroup')],group=groups.find(g=>(g.querySelector(':scope > b')?.textContent||'').trim()==='配布された過去問に記載されていた正答');if(!group)return;
+  const groups=[...document.querySelectorAll('#ans .fbAnswerGroup')],group=groups.find(g=>(g.querySelector(':scope > b')?.textContent||'').trim()==='解答');if(!group)return;
   const a=await loadSourceAnswer(q);if(qid(Q())!==qid(q)||!group.isConnected)return;refreshGroup(group,q,a);const b=group.querySelector('.oaiEditBtn');if(b){b.dataset.oaiFallback='1';b.title='収録元資料の解答を編集'}
 }
 function schedule(){clearTimeout(timer);timer=setTimeout(sync,25)}

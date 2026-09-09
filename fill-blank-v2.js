@@ -72,7 +72,7 @@ function renderResult(Q,response,reviewOnly){
   ans.classList.remove('hidden');
   const fields=fieldsFor(Q),a=official(Q);
   const mine=reviewOnly?'':`<div class="fbAnswerGroup"><b>あなたの解答</b>${fields.map(f=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(response[f.key]||'')}</strong></div>`).join('')}</div>`;
-  const off=`<div class="fbAnswerGroup"><b>配布された過去問に記載されていた正答</b>${fields.map((f,i)=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(answerValue(a,f,i,fields))}</strong></div>`).join('')}${extraOfficial(a)}</div>`;
+  const off=`<div class="fbAnswerGroup"><b>解答</b>${fields.map((f,i)=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(answerValue(a,f,i,fields))}</strong></div>`).join('')}${extraOfficial(a)}</div>`;
   // Shared explanations render each section once, with verification last and existing edit/media/note hooks intact.
   ans.innerHTML=`<div class="card resultcard ${reviewOnly?'review':'fillblank'}"><div class="result">${reviewOnly?'解説モード（未解答）':'解答確認'}</div>${mine}${off}<div class="meta" style="margin-top:8px">${reviewOnly?'解答済みには含めません。':'自動採点はしません。自己評価で理解度を記録してください。'}</div></div>`;
   window.dispatchEvent(new CustomEvent('qb-answer-shown'));setTimeout(()=>ans.scrollIntoView({behavior:'smooth',block:'start'}),80)
