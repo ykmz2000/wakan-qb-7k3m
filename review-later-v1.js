@@ -39,7 +39,7 @@ function markRows(){
 function updatePanel(){
   const p=document.getElementById('qbReviewLaterPanel');if(!p)return;
   const n=[...flags].filter(id=>inputs().some(x=>x.dataset.q===id)).length;
-  p.querySelector('.qbrlCount').textContent=`${n}問`;
+  const count=p.querySelector('.qbrlCount'),text=`${n}問`;if(count.textContent!==text)count.textContent=text;
 }
 function filterToFlags(){
   inputs().forEach(x=>{

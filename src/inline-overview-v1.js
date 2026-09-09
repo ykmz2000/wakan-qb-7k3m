@@ -72,9 +72,10 @@ function css(){
 .qbInlineFieldSource{display:none!important}
 .qbInlineChoiceField .qbInlineStatus{margin:5px 0;min-width:0}
 .qbInlineChoiceField .qbInlineTools{margin-top:5px}
-.exp.qbInlineChoiceActive.adeHost{padding-right:0!important}
+#ans .exp.qbInlineChoiceActive.adeHost{padding-right:0!important}
+#ans .exp.qbInlineChoiceActive.adeHost>.qbPersonal,#ans .exp.qbInlineChoiceActive.adeHost>.qbMediaHostV2{width:100%!important;max-width:100%!important;margin-right:0!important}
 .qbInlineChoiceActive>[data-ade-v2]:not(.adeEditor){visibility:hidden}
-#ans .adeEditor.qbChoiceInPlace{margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;width:100%!important;max-width:100%!important}
+#ans .exp.qbInlineChoiceActive.adeHost>.adeEditor.qbChoiceInPlace{margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;width:100%!important;max-width:100%!important}
 .qbChoiceInPlace>.qbChoiceEditHeading{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font:inherit;margin-bottom:8px}
 .qbChoiceEditHeading>.ctext{flex:1;min-width:140px}
 .qbChoiceInPlace>.qbChoiceDetail{padding:0;background:transparent;border:0}

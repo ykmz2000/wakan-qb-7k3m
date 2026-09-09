@@ -46,6 +46,7 @@ async function run(browser,name){
   assert.equal(await ed.evaluate(el=>el.classList.contains('qbChoiceInPlace')&&getComputedStyle(el).borderTopWidth==='0px'),true,'no detached editor panel');
   assert.equal(await row.locator(':scope > .line,:scope > .qbChoiceDetail').count(),0,'displayed text moves into its edit position without duplicate paragraphs');
   assert.equal(await row.evaluate(el=>el.querySelector('.qbMediaHostV2')===choiceMedia),true);
+  assert.equal(await ed.evaluate(el=>el.getBoundingClientRect().right<=el.closest('.exp').getBoundingClientRect().right+1),true,'inline editor fits the existing row');
   assert.equal(await ed.locator('.qbInlineTools').count(),4);
   assert.equal(await ed.locator('.qbFmtPreview,textarea:visible').count(),0);
   let field=ed.locator('[data-qb-format-field="explanation"]');

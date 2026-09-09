@@ -104,7 +104,7 @@ async function loadRatings(ids){
   ratingByQuestion=new Map(rows.map(x=>[String(x.question_id),x.rating]));
 }
 async function inject(force=false){
-  clearTimeout(timer);if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
+  clearTimeout(timer);timer=0;if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
   const xs=inputs();if(!xs.length)return;
   const fp=currentFingerprint();
   if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=null;exams=null;ratingByQuestion=new Map();}
@@ -116,7 +116,7 @@ async function inject(force=false){
   if(screen()!=='problems'||currentFingerprint()!==fp){schedule(true);return}
   buildPanel();
 }
-function schedule(force=false){clearTimeout(timer);timer=setTimeout(()=>inject(force).catch(console.error),120)}
+function schedule(force=false){if(timer&&!force)return;clearTimeout(timer);timer=setTimeout(()=>inject(force).catch(console.error),120)}
 function boot(){
   css();schedule(true);
   window.addEventListener('qb-screen-change',()=>schedule(true));
