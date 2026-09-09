@@ -76,6 +76,7 @@ async function confirm(p){await p.locator('.qbDrawSave').click();await p.locator
 async function pasteAndWait(p,selector,note=false){const before=await p.evaluate(note=>(note?testDB.user_note_images:testDB.question_images).length,note);await paste(p,selector);await p.waitForFunction(({before,note})=>(note?testDB.user_note_images:testDB.question_images).length===before+1,{before,note});assert.equal(await p.locator('.qbDrawModal').count(),0)}
 async function integration(browser,name){
   const {page:p,errors}=await fixture.exports.boot(browser);await augment(p);
+  await p.locator('.qbPublicImageWrap .qbImageWriteActions').first().waitFor();assert.ok(await p.locator('.qbPublicImageWrap').first().getByRole('button',{name:'トリミング',exact:true}).isVisible());assert.ok(await p.locator('.qbPublicImageWrap').first().getByRole('button',{name:'書き込み',exact:true}).isVisible());assert.equal(await p.locator('.qbDrawModal').count(),0);
   await p.locator('.qbExportButton').waitFor();assert.equal(await p.evaluate(()=>document.querySelector('.adeStemToolbar').firstElementChild.className),'qbExportButton');
   await p.waitForFunction(()=>{const stem=document.querySelector('#view > .card > .qtext'),bar=document.querySelector('.adeStemToolbar'),images=document.querySelector('.qsiHost');return stem&&bar&&images&&(stem.compareDocumentPosition(bar)&4)&&(bar.compareDocumentPosition(images)&4)});
   const referenceBefore=await p.evaluate(()=>JSON.stringify(testDB));await launch(p);const refMap=await mapping(p);await drag(p,refMap,[[100,300],[400,300]]);
@@ -100,6 +101,7 @@ async function integration(browser,name){
   const user=await fixture.exports.boot(browser,{role:'user',db});const u=user.page;await augment(u);await u.locator('.qbExportButton').waitFor();assert.equal(await u.locator('.adeStemBtn').count(),0);
   const note=u.locator('.qbPersonal').first();await note.locator('.qbPencil').click();await note.locator('textarea').fill('画像追加中のメモ下書き');await pasteAndWait(u,'.qbPersonal .qbNoteEditor textarea',true);assert.equal(await note.locator('textarea').inputValue(),'画像追加中のメモ下書き');assert.equal(await u.evaluate(()=>testDB.user_notes[0].note_text),'以前からの個人メモ');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).note_id),'n1');assert.equal(await u.evaluate(()=>testDB.user_note_images.at(-1).user_id),'u1');
   await note.locator('.qbNoteImageWrap .qbImageWriteActions').first().waitFor();
+  assert.equal(await u.locator('.qbPublicImageWrap .qbImageWriteActions').count(),0);assert.ok(await note.locator('.qbNoteImageWrap').first().getByRole('button',{name:'トリミング',exact:true}).isVisible());
   await u.evaluate(()=>{window.Sortable=class{constructor(container,options){container.testSortOptions=options}}});await u.addScriptTag({content:read('image-sortable-v1.js')});
   await u.waitForFunction(()=>document.querySelectorAll('.qbPersonal .qbNoteImageWrap.qbsortNoteItem').length===2);
   assert.equal(await note.locator('.qbNoteImageWrap .qbImageWriteActions').count(),2);

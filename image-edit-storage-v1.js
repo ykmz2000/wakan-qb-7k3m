@@ -8,6 +8,7 @@ async function authorize(c){
   if(c.alive&&!c.alive())throw Error('編集が終了しました。画像の保存先を確認して開き直してください。');
   const auth=await c.sb.auth.getUser(),user=auth.data?.user;if(auth.error||!user)throw Error('ログイン情報を確認できません。');
   if(c.userId&&user.id!==c.userId)throw Error('ログイン中のユーザーが変わりました。');
+  if(c.bucket==='user-note-images'&&(!c.userId||c.userId!==user.id))throw Error('本人の画像のみ編集できます。');
   if(c.bucket!=='user-note-images'){const role=await c.sb.from('profiles').select('role').eq('id',user.id).maybeSingle();if(role.error||role.data?.role!=='admin')throw Error('この画像の編集権限を確認できません。')}
   return user;
 }
