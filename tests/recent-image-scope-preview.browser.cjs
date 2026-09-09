@@ -80,9 +80,11 @@ async function hold(p,selector='.qbripItem'){await pointer(p,selector,'pointerdo
 async function run(browser,name){
   let n=0;const pass=s=>{n++;console.log(name+' PASS '+s)};
   const {page:p,errors}=await boot(browser);await open(p);
-  assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');assert.equal(await p.locator('.qbripUnit').inputValue(),'');
+  assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');assert.equal(await p.locator('.qbripUnit').inputValue(),'u11');
   assert.deepEqual(await p.locator('.qbripUnit option').evaluateAll(es=>es.map(x=>x.value)),['','u11','u12']);
-  assert.ok(!(await ids(p)).includes('img-045'));pass('defaults to the current question subject and all its units, not the newest global images');
+  assert.equal((await ids(p)).length,2);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));
+  const initialReads=await p.evaluate(()=>testPickerReads.filter(r=>r.table==='question_images'));assert.ok(initialReads.length>0);assert.ok(initialReads.every(r=>r.filters.some(f=>f[0]==='questions.unit_id'&&f[2]==='u11')));pass('defaults to the current question subject and unit before the very first image query');
+  await p.locator('.qbripUnit').selectOption('');await settle(p);
   await finish(p);const loaded=await ids(p);const expected=await p.evaluate(()=>new Set(testDB.question_images.filter(r=>['q1','q2'].includes(r.question_id)).map(r=>r.image_path)).size);assert.equal(loaded.length,expected);
   const reads=await p.evaluate(()=>testPickerReads.filter(r=>r.table==='question_images'));
   assert.ok(reads.every(r=>r.cols.includes('questions!inner')&&r.filters.some(f=>f[0]==='questions.subject_id'&&f[2]==='s1')));

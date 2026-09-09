@@ -78,11 +78,11 @@ async function catalog(sb,table,subjectId,stop){
   return rows;
 }
 function currentQuestion(){try{return window.qbResolveCurrentQuestion?.()||window.pq?.()||null}catch{return null}}
-async function currentSubject(sb,q){
+async function currentScope(sb,q){
   const id=q?.id||q?.dbId;
-  if(!id)return '';
-  const r=await sb.from('questions').select('subject_id').eq('id',id).maybeSingle();
-  if(r.error)throw r.error;return r.data?.subject_id||'';
+  if(!id)return {subjectId:'',unitId:''};
+  const r=await sb.from('questions').select('subject_id,unit_id').eq('id',id).maybeSingle();
+  if(r.error)throw r.error;return {subjectId:r.data?.subject_id||'',unitId:r.data?.unit_id||''};
 }
 async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードした画像'}={}){
   if(!sb)throw new Error('Supabaseを取得できません');css();
@@ -171,20 +171,20 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     function fillOptions(select,rows,first){
       select.replaceChildren(new Option(first,''));for(const row of rows)select.add(new Option(row.name||'名称未設定',row.id));
     }
-    async function loadUnits(){
+    async function loadUnits(preferredUnit=''){
       const version=++unitVersion,sid=scope.subjectId;fillOptions(unit,[],'すべて');unit.disabled=true;filterRetry.classList.add('hidden');
       filterStatus.textContent='絞り込みを変更すると画像の選択が解除されます。';
       if(!sid)return;
       try{
         const rows=await catalog(sb,'units',sid,()=>closed||version!==unitVersion);
-        if(closed||version!==unitVersion)return;fillOptions(unit,rows,'すべて');unit.disabled=false;
+        if(closed||version!==unitVersion)return;fillOptions(unit,rows,'すべて');if(preferredUnit&&rows.some(row=>row.id===preferredUnit)){scope.unitId=preferredUnit;unit.value=preferredUnit}unit.disabled=false;
       }catch(e){if(!closed&&version===unitVersion){filterStatus.textContent='単元を読み込めませんでした。科目内の全画像を表示しています。';filterRetry.classList.remove('hidden')}}
     }
     async function initialize(){
       ready=false;subject.disabled=true;unit.disabled=true;filterRetry.classList.add('hidden');filterStatus.textContent='科目・単元を読み込み中…';
       try{
-        const [subjects,sid]=await Promise.all([catalog(sb,'subjects','',()=>closed),currentSubject(sb,context)]);
-        if(closed)return;fillOptions(subject,subjects,'全科目');scope={subjectId:subjects.some(s=>s.id===sid)?sid:'',unitId:''};subject.value=scope.subjectId;subject.disabled=false;ready=true;loadUnits();reset();
+        const [subjects,initialScope]=await Promise.all([catalog(sb,'subjects','',()=>closed),currentScope(sb,context)]);const sid=initialScope.subjectId;
+        if(closed)return;fillOptions(subject,subjects,'全科目');scope={subjectId:subjects.some(s=>s.id===sid)?sid:'',unitId:''};subject.value=scope.subjectId;await loadUnits(initialScope.unitId);if(closed)return;subject.disabled=false;ready=true;reset();
       }catch(e){if(!closed){filterStatus.textContent='科目情報を読み込めませんでした。再読み込みしてください。';filterRetry.classList.remove('hidden');loader.dataset.state='';loader.disabled=true}}
     }
     subject.onchange=()=>{scope={subjectId:subject.value,unitId:''};loadUnits();reset()};
