@@ -125,13 +125,14 @@ async function bindPersonal(c,Q){
   const personals=[...document.querySelectorAll('.qbPersonal')];
   for(const personal of personals){
     const grid=personal.querySelector('.qbNoteImageGrid');if(!grid||grid.dataset.qbNoteSortPrepared==='1')continue;
-    const imgs=[...grid.querySelectorAll(':scope > img')];if(imgs.length<2)continue;
+    const imgs=[...grid.querySelectorAll(':scope > img,:scope > .qbNoteImageWrap > img')];if(imgs.length<2)continue;
     const rows=await noteRows(c,Q,personal);if(rows.length<2)continue;
     const byPath=new Map(rows.map(r=>[r.image_path,r]));
     for(let i=0;i<imgs.length;i++){
       const img=imgs[i],path=decodeStoragePath(img.src,'user-note-images'),row=byPath.get(path)||rows[i];if(!row)continue;
-      const w=document.createElement('div');w.className='qbsortNoteItem';w.dataset.id=row.id;
-      img.replaceWith(w);w.appendChild(img);
+      let w=img.closest('.qbNoteImageWrap');
+      if(!w){w=document.createElement('div');img.replaceWith(w);w.appendChild(img)}
+      w.classList.add('qbsortNoteItem');w.dataset.id=w.dataset.row||row.id;
       const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortNoteHandle';b.textContent='☰';b.setAttribute('aria-label','画像を並べ替え');w.appendChild(b);
     }
     grid.dataset.qbNoteSortPrepared='1';

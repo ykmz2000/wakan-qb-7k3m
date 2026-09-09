@@ -37,12 +37,10 @@ async function cropStem(button){
   const oldText=button.textContent;
   try{
     button.disabled=true;button.textContent='準備中…';
-    const r=await sb.from('question_images').select('id,image_path').eq('id',rowId).maybeSingle();if(r.error||!r.data)throw r.error||new Error('画像情報がありません');
+    const r=await sb.from('question_images').select('*').eq('id',rowId).eq('question_id',id).maybeSingle();if(r.error||!r.data)throw r.error||new Error('画像情報がありません');
     const blob=await cropModal(publicUrl(sb,r.data.image_path));if(!blob)return;
-    button.textContent='保存中…';const path=`${id}/question/question/${crypto.randomUUID()}.jpg`,file=new File([blob],`crop-${Date.now()}.jpg`,{type:'image/jpeg'});
-    const u=await sb.storage.from(BUCKET).upload(path,file,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});if(u.error)throw new Error(`Storage: ${u.error.message}`);
-    const up=await sb.from('question_images').update({image_path:path,updated_at:new Date().toISOString()}).eq('id',rowId);if(up.error){await sb.storage.from(BUCKET).remove([path]);throw new Error(`DB: ${up.error.message}`)}
-    await sb.storage.from(BUCKET).remove([r.data.image_path]);
+    button.textContent='保存中…';
+    await window.QBImageStore.replace({sb,bucket:BUCKET,questionId:String(id),placement:'question',choiceId:null,host:wrap.closest('.qsiHost')},r.data,blob);
     window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:id,type:'question-image-crop'}}));
   }catch(e){alert('トリミング失敗: '+(e?.message||e))}finally{if(button.isConnected){button.disabled=false;button.textContent=oldText}}
 }
@@ -69,4 +67,5 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
 

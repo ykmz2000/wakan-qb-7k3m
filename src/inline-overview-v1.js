@@ -368,6 +368,13 @@ function captureClick(e){
 }
 window.addEventListener('click',captureClick,true);
 window.addEventListener('keydown',handleShortcut,true);
-window.QBInlineOverview={open,mountField,registerChoiceEditor,releaseChoiceEditor,requestLeave:mayLeave,isEditing:()=>!!active||!!choiceGroup,hasUnsavedChanges:()=>!!active?.dirty||!!choiceGroup?.dirty(),editingStem};
+function imageContext(target){
+  const s=active;if(!s||s.closed||s.saving)return null;
+  if(target?.closest?.('.qbPersonal,[role="dialog"],[aria-modal="true"]'))return null;
+  if(target?.closest?.('input,textarea,[contenteditable="true"],.adeEditor,.adeStemEditor')&&!s.host.contains(target))return null;
+  return {questionId:s.id,placement:s.mode==='stem'?'question':'explanation_overview',choiceId:null,host:s.host,alive:()=>active===s&&!s.closed&&!s.saving};
+}
+window.QBInlineOverview={imageContext,open,mountField,registerChoiceEditor,releaseChoiceEditor,requestLeave:mayLeave,isEditing:()=>!!active||!!choiceGroup,hasUnsavedChanges:()=>!!active?.dirty||!!choiceGroup?.dirty(),editingStem};
 if(window.QB_INLINE_TEST)window.QBInlineOverview.codec={docFrom,readDoc};
+
 
