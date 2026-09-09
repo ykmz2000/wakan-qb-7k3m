@@ -18,13 +18,13 @@ function inject(){
   clearTimeout(timer);css();
   if(screen()!=='units'){remove();return}
   const V=document.getElementById('view');if(!V)return;
-  const all=[...V.querySelectorAll(':scope > button.list[data-u="__all__"]')][0];
+  const all=[...V.querySelectorAll('button.list[data-u="__all__"]')][0];
   if(!all){remove();return}
-  const unit=[...V.querySelectorAll(':scope > button.list[data-u]')].find(x=>x.dataset.u!=='__all__');
+  const unit=[...V.querySelectorAll('button.list[data-u]')].find(x=>x.dataset.u!=='__all__');
   const existingAll=V.querySelector('[data-qb-unit-divider="all"]');
-  if(!existingAll)all.insertAdjacentElement('beforebegin',divider('すべての問題を解く','all'));
+  if(!existingAll)(all.closest('.qbPdfUnitRow')||all).insertAdjacentElement('beforebegin',divider('すべての問題を解く','all'));
   const existingUnits=V.querySelector('[data-qb-unit-divider="units"]');
-  if(unit&&!existingUnits)unit.insertAdjacentElement('beforebegin',divider('単元別に問題を解く','units'));
+  if(unit&&!existingUnits)(unit.closest('.qbPdfUnitRow')||unit).insertAdjacentElement('beforebegin',divider('単元別に問題を解く','units'));
 }
 function schedule(delay=20){clearTimeout(timer);timer=setTimeout(inject,delay)}
 function boot(){

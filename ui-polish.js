@@ -21,9 +21,9 @@ function decorateUnits(root){
   root.querySelectorAll('.qbUnitSectionHeading').forEach(x=>x.remove());
   const all=root.querySelector('[data-u="__all__"]');
   if(!all)return;
-  all.insertAdjacentElement('beforebegin',unitHeading('すべての問題を解く','qbUnitSectionHeadingFirst'));
+  (all.closest('.qbPdfUnitRow')||all).insertAdjacentElement('beforebegin',unitHeading('すべての問題を解く','qbUnitSectionHeadingFirst'));
   const regular=[...root.querySelectorAll('[data-u]')].find(x=>x.dataset.u!=='__all__');
-  if(regular)regular.insertAdjacentElement('beforebegin',unitHeading('単元別に問題を解く'))
+  if(regular)(regular.closest('.qbPdfUnitRow')||regular).insertAdjacentElement('beforebegin',unitHeading('単元別に問題を解く'))
 }
 function clean(root=document.getElementById('view')||document){
   if(!root)return;
