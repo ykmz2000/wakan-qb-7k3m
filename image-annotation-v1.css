@@ -15,3 +15,8 @@
 @media(max-width:520px){.qbDrawActions{flex-wrap:wrap}.qbDrawStatus{flex-basis:100%}.qbDrawFinger{margin-left:0}.qbDrawPanel button{padding:7px 8px}.qbDrawTools{gap:4px}.qbDrawNavigation button{font-size:12px}.qbDrawObjectActions button{font-size:12px}}
 
 .qbDrawStage .qbDrawText{position:absolute;z-index:2;margin:0;max-height:none;min-height:0;padding:0;border:1px solid var(--accent,#126fb3);border-radius:2px;background:#fff;line-height:1.3;transform-origin:top left;resize:none;overflow:auto;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;touch-action:auto;user-select:text;-webkit-user-select:text}
+.qbDrawWorkspace{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;min-width:0;overflow:hidden}
+.qbDrawWorkspace.hasReference{grid-template-columns:minmax(0,1fr) minmax(260px,35%)}
+.qbDrawReference{min-height:0;overflow:auto;border-left:1px solid var(--line);background:var(--card);padding:10px;overscroll-behavior:contain;touch-action:pan-y}
+.qbDrawReference[hidden]{display:none}.qbDrawReference img{display:block;width:100%;height:auto}
+@media(max-width:650px){.qbDrawWorkspace.hasReference{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(100px,35%)}.qbDrawReference{border-left:0;border-top:1px solid var(--line)}}

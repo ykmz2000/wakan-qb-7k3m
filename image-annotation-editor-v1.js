@@ -3,6 +3,9 @@
 'use strict';
 let current=null;
 const M=window.QBImageModel;
+const settingsKey='qb-image-editor-settings-v1';
+let sessionSettings={};
+function readSettings(){try{return JSON.parse(localStorage.getItem(settingsKey)||'null')||sessionSettings}catch{return sessionSettings}}
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
 const btn=(label,cls,fn)=>{const b=el('button',cls,label);b.type='button';b.onclick=fn;return b};
 function filesFromPaste(e){const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
@@ -10,6 +13,7 @@ function loadImage(source){return new Promise((resolve,reject)=>{const img=new I
 function png(canvas){return new Promise((resolve,reject)=>{try{canvas.toBlob(b=>b?resolve(b):reject(Error('画像を作成できませんでした。')), 'image/png')}catch(e){reject(e)}})}
 async function open(source,options={}){
   if(current)throw Error('画像編集中です。保存またはキャンセルしてから開いてください。');
+  const preferences=readSettings();
   const previous=document.activeElement,urls=[],assets=new Map(),listeners=[];let sequence=0;
   const asset=async input=>{if(input instanceof Blob&&input.size>20*1024*1024)throw Error('追加する画像は20MB以下にしてください。');const url=input instanceof Blob?URL.createObjectURL(input):String(input);if(input instanceof Blob)urls.push(url);const img=await loadImage(url),id='asset-'+(++sequence);assets.set(id,{img,url});return id};
   const modal=el('div','qbDrawModal'),panel=el('section','qbDrawPanel');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',options.title||'画像に書き込む');panel.tabIndex=-1;modal.append(panel);
@@ -22,27 +26,43 @@ async function open(source,options={}){
   const textInput=el('textarea','qbDrawText');textInput.placeholder='文字を入力';textInput.setAttribute('aria-label','画像に入れる文字');textInput.rows=1;textInput.hidden=true;textInput.spellcheck=false;
   const editActions=el('div','qbDrawObjectActions');header.append(editActions);
   const stage=el('div','qbDrawStage'),canvas=el('canvas','qbDrawCanvas');canvas.tabIndex=0;canvas.setAttribute('aria-label','画像の書き込み領域');stage.append(canvas,textInput);
+  const workspace=el('div','qbDrawWorkspace'),reference=el('aside','qbDrawReference');reference.hidden=true;reference.setAttribute('aria-label','問題と解答の参照');workspace.append(stage,reference);
+  let questionSnapshot=null,referenceLoaded=false,referenceLoading=false;
+  try{const q=window.pq?.();if(q)questionSnapshot=JSON.parse(JSON.stringify(q))}catch{}
+  const referenceButton=btn('問題・解答を表示','qbDrawReferenceButton',async()=>{
+    reference.hidden=!reference.hidden;workspace.classList.toggle('hasReference',!reference.hidden);referenceButton.setAttribute('aria-pressed',String(!reference.hidden));referenceButton.textContent=reference.hidden?'問題・解答を表示':'問題・解答を隠す';
+    if(reference.hidden||referenceLoaded||referenceLoading)return;referenceLoading=true;reference.textContent='問題と解答を読み込み中…';
+    try{if(!questionSnapshot||!window.QBQuestionExport)throw Error('参照できる問題がありません。');const result=await window.QBQuestionExport.render(questionSnapshot);if(closed)return;const url=URL.createObjectURL(result.blob);urls.push(url);const img=el('img');img.alt='問題文・問題画像・選択肢・解答';img.src=url;reference.replaceChildren(img);referenceLoaded=true}catch(e){if(!closed)reference.textContent='読み込めませんでした：'+e.message+' 閉じて再度表示すると再試行します。'}finally{referenceLoading=false}
+  });referenceButton.setAttribute('aria-pressed','false');top.insertBefore(referenceButton,closeButton);
   const footer=el('footer','qbDrawFooter'),navigation=el('div','qbDrawNavigation'),actions=el('div','qbDrawActions'),status=el('span','qbDrawStatus','画像を読み込み中…');status.setAttribute('role','status');
   const saveButton=btn('確定して保存','qbDrawSave',()=>save());saveButton.disabled=true;
-  actions.append(status,btn('キャンセル','',()=>cancel()),saveButton);footer.append(navigation,actions);panel.append(header,stage,footer);document.body.append(modal);
+  actions.append(status,btn('キャンセル','',()=>cancel()),saveButton);footer.append(navigation,actions);panel.append(header,workspace,footer);document.body.append(modal);
   const oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';panel.focus();
   let done;const result=new Promise(resolve=>{done=resolve});current={modal};
   let scene=null,history=null,selection=[],tool='pen',color=M.colors[0].value,zoom=1,ox=0,oy=0,frame=0,closed=false,busy=false,subDialog=false,changed=false,gesture=null,lassoPoints=null,penDown=false,textStart=null;
   const pointers=new Map();let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=0,lastPoint=null;
+  if(['lasso','pen','marker','text','arrow','rect'].includes(preferences.tool))tool=preferences.tool;
+  if(M.colors.some(c=>c.value===preferences.color))color=preferences.color;
+  if([2,5,10].includes(preferences.size))size.value=preferences.size;
+  if([16,24,32,48,64,96].includes(preferences.font))font.value=preferences.font;
+  finger.checked=preferences.finger===true;
+  function remember(){sessionSettings={tool,color,size:Number(size.value),font:Number(font.value),finger:finger.checked};try{localStorage.setItem(settingsKey,JSON.stringify(sessionSettings))}catch{}}
+  function strokeWidth(type){return Number(size.value)*(type==='marker'?5:type==='rect'?2:1)}
   const listen=(n,event,fn,opts)=>{n.addEventListener(event,fn,opts);listeners.push(()=>n.removeEventListener(event,fn,opts))};
-  function close(value){if(closed)return;closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}
+  listen(finger,'change',remember);
+  function close(value){if(closed)return;remember();closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}
   function cancel(){if(busy||subDialog)return;commitText();if(changed&&!confirm('今回の画像編集を破棄しますか？'))return;close(null)}
   function update(){if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!history.past.length;redoButton.disabled=busy||!history.future.length;saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.disabled=busy||selected.length!==1||selected[0].type!=='image';[deleteButton,frontButton,backButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
   function checkpoint(){history.push(scene);changed=history.past.length>0;update()}
   function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
-  function useTool(next){if(busy||subDialog)return;commitText();tool=next;selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
+  function useTool(next){if(busy||subDialog)return;commitText();tool=next;remember();selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
   function select(ids){commitText();selection=ids;const item=scene.items.find(i=>ids.length===1&&i.id===ids[0]);if(item){color=item.color||color;if(item.type==='text'){textInput.value=item.text;font.value=String(item.fontSize)}}update()}
   const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['text','文字'],['arrow','矢印'],['rect','四角い枠']];
   for(const [name,label] of toolsList){const b=btn(label,'',()=>useTool(name));b.dataset.tool=name;b.setAttribute('aria-pressed',String(tool===name));tools.append(b)}
   const fileInput=el('input');fileInput.type='file';fileInput.accept='image/*';fileInput.multiple=true;fileInput.hidden=true;fileInput.onchange=()=>{addImages([...fileInput.files]);fileInput.value=''};tools.append(btn('画像追加','',()=>fileInput.click()),fileInput);
-  for(const c of M.colors){const b=btn('','qbDrawSwatch',()=>{if(busy)return;commitText();color=c.value;scene?.items.filter(i=>selection.includes(i.id)&&i.type!=='image').forEach(i=>i.color=color);if(selection.length)checkpoint();else update()});b.dataset.color=c.value;b.style.setProperty('--swatch',c.value);b.title=c.name;b.setAttribute('aria-label',c.name);palette.append(b)}
-  size.onchange=()=>{if(busy)return;scene.items.filter(i=>selection.includes(i.id)&&['pen','marker','arrow','rect'].includes(i.type)).forEach(i=>i.width=Number(size.value)*(i.type==='marker'?5:1));if(selection.length)checkpoint()};
-  font.onchange=()=>{if(busy)return;scene.items.filter(i=>selection.includes(i.id)&&i.type==='text').forEach(i=>{i.fontSize=Number(font.value);measureText(i)});if(selection.length)checkpoint()};
+  for(const c of M.colors){const b=btn('','qbDrawSwatch',()=>{if(busy)return;commitText();color=c.value;remember();scene?.items.filter(i=>selection.includes(i.id)&&i.type!=='image').forEach(i=>i.color=color);if(selection.length)checkpoint();else update()});b.dataset.color=c.value;b.style.setProperty('--swatch',c.value);b.title=c.name;b.setAttribute('aria-label',c.name);palette.append(b)}
+  size.onchange=()=>{if(busy)return;remember();scene.items.filter(i=>selection.includes(i.id)&&['pen','marker','arrow','rect'].includes(i.type)).forEach(i=>i.width=strokeWidth(i.type));if(selection.length)checkpoint()};
+  font.onchange=()=>{if(busy)return;remember();scene.items.filter(i=>selection.includes(i.id)&&i.type==='text').forEach(i=>{i.fontSize=Number(font.value);measureText(i)});if(selection.length)checkpoint()};
   const undoButton=btn('↶ 元に戻す','',()=>{if(busy)return;commitText();scene=history.undo();selection=[];changed=history.past.length>0;update()}),redoButton=btn('↷ やり直す','',()=>{if(busy)return;commitText();scene=history.redo();selection=[];changed=history.past.length>0;update()});tools.append(undoButton,redoButton);
   const deleteButton=btn('削除','',()=>{if(busy)return;commitText();scene.items=scene.items.filter(i=>!selection.includes(i.id));selection=[];checkpoint()});
   const frontButton=btn('前面へ','',()=>reorder(true)),backButton=btn('背面へ','',()=>reorder(false)),cropButton=btn('追加画像をトリミング','',()=>cropSelected());editActions.append(deleteButton,frontButton,backButton,cropButton);
@@ -100,7 +120,7 @@ async function open(source,options={}){
     if(tool==='lasso'){select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return}
     if(p.x<0||p.y<0||p.x>scene.width||p.y>scene.height)return;
     if(tool==='text'){const item={id:crypto.randomUUID(),type:'text',text:'文字を入力',fontSize:Number(font.value)||32,color,x:p.x,y:p.y,w:1,h:1};measureText(item);scene.items.push(item);selection=[item.id];checkpoint();editText(item,true);return}
-    const before=M.copy(scene),item={id:crypto.randomUUID(),type:tool,color,width:Number(size.value)*(tool==='marker'?5:1)};if(tool==='pen'||tool==='marker')item.points=[p];if(tool==='rect')Object.assign(item,{x:p.x,y:p.y,w:0,h:0});if(tool==='arrow')Object.assign(item,{a:p,b:p});scene.items.push(item);selection=[];gesture={kind:'draw',before,item,start:p,id:e.pointerId};requestDraw();
+    const before=M.copy(scene),item={id:crypto.randomUUID(),type:tool,color,width:strokeWidth(tool)};if(tool==='pen'||tool==='marker')item.points=[p];if(tool==='rect')Object.assign(item,{x:p.x,y:p.y,w:0,h:0});if(tool==='arrow')Object.assign(item,{a:p,b:p});scene.items.push(item);selection=[];gesture={kind:'draw',before,item,start:p,id:e.pointerId};requestDraw();
   });
   listen(canvas,'pointermove',e=>{
     lastPoint=local(e);if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
@@ -116,10 +136,10 @@ async function open(source,options={}){
   const end=e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(e.pointerType==='pen')penDown=false;if(pinch){if(!pointers.size)pinch=null;return}if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;if(e.type==='pointercancel'){abortGesture();return}if(g.kind==='lasso'){selection=M.lasso(scene.items,lassoPoints);lassoPoints=null}else if(g.kind!=='pan'){if(g.kind==='draw'&&g.item.type==='rect'&&(g.item.w<1||g.item.h<1))scene=g.before;checkpoint()}gesture=null;update();if(g.kind==='move'&&!g.moved&&g.textId){const item=scene.items.find(i=>i.id===g.textId);if(item)editText(item)}};listen(canvas,'pointerup',end);listen(canvas,'pointercancel',end);
   function gestureAnchor(e){const r=stage.getBoundingClientRect();return Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)&&e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom?{x:e.clientX-r.left,y:e.clientY-r.top}:lastPoint||{x:r.width/2,y:r.height/2}}
   // Safari trackpads emit GestureEvents; other browsers commonly emit Ctrl+wheel.
-  listen(stage,'gesturestart',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();commitText();abortGesture();nativeGesture={scale:1,anchor:gestureAnchor(e)}},{passive:false});
-  listen(stage,'gesturechange',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();if(pinch||touchPair())return;if(!nativeGesture)nativeGesture={scale:1,anchor:gestureAnchor(e)};const scale=Number(e.scale);if(Number.isFinite(scale)&&scale>0){zoomAt(scale/nativeGesture.scale,nativeGesture.anchor);nativeGesture.scale=scale}},{passive:false});
-  listen(stage,'gestureend',e=>{if(!nativeGesture)return;e.preventDefault();nativeGesture=null;nativeEndedAt=performance.now()},{passive:false});
-  listen(stage,'wheel',e=>{if(!scene||busy||subDialog)return;e.preventDefault();if(nativeGesture||pinch||touchPair()||performance.now()-nativeEndedAt<120)return;const unit=e.deltaMode===1?16:e.deltaMode===2?stage.clientHeight:1;if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*unit*.004),local(e));else{ox-=e.deltaX*unit;oy-=e.deltaY*unit;requestDraw()}},{passive:false});
+  listen(document,'gesturestart',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();e.stopImmediatePropagation();commitText();abortGesture();nativeGesture={scale:1,anchor:gestureAnchor(e)}},{passive:false,capture:true});
+  listen(document,'gesturechange',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();e.stopImmediatePropagation();if(pinch||touchPair())return;if(!nativeGesture)nativeGesture={scale:1,anchor:gestureAnchor(e)};const scale=Number(e.scale);if(Number.isFinite(scale)&&scale>0){zoomAt(scale/nativeGesture.scale,nativeGesture.anchor);nativeGesture.scale=scale}},{passive:false,capture:true});
+  listen(document,'gestureend',e=>{if(!nativeGesture)return;e.preventDefault();e.stopImmediatePropagation();nativeGesture=null;nativeEndedAt=performance.now()},{passive:false,capture:true});
+  listen(document,'wheel',e=>{if(!scene||busy||subDialog||(!(e.ctrlKey||e.metaKey)&&!stage.contains(e.target)))return;e.preventDefault();e.stopImmediatePropagation();if(nativeGesture||pinch||touchPair()||performance.now()-nativeEndedAt<120)return;const unit=e.deltaMode===1?16:e.deltaMode===2?stage.clientHeight:1;if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*unit*.004),gestureAnchor(e));else{ox-=e.deltaX*unit;oy-=e.deltaY*unit;requestDraw()}},{passive:false,capture:true});
   async function save(){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';let output;try{const d=M.fitSize(scene.width,scene.height),out=document.createElement('canvas');out.width=d.width;out.height=d.height;const ctx=out.getContext('2d');if(!ctx)throw Error('画像を作成できませんでした。');ctx.scale(d.width/scene.width,d.height/scene.height);paint(ctx);output=await png(out);out.width=out.height=1;await options.onSave?.(output,{width:d.width,height:d.height});close(output)}catch(e){status.textContent='保存できませんでした：'+(e.message||e);busy=false;panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);update()}}
   listen(window,'paste',e=>{if(closed||subDialog)return;const files=filesFromPaste(e);if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();if(!busy)addImages(files)},true);
   listen(window,'keydown',e=>{

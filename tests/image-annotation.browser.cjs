@@ -15,6 +15,7 @@ async function install(p,integration=false){
   for(const s of scripts)await p.addScriptTag({content:read(s)});
 }
 async function launch(p){
+  await p.evaluate(()=>localStorage.setItem('qb-image-editor-settings-v1','{}'));
   await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);window.drawResult=undefined;QBImageEditor.open(c.toDataURL()).then(b=>window.drawResult=b)});
   await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
 }
@@ -77,6 +78,9 @@ async function integration(browser,name){
   const {page:p,errors}=await fixture.exports.boot(browser);await augment(p);
   await p.locator('.qbExportButton').waitFor();assert.equal(await p.evaluate(()=>document.querySelector('.adeStemToolbar').firstElementChild.className),'qbExportButton');
   await p.waitForFunction(()=>{const stem=document.querySelector('#view > .card > .qtext'),bar=document.querySelector('.adeStemToolbar'),images=document.querySelector('.qsiHost');return stem&&bar&&images&&(stem.compareDocumentPosition(bar)&4)&&(bar.compareDocumentPosition(images)&4)});
+  const referenceBefore=await p.evaluate(()=>JSON.stringify(testDB));await launch(p);const refMap=await mapping(p);await drag(p,refMap,[[100,300],[400,300]]);
+  await p.getByRole('button',{name:'問題・解答を表示',exact:true}).click();await p.locator('.qbDrawReference img').waitFor();await p.waitForFunction(()=>document.querySelector('.qbDrawReference img')?.naturalWidth>0);assert.ok(await p.locator('.qbDrawCanvas').isVisible());assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),referenceBefore);
+  await p.getByRole('button',{name:'問題・解答を隠す',exact:true}).click();await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);const retained=await pixels(p,[[200,300]]);assert.ok(retained.colors[0][0]>180&&retained.colors[0][1]<110);console.log(name+' PASS reference question/answer opens beside canvas, retains ink, and does not write records');
   await p.locator('[data-ade-v2="overview"]').click();await p.locator('.qbInlineRich').waitFor();await paste(p,'.qbInlineRich',false);const draft=await p.locator('.qbInlineRich').textContent();assert.ok(draft.includes('テキスト貼付'));
   const before=await p.evaluate(()=>testDB.question_images.length);await paste(p,'.qbInlineRich');await p.waitForFunction(n=>testDB.question_images.length===n+1,before);assert.equal(await p.locator('.qbDrawModal').count(),0);assert.equal(await p.locator('.qbInlineRich').textContent(),draft);
   let added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.placement,'explanation_overview');assert.equal(added.original_image_path,null);assert.equal(await p.evaluate(()=>testWrites.filter(w=>w.table==='questions').length),0);
