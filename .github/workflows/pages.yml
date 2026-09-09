@@ -50,6 +50,7 @@ jobs:
           node tests/question-image-add-theme.browser.cjs
           node tests/recent-image-scope-preview.browser.cjs
           node tests/image-crop.browser.cjs
+          node tests/image-gallery.browser.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
@@ -59,5 +60,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
 
 
