@@ -153,6 +153,8 @@ async function integration(browser,name){
   const denied=await u.evaluate(async()=>{try{await QBImageStore.authorize({sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',host:document.querySelector('.qtext')});return false}catch{return true}});assert.ok(denied);
   console.log(name+' PASS personal image save stays private, retains note draft and rejects general-user official edits');
   // Export pixels really render, text never clips, and output does not write app records.
+  // Keep the ordinary fixture small enough for full 4800px output; the long case below exercises the pixel cap.
+  await u.evaluate(async()=>{const c=document.createElement('canvas');c.width=200;c.height=100;const x=c.getContext('2d');x.fillStyle='#22b8dc';x.fillRect(0,0,200,100);window.testImage=await new Promise(r=>c.toBlob(r))});
   const exportResult=await u.evaluate(async()=>{
     const standard=await QBQuestionExport.render(testQ);window.highResolutionWidth=standard.width;const highest=await QBQuestionExport.render(testQ,{width:4800});window.highestResolutionWidth=highest.width;const before=JSON.stringify(testDB),writes=JSON.stringify(testWrites),draw=CanvasRenderingContext2D.prototype.fillText,lines=[];CanvasRenderingContext2D.prototype.fillText=function(text,...rest){lines.push(text);return draw.call(this,text,...rest)};
     const Q=JSON.parse(JSON.stringify(testQ));Q.stem='長文問題\n'.repeat(60)+'問題末尾';Q.choices.push({choice_key:'b',choice_text:'選択肢末尾',is_correct:false,sort_order:2});Q.occ=[{official_answer:'a',academic_year:2019,exam_type:'本試'}];const result=await QBQuestionExport.render(Q,{width:4800});CanvasRenderingContext2D.prototype.fillText=draw;
