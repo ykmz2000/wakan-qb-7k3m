@@ -147,7 +147,9 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     d.addEventListener('pointerleave',e=>{if(e.target===d)cancelPress()});
     grid.addEventListener('contextmenu',e=>{const b=e.target.closest('.qbripItem');if(!b)return;e.preventDefault();if(e.pointerType==='touch'||press?.fired||blockedClicks.has(b))return;cancelPress();blockedClicks.add(b);openPreview(rowByButton.get(b),b)});
     grid.addEventListener('dragstart',e=>e.preventDefault());
-    panel.addEventListener('scroll',cancelPress,{passive:true});window.addEventListener('blur',cancelPress);
+    // Also check scrolling when an observer threshold did not change after a
+    // filter reset. Both paths share loading/generation guards, so no duplicate read.
+    panel.addEventListener('scroll',()=>{cancelPress();if(loader.dataset.state==='more')maybeContinue()},{passive:true});window.addEventListener('blur',cancelPress);
     function maybeContinue(){requestAnimationFrame(()=>{
       if(closed||!ready||loading||!hasMore||preview||loader.dataset.state==='error'||!loader.isConnected)return;
       const pr=panel.getBoundingClientRect(),lr=loader.getBoundingClientRect();if(lr.top<=pr.bottom+320)loadNext();
