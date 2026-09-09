@@ -33,7 +33,7 @@ async function core(browser,name){
   await p.route('**/*',r=>r.request().url()==='https://qb-draw.test/'?r.fulfill({contentType:'text/html',body:'<!doctype html><style>*{box-sizing:border-box}body{margin:0}</style><button>前の画面</button>'}):r.request().url().startsWith('blob:')?r.continue():r.abort());await p.goto('https://qb-draw.test/');await install(p);
   await launch(p);assert.equal(await p.locator('.qbDrawSwatch').count(),7);let map=await mapping(p);
   await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,100],[340,220]]);
-  await p.locator('[data-tool=lasso]').click();await drag(p,map,[[220,160],[300,200]]);
+  await p.locator('[data-tool=lasso]').click();await drag(p,map,[[100,160],[180,200]]);
   await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
   await p.locator('[data-tool=marker]').click();await p.getByRole('button',{name:'青',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,280],[400,280]]);
   await p.locator('[data-tool=pen]').click();await p.getByRole('button',{name:'緑',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,340],[200,340],[250,380]]);
@@ -43,6 +43,15 @@ async function core(browser,name){
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const out=await pixels(p,[[180,140],[220,180],[100,100],[200,280],[160,340],[200,440]]);
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
   console.log(name+' PASS transparent arbitrary rectangle, move/undo/redo, translucent marker, handwriting, arrow, Japanese text, flattened PNG');
+  // Even an already selected rectangle must leave its interior available to the mouse marker.
+  await launch(p);await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,100],[600,400]]);
+  await p.locator('[data-tool=lasso]').click();map=await mapping(p);const edge=map(100,250);await p.mouse.click(edge.x,edge.y);
+  await p.locator('[data-tool=marker]').click();await p.getByRole('button',{name:'青',exact:true}).click();map=await mapping(p);await drag(p,map,[[200,250],[500,250]]);
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const inside=await pixels(p,[[300,250],[100,250],[600,250],[300,180]]);
+  assert.ok(inside.colors[0][2]>220&&inside.colors[0][0]>150&&inside.colors[0][0]<220,'interior receives marker');
+  for(const i of [1,2])assert.ok(inside.colors[i][0]>180&&inside.colors[i][1]<100,'rectangle remains in place');
+  assert.deepEqual(inside.colors[3],[255,255,255,255]);console.log(name+' PASS selected rectangle border moves, interior accepts marker ink');
   await penAndShapes(p,name);
   await straightMarker(p,name);
   await marginsAndPaste(p,name);
@@ -193,6 +202,13 @@ async function integration(browser,name){
   await p.locator('.adeStemBtn').click();await p.locator('.qbInlineRich').waitFor();await pasteAndWait(p,'.qbInlineRich');added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.placement,'question');assert.equal(added.question_id,'q1');await p.locator('.qbInlineCancel').click();
   await p.locator('[data-ade-v2="choice-c1"]').click();await p.locator('[data-ade-v2-editor="choice-c1"]').waitFor();await pasteAndWait(p,'[data-ade-v2-editor="choice-c1"] .qbInlineRich');added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.choice_id,'c1');assert.equal(added.placement,'choice_explanation');await p.locator('[data-ade-v2-editor="choice-c1"] .adeCancel').click();
   console.log(name+' PASS image clipboard routes to overview, stem and choice; text paste and cancelled/unsaved drafts are retained');
+  const writeTarget=p.locator('.qbPublicImageWrap').first(),writeId=await writeTarget.getAttribute('data-row');
+  const beforeWrite=await p.evaluate(id=>testDB.question_images.find(r=>r.id===id).image_path,writeId);
+  await writeTarget.getByRole('button',{name:'書き込み',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
+  const writeMap=await mapping(p);await drag(p,writeMap,[[300,200],[500,200]]);await confirm(p);
+  const written=await p.evaluate(id=>testDB.question_images.find(r=>r.id===id),writeId);
+  assert.equal(written.annotation_base_image_path,beforeWrite);assert.equal(written.annotation_result_image_path,written.image_path);assert.notEqual(written.image_path,beforeWrite);
+  console.log(name+' PASS public write button saves exact before-annotation provenance');
   const storage=await p.evaluate(async()=>{
     const c={sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',choiceId:null,host:document.querySelector('.qtext')},old=await QBImageStore.get(c,'stem-image'),row=await QBImageStore.replace(c,old,testImage),latest=await QBImageStore.get(c,'stem-image');
     let conflict=false;try{await QBImageStore.replace(c,old,testImage)}catch(e){conflict=e.message.includes('別の画像更新')}
@@ -201,6 +217,29 @@ async function integration(browser,name){
     return{old,row,restored,conflict,failure,unchanged:(await QBImageStore.get(c,'stem-image')).image_path===restored.image_path,removed:testRemoved};
   });assert.equal(storage.row.original_image_path,storage.old.image_path);assert.equal(storage.restored.image_path,storage.old.image_path);assert.ok(storage.conflict&&storage.failure&&storage.unchanged);assert.deepEqual(storage.removed,[]);
   console.log(name+' PASS original retained/restored, stale image conflict rejected, failed upload leaves original untouched');
+  const provenance=await p.evaluate(async()=>{
+    const c={sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',choiceId:null,host:document.querySelector('.qtext')};
+    const current=()=>QBImageStore.get(c,'stem-image');
+    await QBImageStore.replace(c,await current(),testImage);const cropped=await current();
+    await QBImageStore.replace(c,cropped,testImage,'annotation');const first=await current();
+    await QBImageStore.replace(c,first,testImage,'annotation');const second=await current();
+    await QBImageStore.replace(c,second,testImage);const recropped=await current();
+    await QBImageStore.replace(c,recropped,testImage,'annotation');const third=await current();
+    // An old client changes only image_path. The next annotation must discard stale provenance.
+    testDB.question_images.find(r=>r.id==='stem-image').image_path='old-client-crop.png';
+    await QBImageStore.replace(c,await current(),testImage,'annotation');const afterLegacy=await current();
+    await QBImageStore.restore(c,afterLegacy);return{cropped,first,second,recropped,third,afterLegacy,restored:await current()};
+  });
+  assert.equal(provenance.first.annotation_base_image_path,provenance.cropped.image_path);
+  assert.equal(provenance.first.annotation_result_image_path,provenance.first.image_path);
+  assert.equal(provenance.second.annotation_base_image_path,provenance.cropped.image_path);
+  assert.equal(provenance.second.annotation_result_image_path,provenance.second.image_path);
+  assert.equal(provenance.recropped.annotation_base_image_path,null);assert.equal(provenance.recropped.annotation_result_image_path,null);
+  assert.equal(provenance.third.annotation_base_image_path,provenance.recropped.image_path);
+  assert.equal(provenance.afterLegacy.annotation_base_image_path,'old-client-crop.png');
+  assert.equal(provenance.restored.annotation_base_image_path,null);assert.equal(provenance.restored.annotation_result_image_path,null);
+  console.log(name+' PASS annotation retains post-crop base across writes; subsequent crop, legacy writes and restore invalidate old provenance');
+
   await p.locator('[data-ade-v2="overview"]').click();await p.locator('.qbInlineRich').waitFor();
   await p.evaluate(()=>{window.Sortable=class{constructor(container,options){container.testSortOptions=options}}});await p.addScriptTag({content:read('image-sortable-v1.js')});
   await p.waitForFunction(()=>[...document.querySelectorAll('.qbMediaHostV2')].some(g=>g.querySelectorAll('.qbPublicImageWrap').length>1&&g.testSortOptions));

@@ -1,7 +1,10 @@
 (()=>{
 'use strict';
 const BUCKET='question-media',DEFAULT_PAGE_SIZE=30,HOLD_MS=500,MOVE_PX=10;
-const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at';
+const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
+const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-annotation':row.id;
+function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
+const imageLabel=row=>placementLabel(row.placement)+(row.image_variant==='before-annotation'?'・書き込み前':row.image_variant==='current'?'・現在の画像':'');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
 function css(){
@@ -113,7 +116,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(closed||preview)return;
       previewOrigin=b;previewScroll=panel.scrollTop;previewGuard=fromHold?Infinity:performance.now()+100;
       preview=document.createElement('div');preview.className='qbripPreview';preview.setAttribute('role','dialog');preview.setAttribute('aria-modal','true');preview.setAttribute('aria-label','画像の拡大表示');
-      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(placementLabel(row.placement))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(publicUrl(sb,row.image_path))}" alt="拡大した画像" draggable="false"></div>`;
+      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(imageLabel(row))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(publicUrl(sb,row.image_path))}" alt="拡大した画像" draggable="false"></div>`;
       d.appendChild(preview);panel.inert=true;panel.setAttribute('aria-hidden','true');
       // The pointer release which triggered a long press must not close the preview.
       preview.addEventListener('click',e=>{if(performance.now()<previewGuard){e.preventDefault();e.stopImmediatePropagation()}},true);
@@ -121,13 +124,13 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       preview.querySelector('.qbripPreviewClose').focus({preventScroll:true});
     }
     function syncUse(){use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}枚を追加`:'選択した画像を追加'}
-    function selectRow(row,b){selected.has(row.id)?selected.delete(row.id):selected.set(row.id,row);b.classList.toggle('on',selected.has(row.id));b.setAttribute('aria-pressed',String(selected.has(row.id)));syncUse()}
+    function selectRow(row,b){const key=selectionKey(row);selected.has(key)?selected.delete(key):selected.set(key,row);b.classList.toggle('on',selected.has(key));b.setAttribute('aria-pressed',String(selected.has(key)));syncUse()}
     function appendRows(rows){
-      for(const row of rows){
+      for(const row of rows.flatMap(variants)){
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
-        const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=row.id;b.setAttribute('aria-pressed','false');
-        b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',placementLabel(row.placement)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="最近の画像"><span class="qbripCheck" aria-hidden="true">✓</span><div class="qbripMeta">${esc(placementLabel(row.placement))}</div>`;
+        const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
+        b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
+        b.innerHTML=`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}"><span class="qbripCheck" aria-hidden="true">✓</span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};

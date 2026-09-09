@@ -44,3 +44,14 @@ test('circle locks equal dimensions in all drag directions; ellipse remains unre
   const moved=M.transform(circle,M.bounds(circle),{x:10,y:20,w:200,h:200});
   assert.equal(moved.w,moved.h);assert.equal(moved.x,10);assert.equal(moved.y,20);
 });
+
+// A hollow frame must not intercept handwriting in its interior.
+test('rectangle hit testing follows all four strokes, with bounded edge tolerance',()=>{
+  const r={type:'rect',x:100,y:100,w:240,h:120,width:8};
+  for(const p of [{x:100,y:160},{x:340,y:160},{x:220,y:100},{x:220,y:220},{x:100,y:100}])assert.equal(M.hit(r,p,6),true);
+  assert.equal(M.hit(r,{x:220,y:160},6),false);
+  assert.equal(M.hit(r,{x:220,y:109},6),true);
+  assert.equal(M.hit(r,{x:220,y:111},6),false);
+  assert.equal(M.hit(r,{x:89,y:160},6),false);
+  assert.equal(M.hit({...r,type:'image'},{x:220,y:160},6),true);
+});

@@ -19,15 +19,17 @@ function ext(blob){return blob.type==='image/jpeg'?'jpg':blob.type==='image/webp
 function objectPath(c,blob){return c.userId?`${c.userId}/${c.questionId}/${c.noteId}/${crypto.randomUUID()}.${ext(blob)}`:`${c.questionId}/${c.placement}/${c.choiceId||'question'}/${crypto.randomUUID()}.${ext(blob)}`}
 async function upload(c,blob){if(!blob||blob.size>20*1024*1024)throw Error('保存する画像は20MB以下にしてください。');const path=objectPath(c,blob),r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}
 async function discardUnreferenced(c,path){
-  // A failed response can still have committed. Delete only after both read checks succeed.
-  const a=await c.sb.from(table(c)).select('id').eq('image_path',path).limit(1),b=await c.sb.from(table(c)).select('id').eq('original_image_path',path).limit(1);
-  if(!a.error&&!b.error&&!a.data?.length&&!b.data?.length)await c.sb.storage.from(c.bucket).remove([path]);
+  // A failed response can still have committed. Preserve every referenced image version.
+  const checks=await Promise.all(['image_path','original_image_path','annotation_base_image_path'].map(column=>c.sb.from(table(c)).select('id').eq(column,path).limit(1)));
+  if(checks.every(r=>!r.error&&!r.data?.length))await c.sb.storage.from(c.bucket).remove([path]);
 }
-async function replace(c,row,blob){
+async function replace(c,row,blob,operation='crop'){
   await authorize(c);const latest=await get(c,row.id);if(latest.image_path!==row.image_path||(row.updated_at&&latest.updated_at!==row.updated_at))throw Error('別の画像更新がありました。書き込みは残っています。キャンセルして最新の画像を開き直してください。');
   const path=await upload(c,blob);let result;
   try{
-    await authorize(c);let q=scoped(c,c.sb.from(table(c)).update({image_path:path,original_image_path:latest.original_image_path||latest.image_path,updated_at:new Date().toISOString()}).eq('id',row.id).eq('image_path',latest.image_path));if(latest.updated_at)q=q.eq('updated_at',latest.updated_at);
+    // Bind provenance to the exact result. Cached clients changing image_path cannot expose an obsolete pre-crop version.
+    const annotationBase=operation==='annotation'?(latest.annotation_result_image_path===latest.image_path&&latest.annotation_base_image_path||latest.image_path):null;
+    await authorize(c);let q=scoped(c,c.sb.from(table(c)).update({image_path:path,original_image_path:latest.original_image_path||latest.image_path,annotation_base_image_path:annotationBase,annotation_result_image_path:annotationBase?path:null,updated_at:new Date().toISOString()}).eq('id',row.id).eq('image_path',latest.image_path));if(latest.updated_at)q=q.eq('updated_at',latest.updated_at);
     result=await q.select('id,image_path,original_image_path').maybeSingle();
     if(result.error||!result.data){const check=await get(c,row.id);if(check.image_path!==path)throw result.error||Error('保存中に別の更新がありました。');result={data:check}}
     return result.data;
@@ -45,7 +47,7 @@ async function add(c,blob,original){
     if(r.error||!r.data){const check=await scoped(c,c.sb.from(table(c)).select('id,image_path,original_image_path').eq('image_path',path)).maybeSingle();if(check.error||!check.data)throw r.error||Error('保存結果を確認できません。');return check.data}return r.data;
   }catch(e){if(path)await discardUnreferenced(c,path).catch(()=>{});if(originalPath)await discardUnreferenced(c,originalPath).catch(()=>{});throw e}
 }
-async function restore(c,row){await authorize(c);if(!row.original_image_path||row.original_image_path===row.image_path)return;const r=await scoped(c,c.sb.from(table(c)).update({image_path:row.original_image_path,updated_at:new Date().toISOString()}).eq('id',row.id).eq('image_path',row.image_path)).select('id').maybeSingle();if(r.error||!r.data)throw r.error||Error('別の画像更新がありました。開き直してください。')}
+async function restore(c,row){await authorize(c);if(!row.original_image_path||row.original_image_path===row.image_path)return;const r=await scoped(c,c.sb.from(table(c)).update({image_path:row.original_image_path,annotation_base_image_path:null,annotation_result_image_path:null,updated_at:new Date().toISOString()}).eq('id',row.id).eq('image_path',row.image_path)).select('id').maybeSingle();if(r.error||!r.data)throw r.error||Error('別の画像更新がありました。開き直してください。')}
 async function download(c,path){const r=await c.sb.storage.from(c.bucket).download(path);if(r.error)throw r.error;return r.data}
 async function remove(c,row){
   await authorize(c);

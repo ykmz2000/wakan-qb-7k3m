@@ -130,6 +130,24 @@ async function run(browser,name){
   await p.locator('.qbInlineCancel').click();assert.equal(await p.evaluate(()=>testDB.question_images.length),beforeImages+1);pass('real question-image reuse still creates an independent copy; dirty stem and manual cancellation are preserved');
   const note=p.locator('.qbPersonal').first();await note.locator('.qbPencil').click();await note.locator('textarea').fill('個人メモは独立');await note.locator('.qbNoteSave').click();await p.waitForFunction(()=>testDB.user_notes[0].note_text==='個人メモは独立');await popup(p,'.qbNoteImageGrid img');pass('personal-note editing and private-image enlargement remain independent');
   await p.locator('[data-ade-v2="overview"]').click();const overview=p.locator('#ans .qbInlineRich');await overview.waitFor();await overview.press('End');await p.keyboard.insertText(' 解説の下書き');const overviewDraft=await overview.textContent();await p.locator('.qbInlineImageToggle').click();await p.locator('.oeiRecentBtn').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);await hold(p);await p.locator('.qbripPreviewClose').click();await p.locator('.qbripCancel').click();assert.equal(await overview.textContent(),overviewDraft);await p.locator('.qbInlineCancel').click();pass('same scoped picker works from overview image controls without saving or losing its draft');
+  await p.evaluate(()=>{
+    const image=(id,image_path,extra={})=>({id,image_path,question_id:'q1',placement:'question',created_at:'2026-09-09T00:00:00.000Z',...extra});
+    testDB.question_images.push(
+      image('versioned','written.png',{original_image_path:'before-crop.png',annotation_base_image_path:'after-crop.png',annotation_result_image_path:'written.png'}),
+      image('legacy','legacy-written.png',{original_image_path:'unknown-original.png'}),
+      image('stale','recropped.png',{annotation_base_image_path:'obsolete-base.png',annotation_result_image_path:'obsolete-result.png'}));
+  });
+  await open(p);await finish(p);const versionIds=await ids(p);
+  assert.ok(versionIds.includes('versioned')&&versionIds.includes('versioned:before-annotation'));
+  assert.ok(!versionIds.includes('legacy:before-annotation')&&!versionIds.includes('stale:before-annotation'));
+  const sources=await p.locator('.qbripItem img').evaluateAll(es=>es.map(e=>e.src));
+  for(const absent of ['before-crop.png','unknown-original.png','obsolete-base.png'])assert.ok(sources.every(s=>!s.endsWith(absent)));
+  const beforeVersion=p.locator('[data-id="versioned:before-annotation"]');assert.ok((await beforeVersion.textContent()).includes('書き込み前'));
+  await beforeVersion.focus();await p.keyboard.press('Alt+Enter');await p.locator('.qbripPreview').waitFor();
+  assert.ok((await p.locator('.qbripPreview img').getAttribute('src')).endsWith('after-crop.png'));await p.locator('.qbripPreviewClose').click();
+  await beforeVersion.click();await p.locator('[data-id="versioned"]').click();assert.equal(await p.locator('.qbripItem.on').count(),2);
+  await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
+  pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
   assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' recent-image checks passed');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
