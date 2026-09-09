@@ -4,7 +4,7 @@ const BUCKET='question-media',DEFAULT_PAGE_SIZE=30,HOLD_MS=500,MOVE_PX=10;
 const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
 const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-annotation':row.id;
 function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
-const imageLabel=row=>placementLabel(row.placement)+(row.image_variant==='before-annotation'?'・書き込み前':row.image_variant==='current'?'・現在の画像':'');
+const imageLabel=row=>(row.image_variant==='before-annotation'?'書き込み前・':row.image_variant==='current'?'現在の画像・':'')+placementLabel(row.placement);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
 function css(){
