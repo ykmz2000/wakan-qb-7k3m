@@ -63,7 +63,9 @@ async function open(p){
 async function ids(p){return p.locator('.qbripItem').evaluateAll(es=>es.map(e=>e.dataset.id))}
 async function settle(p){await p.waitForFunction(()=>{const s=document.querySelector('.qbripLoader')?.dataset.state;return s==='more'||s==='end'});await p.waitForTimeout(70)}
 async function finish(p){for(let n=0;n<30;n++){await settle(p);const state=await p.locator('.qbripLoader').getAttribute('data-state');if(state==='end')return;await p.locator('.qbripLoader').click()}throw new Error('pagination failed to terminate')}
-async function pointer(p,selector,type,extra={}){const target=p.locator(selector).first();await target.dispatchEvent(type,{pointerId:7,pointerType:'touch',isPrimary:true,button:0,clientX:70,clientY:350,bubbles:true,...extra})}
+// Programmatic scrollTop/focus may dispatch scroll on the next frame. Begin a
+// stationary hold only after that has settled; deliberate in-gesture scroll is tested below.
+async function pointer(p,selector,type,extra={}){if(type==='pointerdown')await p.waitForTimeout(100);const target=p.locator(selector).first();await target.dispatchEvent(type,{pointerId:7,pointerType:'touch',isPrimary:true,button:0,clientX:70,clientY:350,bubbles:true,...extra})}
 async function hold(p,selector='.qbripItem'){await pointer(p,selector,'pointerdown');await p.waitForTimeout(560);await p.locator('.qbripPreview').waitFor();await pointer(p,'.qbripModal','pointerup');await p.waitForTimeout(380)}
 async function run(browser,name){
   let n=0;const pass=s=>{n++;console.log(name+' PASS '+s)};
