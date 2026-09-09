@@ -14,8 +14,8 @@ async function install(p,integration=false){
   if(integration)scripts.push('image-edit-integration-v1.js','question-image-export-v1.js');
   for(const s of scripts)await p.addScriptTag({content:read(s)});
 }
-async function launch(p){
-  await p.evaluate(()=>localStorage.setItem('qb-image-editor-settings-v1','{}'));
+async function launch(p,reset=true){
+  if(reset)await p.evaluate(()=>localStorage.setItem('qb-image-editor-settings-v1','{}'));
   await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);window.drawResult=undefined;QBImageEditor.open(c.toDataURL()).then(b=>window.drawResult=b)});
   await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
 }
@@ -43,6 +43,7 @@ async function core(browser,name){
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const out=await pixels(p,[[180,140],[220,180],[100,100],[200,280],[160,340],[200,440]]);
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
   console.log(name+' PASS transparent arbitrary rectangle, move/undo/redo, translucent marker, handwriting, arrow, Japanese text, flattened PNG');
+  await straightMarker(p,name);
   await launch(p);map=await mapping(p);
   // Add an image through the clipboard, crop in a separate dialog, then resize/move it.
   await p.evaluate(async()=>{const c=document.createElement('canvas');c.width=120;c.height=80;const x=c.getContext('2d');x.fillStyle='#2463d3';x.fillRect(0,0,120,80);const b=await new Promise(r=>c.toBlob(r));const d=new DataTransfer();d.items.add(new File([b],'added.png',{type:'image/png'}));document.querySelector('.qbDrawCanvas').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}))});
@@ -61,6 +62,34 @@ async function core(browser,name){
   await p.evaluate(({a,b,palm})=>{const c=document.querySelector('.qbDrawCanvas'),event=(type,id,kind,point)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:kind,button:0,buttons:type==='pointerup'?0:1,clientX:point.x,clientY:point.y}));event('pointerdown',41,'pen',a);event('pointerdown',42,'touch',palm);event('pointerdown',43,'touch',{x:palm.x+30,y:palm.y});event('pointermove',41,'pen',b);event('pointerup',43,'touch',{x:palm.x+30,y:palm.y});event('pointerup',42,'touch',palm);event('pointerup',41,'pen',b)}, {a,b,palm});
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const pen=await pixels(p,[[180,120],[400,300]]);assert.ok(pen.colors[0][0]>180&&pen.colors[0][1]<100);assert.deepEqual(pen.colors[1],[255,255,255,255]);assert.deepEqual(errors,[]);await p.close();
   console.log(name+' PASS phone/tablet/landscape layout, pointer pencil input and concurrent palm-touch isolation');
+}
+async function straightMarker(p,name){
+  await launch(p);await p.locator('[data-tool=marker]').click();
+  const mode=p.getByRole('combobox',{name:'マーカーの描き方',exact:true});
+  assert.equal(await mode.inputValue(),'freehand');await mode.selectOption('straight');
+  assert.equal(await p.getByRole('slider',{name:'手ぶれ補正',exact:true}).isVisible(),false);
+  let map=await mapping(p);
+  await drag(p,map,[[100,100],[250,200],[400,100]]);
+  await drag(p,map,[[100,300],[180,500],[400,450]]);
+  await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
+  // The release point must be used even without a final pointermove (Pencil/touch).
+  await p.evaluate(({a,b,c})=>{const canvas=document.querySelector('.qbDrawCanvas');for(const [type,pt] of [['pointerdown',a],['pointermove',b],['pointerup',c]])canvas.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:61,pointerType:'pen',button:0,buttons:type==='pointerup'?0:1,clientX:pt.x,clientY:pt.y}))},{a:map(500,100),b:map(650,200),c:map(700,100)});
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const out=await pixels(p,[[250,100],[250,200],[250,375],[180,500],[600,100],[650,200]]);
+  for(const i of [0,2,4])assert.ok(out.colors[i][0]>240&&out.colors[i][1]>140&&out.colors[i][1]<230,'straight translucent marker');
+  for(const i of [1,3,5])assert.deepEqual(out.colors[i],[255,255,255,255],'intermediate pointer path must not remain');
+  await launch(p,false);assert.equal(await mode.inputValue(),'straight');
+  await mode.selectOption('freehand');assert.ok(await p.getByRole('slider',{name:'手ぶれ補正',exact:true}).isVisible());
+  await p.getByRole('spinbutton',{name:'手ぶれ補正の数値',exact:true}).fill('0');map=await mapping(p);
+  await drag(p,map,[[100,100],[250,200],[400,100]]);
+  await mode.selectOption('straight');await p.locator('[data-tool=pen]').click();assert.equal(await mode.isVisible(),false);
+  await p.getByRole('spinbutton',{name:'手ぶれ補正の数値',exact:true}).fill('0');map=await mapping(p);
+  await drag(p,map,[[100,300],[250,400],[400,300]]);
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const free=await pixels(p,[[250,200],[250,100],[250,400],[250,300]]);
+  assert.ok(free.colors[0][1]<230);assert.ok(free.colors[2][1]<110);
+  for(const i of [1,3])assert.deepEqual(free.colors[i],[255,255,255,255]);
+  console.log(name+' PASS straight marker endpoints, diagonal lines, undo/redo, saved preference, freehand switch and independent pen');
 }
 async function augment(p){
   await p.route('blob:**',r=>r.continue());
