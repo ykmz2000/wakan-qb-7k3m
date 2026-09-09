@@ -7,7 +7,7 @@ const systemKey=k=>/^(?:IMAGE|IMG|IMAGE_REQUIRED|FIGURE|FIG|SOURCE|PAGE)(?:[_-].
 function valueText(value){if(value==null)return '解答未登録';if(Array.isArray(value))return value.map(valueText).join('・');if(typeof value==='object')return Object.entries(value).filter(([key])=>!systemKey(key)).map(([key,v])=>`${key}：${valueText(v)}`).join('\n')||'解答未登録';return String(value)}
 function answers(Q){
   const raw=Q.occ?.[0]?.official_answer,choice=Q.answer_mode!=='fill_blank'&&Q.choices?.length,keys=(Q.choices||[]).filter(c=>c.is_correct).map(c=>c.choice_key);
-  if(choice){const primary=keys.length?keys.join('・'):'解答未登録';if(raw==null)return primary;const official=valueText(raw),letters=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,'').split('').sort().join('');if(keys.length&&letters(primary)!==letters(official))return `登録正答：${primary}\n掲載解答：${official}`;return keys.length?primary:official}
+  if(choice){const primary=keys.length?keys.join('・'):'解答未登録';if(raw==null)return primary;const official=valueText(raw),letters=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,'').split('').sort().join('');if(keys.length&&letters(primary)!==letters(official))return `このアプリで管理者またはAIが判断した正答：${primary}\n\n配布された過去問に記載されていた正答：${official}`;return keys.length?primary:official}
   if(raw&&typeof raw==='object'&&!Array.isArray(raw)&&Array.isArray(Q.answer_fields)&&Q.answer_fields.length){const used=new Set(),lines=Q.answer_fields.filter(f=>f&&f.key&&!systemKey(f.key)).map(f=>{used.add(f.key);return `${f.label||f.key}：${valueText(raw[f.key])}`});Object.entries(raw).forEach(([k,v])=>{if(!used.has(k)&&!systemKey(k))lines.push(`${k==='note'?'補足':k==='order'?'順序':k}：${valueText(v)}`)});return lines.join('\n')||'解答未登録'}
   return valueText(raw);
 }
