@@ -30,7 +30,7 @@ async function render(Q){
   const choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   if(choices.length){if(Q.answer_mode==='fill_blank')text('参考選択肢',24,true,14);for(const c of choices)text(`${c.choice_key}. ${c.choice_text}`,30,false,12)}
   y+=22;blocks.push({type:'line',y});y+=24;text('解答',28,true,12);text(answers(Q),30,false,0);y+=pad;
-  const dim=window.QBImageModel.fitSize(width,y);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
+  const dim=window.QBImageModel.fitSize(width*2,y*2,24000000);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
   const theme=getComputedStyle(document.documentElement),accent=theme.getPropertyValue('--accent').trim()||'#126fb3',marker=theme.getPropertyValue('--accent-soft').trim()||'#eaf4fb';
   for(const b of blocks){
     if(b.type==='image'){ctx.drawImage(b.image,b.x,b.y,b.w,b.h);continue}

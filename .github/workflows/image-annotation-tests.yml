@@ -33,7 +33,9 @@ jobs:
       - name: Image annotation, context paste, persistence and export
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
-        run: node tests/image-annotation.browser.cjs
+        run: |
+          node tests/image-interaction.browser.cjs
+          node tests/image-annotation.browser.cjs
       - name: Existing editing, image and learning regressions
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules

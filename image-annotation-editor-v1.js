@@ -19,22 +19,22 @@ async function open(source,options={}){
   const sizeLabel=el('label','qbDrawSize','太さ '),size=el('select');size.setAttribute('aria-label','線の太さ');for(const [v,t] of [[2,'細い'],[5,'標準'],[10,'太い']]){const o=el('option','',t);o.value=v;size.append(o)}size.value=5;sizeLabel.append(size);settings.append(sizeLabel);
   const fontLabel=el('label','qbDrawSize','文字サイズ '),font=el('select');font.setAttribute('aria-label','文字サイズ');for(const v of [16,24,32,48,64,96]){const o=el('option','',v);o.value=v;font.append(o)}font.value=32;fontLabel.append(font);settings.append(fontLabel);
   const finger=el('input');finger.type='checkbox';const fingerLabel=el('label','qbDrawFinger');fingerLabel.append(finger,document.createTextNode('指で描く'));settings.append(fingerLabel);header.append(settings);
-  const textInput=el('textarea','qbDrawText');textInput.placeholder='文字を入力';textInput.setAttribute('aria-label','画像に入れる文字');textInput.rows=2;textInput.hidden=true;header.append(textInput);
+  const textInput=el('textarea','qbDrawText');textInput.placeholder='文字を入力';textInput.setAttribute('aria-label','画像に入れる文字');textInput.rows=1;textInput.hidden=true;textInput.spellcheck=false;
   const editActions=el('div','qbDrawObjectActions');header.append(editActions);
-  const stage=el('div','qbDrawStage'),canvas=el('canvas','qbDrawCanvas');canvas.tabIndex=0;canvas.setAttribute('aria-label','画像の書き込み領域');stage.append(canvas);
+  const stage=el('div','qbDrawStage'),canvas=el('canvas','qbDrawCanvas');canvas.tabIndex=0;canvas.setAttribute('aria-label','画像の書き込み領域');stage.append(canvas,textInput);
   const footer=el('footer','qbDrawFooter'),navigation=el('div','qbDrawNavigation'),actions=el('div','qbDrawActions'),status=el('span','qbDrawStatus','画像を読み込み中…');status.setAttribute('role','status');
   const saveButton=btn('確定して保存','qbDrawSave',()=>save());saveButton.disabled=true;
   actions.append(status,btn('キャンセル','',()=>cancel()),saveButton);footer.append(navigation,actions);panel.append(header,stage,footer);document.body.append(modal);
   const oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';panel.focus();
   let done;const result=new Promise(resolve=>{done=resolve});current={modal};
   let scene=null,history=null,selection=[],tool='pen',color=M.colors[0].value,zoom=1,ox=0,oy=0,frame=0,closed=false,busy=false,subDialog=false,changed=false,gesture=null,lassoPoints=null,penDown=false,textStart=null;
-  const pointers=new Map();let pinch=null;
+  const pointers=new Map();let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=0,lastPoint=null;
   const listen=(n,event,fn,opts)=>{n.addEventListener(event,fn,opts);listeners.push(()=>n.removeEventListener(event,fn,opts))};
   function close(value){if(closed)return;closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}
   function cancel(){if(busy||subDialog)return;commitText();if(changed&&!confirm('今回の画像編集を破棄しますか？'))return;close(null)}
-  function update(){if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!history.past.length;redoButton.disabled=busy||!history.future.length;saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!(tool==='text'||(selected.length===1&&selected[0].type==='text'));fontLabel.hidden=textInput.hidden;cropButton.disabled=busy||selected.length!==1||selected[0].type!=='image';[deleteButton,frontButton,backButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
+  function update(){if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!history.past.length;redoButton.disabled=busy||!history.future.length;saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.disabled=busy||selected.length!==1||selected[0].type!=='image';[deleteButton,frontButton,backButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
   function checkpoint(){history.push(scene);changed=history.past.length>0;update()}
-  function commitText(){if(textStart){textStart=null;checkpoint()}}
+  function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
   function useTool(next){if(busy||subDialog)return;commitText();tool=next;selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
   function select(ids){commitText();selection=ids;const item=scene.items.find(i=>ids.length===1&&i.id===ids[0]);if(item){color=item.color||color;if(item.type==='text'){textInput.value=item.text;font.value=String(item.fontSize)}}update()}
   const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['text','文字'],['arrow','矢印'],['rect','四角い枠']];
@@ -53,23 +53,31 @@ async function open(source,options={}){
   function zoomAt(f,p){if(!scene)return;const r=stage.getBoundingClientRect(),x=p?.x??r.width/2,y=p?.y??r.height/2,next=Math.max(.02,Math.min(12,zoom*f));ox=x-(x-ox)*next/zoom;oy=y-(y-oy)*next/zoom;zoom=next;requestDraw()}
   const resizeObserver=new ResizeObserver(()=>{const r=stage.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));requestDraw()});resizeObserver.observe(stage);
   function renderItem(ctx,item){
-    ctx.save();ctx.strokeStyle=item.color||color;ctx.fillStyle=item.color||color;ctx.lineWidth=item.width||2;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.save();ctx.setLineDash([]);ctx.lineDashOffset=0;ctx.strokeStyle=item.color||color;ctx.fillStyle=item.color||color;ctx.lineWidth=item.width||2;ctx.lineCap='round';ctx.lineJoin='round';
     if(item.points){ctx.globalAlpha=item.type==='marker'?.32:1;ctx.beginPath();const p=item.points;ctx.moveTo(p[0].x,p[0].y);if(p.length===1){ctx.lineTo(p[0].x+.01,p[0].y)}else for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.stroke()}
     else if(item.type==='rect'){ctx.lineJoin='miter';ctx.strokeRect(item.x,item.y,item.w,item.h)}
     else if(item.type==='arrow'){const a=item.a,b=item.b,angle=Math.atan2(b.y-a.y,b.x-a.x),len=Math.max(12,item.width*4);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.moveTo(b.x-len*Math.cos(angle-.5),b.y-len*Math.sin(angle-.5));ctx.lineTo(b.x,b.y);ctx.lineTo(b.x-len*Math.cos(angle+.5),b.y-len*Math.sin(angle+.5));ctx.stroke()}
     else if(item.type==='text'){ctx.font=`${item.fontSize}px -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif`;ctx.textBaseline='top';item.text.split('\n').forEach((line,i)=>ctx.fillText(line,item.x,item.y+i*item.fontSize*1.3))}
     else if(item.type==='image'){const img=assets.get(item.assetId)?.img;if(img)ctx.drawImage(img,item.x,item.y,item.w,item.h)}ctx.restore();
   }
-  function paint(ctx){ctx.fillStyle='#fff';ctx.fillRect(0,0,scene.width,scene.height);const base=assets.get(scene.base.assetId)?.img;if(base)ctx.drawImage(base,scene.base.x,scene.base.y,scene.base.w,scene.base.h);scene.items.forEach(i=>renderItem(ctx,i))}
+  function paint(ctx,preview=false){ctx.fillStyle='#fff';ctx.fillRect(0,0,scene.width,scene.height);const base=assets.get(scene.base.assetId)?.img;if(base)ctx.drawImage(base,scene.base.x,scene.base.y,scene.base.w,scene.base.h);scene.items.forEach(i=>{if(!preview||i.id!==editingTextId)renderItem(ctx,i)})}
   function requestDraw(){if(closed||frame)return;frame=requestAnimationFrame(()=>{frame=0;draw()})}
-  function draw(){if(!scene)return;const ctx=canvas.getContext('2d'),r=stage.getBoundingClientRect(),d=canvas.width/Math.max(1,r.width);ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.setTransform(d*zoom,0,0,d*zoom,d*ox,d*oy);ctx.save();ctx.beginPath();ctx.rect(0,0,scene.width,scene.height);ctx.clip();paint(ctx);ctx.restore();
+  function draw(){if(!scene)return;const ctx=canvas.getContext('2d'),r=stage.getBoundingClientRect(),d=canvas.width/Math.max(1,r.width);ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.setTransform(d*zoom,0,0,d*zoom,d*ox,d*oy);ctx.save();ctx.beginPath();ctx.rect(0,0,scene.width,scene.height);ctx.clip();paint(ctx,true);ctx.restore();ctx.save();
     const box=M.union(scene.items.filter(i=>selection.includes(i.id)));ctx.strokeStyle='#126fb3';ctx.lineWidth=1.5/zoom;ctx.setLineDash([5/zoom,4/zoom]);if(box){ctx.strokeRect(box.x,box.y,box.w,box.h);ctx.setLineDash([]);for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle='#fff';ctx.fillRect(x-5/zoom,y-5/zoom,10/zoom,10/zoom);ctx.strokeRect(x-5/zoom,y-5/zoom,10/zoom,10/zoom)}}
-    if(lassoPoints?.length){ctx.beginPath();ctx.moveTo(lassoPoints[0].x,lassoPoints[0].y);lassoPoints.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke()}
+    if(lassoPoints?.length){ctx.beginPath();ctx.moveTo(lassoPoints[0].x,lassoPoints[0].y);lassoPoints.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke()}ctx.restore();positionTextInput();
   }
   const local=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
   const point=e=>{const p=local(e);return{x:(p.x-ox)/zoom,y:(p.y-oy)/zoom}};
   function measureText(item){const ctx=canvas.getContext('2d');ctx.font=`${item.fontSize}px -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif`;item.w=Math.max(item.fontSize,...item.text.split('\n').map(l=>ctx.measureText(l).width));item.h=Math.max(1,item.text.split('\n').length)*item.fontSize*1.3}
-  textInput.onfocus=()=>{if(scene)textStart=M.copy(scene)};textInput.onblur=commitText;textInput.oninput=()=>{if(!scene||busy)return;const item=scene.items.find(i=>selection.length===1&&selection[0]===i.id&&i.type==='text');if(item){item.text=textInput.value;measureText(item);requestDraw()}};
+  function positionTextInput(){
+    const item=scene?.items.find(i=>i.id===editingTextId);if(!item)return;
+    const scale=Math.max(.02,zoom);Object.assign(textInput.style,{left:(ox+item.x*zoom)+'px',top:(oy+item.y*zoom)+'px',width:Math.max(160,item.w+24)+'px',height:Math.max(item.fontSize*1.3+10,item.h+10)+'px',fontSize:item.fontSize+'px',color:item.color,transform:`scale(${scale})`});
+  }
+  function editText(item,selectAll=false){
+    editingTextId=item.id;selection=[item.id];textInput.value=item.text;textInput.hidden=false;textStart=M.copy(scene);positionTextInput();textInput.focus({preventScroll:true});
+    if(selectAll)textInput.select();else textInput.setSelectionRange(item.text.length,item.text.length);update();
+  }
+  textInput.onblur=commitText;textInput.oninput=()=>{if(!scene||busy)return;const item=scene.items.find(i=>selection.length===1&&selection[0]===i.id&&i.type==='text');if(item){item.text=textInput.value;measureText(item);requestDraw()}};
   async function addImages(files){if(!scene||busy||subDialog||!files.length)return;commitText();busy=true;status.textContent='画像を追加中…';try{const pending=[];for(const f of files){const id=await asset(f);if(closed)return;const img=assets.get(id).img,scale=Math.min(1,scene.width*.6/img.width,scene.height*.6/img.height),w=img.width*scale,h=img.height*scale;pending.push({id:crypto.randomUUID(),type:'image',assetId:id,x:(scene.width-w)/2+pending.length*16,y:(scene.height-h)/2+pending.length*16,w,h})}scene.items.push(...pending);selection=pending.map(i=>i.id);tool='lasso';checkpoint();status.textContent='画像を追加しました'}catch(e){status.textContent=e.message}finally{busy=false;update()}}
   async function cropSelected(){const item=scene.items.find(i=>selection.length===1&&selection[0]===i.id&&i.type==='image');if(!item||busy||subDialog)return;commitText();subDialog=true;try{const blob=await window.QBImageCrop.open(assets.get(item.assetId).url,{title:'追加画像をトリミング',rotatable:false});if(blob){const id=await asset(blob),img=assets.get(id).img,scale=Math.min(item.w/img.width,item.h/img.height);item.assetId=id;item.w=img.width*scale;item.h=img.height*scale;checkpoint()}}catch(e){status.textContent=e.message}finally{subDialog=false;panel.focus({preventScroll:true})}}
   function abortGesture(){if(gesture?.before)scene=gesture.before;gesture=null;lassoPoints=null;requestDraw()}
@@ -77,32 +85,41 @@ async function open(source,options={}){
   listen(canvas,'pointerdown',e=>{
     if(!scene||busy||subDialog||e.button>0)return;e.preventDefault();try{canvas.setPointerCapture(e.pointerId)}catch{}const l=local(e);pointers.set(e.pointerId,{...l,type:e.pointerType});
     if(e.pointerType==='touch'&&penDown)return;const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){abortGesture();pinch=pair;return}commitText();canvas.focus({preventScroll:true});const p=point(e);
-    if(e.pointerType==='touch'&&!finger.checked){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
     if(e.pointerType==='pen'){if(gesture?.kind==='pan')gesture=null;penDown=true}
     if(gesture)return;
-    if(tool==='lasso'){
+    // Mouse, trackpad and touch can select placed objects without changing tools.
+    // Pencil ink remains ink, so handwriting over a diagram does not move it.
+    const direct=!(e.pointerType==='pen'&&['pen','marker'].includes(tool));
+    if(tool==='lasso'||direct){
       const selected=scene.items.filter(i=>selection.includes(i.id)),box=M.union(selected);
-      if(box){const corners=[{x:box.x,y:box.y},{x:box.x+box.w,y:box.y},{x:box.x,y:box.y+box.h},{x:box.x+box.w,y:box.y+box.h}],corner=corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<18/zoom);if(corner>=0){gesture={kind:'resize',before:M.copy(scene),box,corner,id:e.pointerId};return}}
-      const hit=[...scene.items].reverse().find(i=>M.hit(i,p,10/zoom));if(hit){if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId};return}
-      select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return;
+      if(box){const corners=[{x:box.x,y:box.y},{x:box.x+box.w,y:box.y},{x:box.x,y:box.y+box.h},{x:box.x+box.w,y:box.y+box.h}],corner=corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<14/zoom);if(corner>=0){gesture={kind:'resize',before:M.copy(scene),box,corner,id:e.pointerId};return}}
+      const hit=[...scene.items].reverse().find(i=>(tool==='lasso'||['text','arrow','rect','image'].includes(i.type))&&M.hit(i,p,6/zoom));
+      if(hit){const wasSelected=selection.length===1&&selection[0]===hit.id;if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId,moved:false,textId:wasSelected&&hit.type==='text'?hit.id:null};return}
     }
+    if(e.pointerType==='touch'&&!finger.checked){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
+    if(tool==='lasso'){select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return}
     if(p.x<0||p.y<0||p.x>scene.width||p.y>scene.height)return;
-    if(tool==='text'){const item={id:crypto.randomUUID(),type:'text',text:textInput.value||'文字を入力',fontSize:Number(font.value)||32,color,x:p.x,y:p.y,w:1,h:1};measureText(item);scene.items.push(item);selection=[item.id];checkpoint();textInput.value=item.text;textInput.focus();textInput.select();return}
+    if(tool==='text'){const item={id:crypto.randomUUID(),type:'text',text:'文字を入力',fontSize:Number(font.value)||32,color,x:p.x,y:p.y,w:1,h:1};measureText(item);scene.items.push(item);selection=[item.id];checkpoint();editText(item,true);return}
     const before=M.copy(scene),item={id:crypto.randomUUID(),type:tool,color,width:Number(size.value)*(tool==='marker'?5:1)};if(tool==='pen'||tool==='marker')item.points=[p];if(tool==='rect')Object.assign(item,{x:p.x,y:p.y,w:0,h:0});if(tool==='arrow')Object.assign(item,{a:p,b:p});scene.items.push(item);selection=[];gesture={kind:'draw',before,item,start:p,id:e.pointerId};requestDraw();
   });
   listen(canvas,'pointermove',e=>{
-    if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
+    lastPoint=local(e);if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
     const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){if(pinch){const ratio=pair.dist/Math.max(1,pinch.dist);zoomAt(ratio,pinch);ox+=pair.x-pinch.x;oy+=pair.y-pinch.y;requestDraw()}pinch=pair;return}
     if(pinch||!gesture||gesture.id!==e.pointerId)return;const g=gesture,p=point(e);
     if(g.kind==='pan'){const l=local(e);ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}
     else if(g.kind==='draw'){if(g.item.points){const events=e.getCoalescedEvents?.()||[e];for(const ev of events.length?events:[e]){const n=point(ev),last=g.item.points.at(-1);if(Math.hypot(n.x-last.x,n.y-last.y)>=.6/zoom)g.item.points.push(n)}}else if(g.item.type==='rect')Object.assign(g.item,M.rect(g.start,p));else g.item.b=p}
     else if(g.kind==='lasso')lassoPoints.push(p);
-    else if(g.kind==='move'){scene.items=g.before.items.map(i=>{if(!selection.includes(i.id))return M.copy(i);const b=M.bounds(i);return M.transform(i,b,{...b,x:b.x+p.x-g.start.x,y:b.y+p.y-g.start.y})})}
+    else if(g.kind==='move'){if(!g.moved&&Math.hypot(p.x-g.start.x,p.y-g.start.y)*zoom<4)return;g.moved=true;scene.items=g.before.items.map(i=>{if(!selection.includes(i.id))return M.copy(i);const b=M.bounds(i);return M.transform(i,b,{...b,x:b.x+p.x-g.start.x,y:b.y+p.y-g.start.y})})}
     else if(g.kind==='resize'){const b=g.box,anchor={x:g.corner%2===0?b.x+b.w:b.x,y:g.corner<2?b.y+b.h:b.y},to=M.rect(anchor,p),only=scene.items.filter(i=>selection.includes(i.id));to.w=Math.max(8,to.w);to.h=Math.max(8,to.h);if(only.length!==1||only[0].type!=='rect'){const scale=Math.max(to.w/Math.max(1,b.w),to.h/Math.max(1,b.h));to.w=b.w*scale;to.h=b.h*scale;to.x=g.corner%2===0?anchor.x-to.w:anchor.x;to.y=g.corner<2?anchor.y-to.h:anchor.y}scene.items=g.before.items.map(i=>selection.includes(i.id)?M.transform(i,b,to):M.copy(i))}
     requestDraw();
   });
-  const end=e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(e.pointerType==='pen')penDown=false;if(pinch){if(!pointers.size)pinch=null;return}if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;if(e.type==='pointercancel'){abortGesture();return}if(g.kind==='lasso'){selection=M.lasso(scene.items,lassoPoints);lassoPoints=null}else if(g.kind!=='pan'){if(g.kind==='draw'&&g.item.type==='rect'&&(g.item.w<1||g.item.h<1))scene=g.before;checkpoint()}gesture=null;update()};listen(canvas,'pointerup',end);listen(canvas,'pointercancel',end);
-  listen(canvas,'wheel',e=>{if(!scene||busy)return;e.preventDefault();if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*.004),local(e));else{ox-=e.deltaX;oy-=e.deltaY;requestDraw()}},{passive:false});
+  const end=e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(e.pointerType==='pen')penDown=false;if(pinch){if(!pointers.size)pinch=null;return}if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;if(e.type==='pointercancel'){abortGesture();return}if(g.kind==='lasso'){selection=M.lasso(scene.items,lassoPoints);lassoPoints=null}else if(g.kind!=='pan'){if(g.kind==='draw'&&g.item.type==='rect'&&(g.item.w<1||g.item.h<1))scene=g.before;checkpoint()}gesture=null;update();if(g.kind==='move'&&!g.moved&&g.textId){const item=scene.items.find(i=>i.id===g.textId);if(item)editText(item)}};listen(canvas,'pointerup',end);listen(canvas,'pointercancel',end);
+  function gestureAnchor(e){const r=stage.getBoundingClientRect();return Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)&&e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom?{x:e.clientX-r.left,y:e.clientY-r.top}:lastPoint||{x:r.width/2,y:r.height/2}}
+  // Safari trackpads emit GestureEvents; other browsers commonly emit Ctrl+wheel.
+  listen(stage,'gesturestart',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();commitText();abortGesture();nativeGesture={scale:1,anchor:gestureAnchor(e)}},{passive:false});
+  listen(stage,'gesturechange',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();if(pinch||touchPair())return;if(!nativeGesture)nativeGesture={scale:1,anchor:gestureAnchor(e)};const scale=Number(e.scale);if(Number.isFinite(scale)&&scale>0){zoomAt(scale/nativeGesture.scale,nativeGesture.anchor);nativeGesture.scale=scale}},{passive:false});
+  listen(stage,'gestureend',e=>{if(!nativeGesture)return;e.preventDefault();nativeGesture=null;nativeEndedAt=performance.now()},{passive:false});
+  listen(stage,'wheel',e=>{if(!scene||busy||subDialog)return;e.preventDefault();if(nativeGesture||pinch||touchPair()||performance.now()-nativeEndedAt<120)return;const unit=e.deltaMode===1?16:e.deltaMode===2?stage.clientHeight:1;if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*unit*.004),local(e));else{ox-=e.deltaX*unit;oy-=e.deltaY*unit;requestDraw()}},{passive:false});
   async function save(){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';let output;try{const d=M.fitSize(scene.width,scene.height),out=document.createElement('canvas');out.width=d.width;out.height=d.height;const ctx=out.getContext('2d');if(!ctx)throw Error('画像を作成できませんでした。');ctx.scale(d.width/scene.width,d.height/scene.height);paint(ctx);output=await png(out);out.width=out.height=1;await options.onSave?.(output,{width:d.width,height:d.height});close(output)}catch(e){status.textContent='保存できませんでした：'+(e.message||e);busy=false;panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);update()}}
   listen(window,'paste',e=>{if(closed||subDialog)return;const files=filesFromPaste(e);if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();if(!busy)addImages(files)},true);
   listen(window,'keydown',e=>{

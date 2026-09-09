@@ -17,7 +17,7 @@ function contextFor(target){
   if(lastEditor?.isConnected&&lastEditor.getClientRects().length&&!lastEditor.closest('.hidden')){const note=lastEditor.closest('.qbPersonal');return note?note.qbImageContext?.():editorContext(lastEditor)}return null;
 }
 async function paste(files,c){if(!files.length||!c||opening||window.QBImageEditor.isOpen())return;opening=true;
-  try{await window.QBImageStore.authorize(c);await window.QBImageEditor.open(files[0],{title:'貼り付けた画像を編集',initialImages:files.slice(1),onSave:async blob=>{await window.QBImageStore.add(c,blob,files[0]);await Promise.resolve(c.onSaved?.()).catch(e=>console.warn("image refresh",e))}})}catch(e){alert('画像を開けませんでした：'+(e.message||e))}finally{opening=false}
+  try{await window.QBImageStore.authorize(c);for(const file of files){await window.QBImageStore.add(c,file);await Promise.resolve(c.onSaved?.()).catch(e=>console.warn("image refresh",e))}}catch(e){alert('画像を追加できませんでした：'+(e.message||e))}finally{opening=false}
 }
 async function edit(c,rowId,restore=false){if(opening||window.QBImageEditor.isOpen())return;opening=true;
   try{await window.QBImageStore.authorize(c);const row=await window.QBImageStore.get(c,rowId);
