@@ -40,6 +40,7 @@ jobs:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: |
           npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 cropperjs@1.6.2
+          node tests/answer-history.browser.cjs
           node --test tests/explanation-format.unit.cjs
           node tests/explanation-format.browser.cjs
           node tests/editor-appearance-stem.browser.cjs

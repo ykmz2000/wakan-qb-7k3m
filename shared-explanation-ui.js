@@ -79,10 +79,11 @@ function placeRatingDirectlyAfterResult(root,d){
 }
 async function addRating(root,q){
   let d=root.querySelector('.qbSharedRating');
-  if(d){placeRatingDirectlyAfterResult(root,d);return}
+  if(d){placeRatingDirectlyAfterResult(root,d);window.QBAnswerHistory?.bindRating(root,q,d);return}
   d=document.createElement('div');d.className='card qbSharedRating';
   d.innerHTML=`<b>■ 自己評価</b><div class="ratings">${['◎','○','△','×','-'].map(v=>`<button class="rate" data-qb-rate="${v}">${v}</button>`).join('')}</div><div class="meta qbRateMsg">◎=完璧 / ○=理解 / △=あやふや / ×=要復習 / -=解説のみ</div>`;
   placeRatingDirectlyAfterResult(root,d);
+  if(window.QBAnswerHistory){window.QBAnswerHistory.bindRating(root,q,d);return}
   const sb=window.qbSupabase;if(!sb)return;
   const {data:{user}}=await sb.auth.getUser();if(!user)return;
   const id=q.id||q.dbId;if(!id)return;
@@ -131,3 +132,4 @@ window.addEventListener('qb-app-ready',schedule);
 if(V)new MutationObserver(schedule).observe(V,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
 })();
+
