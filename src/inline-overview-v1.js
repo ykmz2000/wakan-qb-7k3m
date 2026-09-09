@@ -52,7 +52,7 @@ function readDoc(doc){
 }
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n}
 function button(cls,text){const b=el('button',cls,text);b.type='button';return b}
-let active=null,opening=false;
+let active=null,opening=false,choiceGroup=null;
 // A draft must not become the question identity. The existing resolver can use
 // this verified, node-bound identity only for the exact active stem element.
 function editingStem(node){
@@ -72,6 +72,14 @@ function css(){
 .qbInlineFieldSource{display:none!important}
 .qbInlineChoiceField .qbInlineStatus{margin:5px 0;min-width:0}
 .qbInlineChoiceField .qbInlineTools{margin-top:5px}
+.exp.qbInlineChoiceActive.adeHost{padding-right:0!important}
+.qbInlineChoiceActive>[data-ade-v2]:not(.adeEditor){visibility:hidden}
+#ans .adeEditor.qbChoiceInPlace{margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;width:100%!important;max-width:100%!important}
+.qbChoiceInPlace>.qbChoiceEditHeading{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font:inherit;margin-bottom:8px}
+.qbChoiceEditHeading>.ctext{flex:1;min-width:140px}
+.qbChoiceInPlace>.qbChoiceDetail{padding:0;background:transparent;border:0}
+.qbChoiceInPlace .oeiBox{display:none!important}
+.qbChoiceInPlace.qbChoiceImagesOpen .oeiBox{display:block!important}
 .qbInlineTools{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:9px 0 7px}
 .qbInlineTools button{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);min-width:40px;min-height:44px;padding:5px 8px;font:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
 .qbInlineTools button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
@@ -96,7 +104,7 @@ function css(){
 `;
   document.head.appendChild(s);
 }
-function beforeUnload(e){if(!active||(!active.dirty&&!active.saving))return;e.preventDefault();e.returnValue='';}
+function beforeUnload(e){if(!active?.dirty&&!active?.saving&&!choiceGroup?.dirty()&&!choiceGroup?.saving())return;e.preventDefault();e.returnValue='';}
 function status(s,text){if(s.status.textContent!==text)s.status.textContent=text;}
 function updateState(s){
   if(!s.view||s.closed)return;
@@ -127,6 +135,13 @@ function closeEditor(s,saved=false){
   for(const [name,original,wrapper] of s.wrappers||[]){if(window[name]===wrapper)window[name]=original}
 }
 function mayLeave(){
+  if(choiceGroup){
+    const g=choiceGroup;
+    if(g.saving()){g.message('保存中です。完了してから移動してください。');return false}
+    if(g.composing()){g.message('日本語の変換を確定してから操作してください。');return false}
+    if(g.dirty()&&!window.confirm('本文・装飾に未保存の変更があります。破棄して移動しますか？\n画像・個人メモの保存済み変更は取り消されません。'))return false;
+    g.close();
+  }
   const s=active;if(!s)return true;
   if(s.saving){status(s,'保存中です。完了してから移動してください。');return false}
   if(s.view?.composing){status(s,'日本語の変換を確定してから操作してください。');return false}
@@ -237,7 +252,7 @@ const choiceFields=new Set();
 function mountField(ta,field,record,initial,label){
   const initialDoc=docFrom(initial,record);
   css();
-  const host=el('div','qbFmtField qbInlineChoiceField');host.dataset.qbFormatField=field;
+  const inPlace=ta.parentElement?.dataset.qbChoiceFieldHost==='1',host=inPlace?ta.parentElement:el('div','qbFmtField qbInlineChoiceField');host.classList.add('qbFmtField','qbInlineChoiceField');host.dataset.qbFormatField=field;
   const title=el('label','qbFmtLabel',label),rich=el('div','qbInlineRich');
   if(!ta.id)ta.id='qbInlineField-'+Math.random().toString(36).slice(2);
   rich.id=ta.id+'-rich';title.htmlFor=rich.id;
@@ -245,7 +260,7 @@ function mountField(ta,field,record,initial,label){
   s.status.setAttribute('role','status');
   createTools(s);
   const focused=document.activeElement===ta;
-  ta.before(host);host.append(title,s.tools,rich,ta,s.status);ta.classList.add('qbInlineFieldSource');
+  if(!inPlace)ta.before(host);host.replaceChildren(title,s.tools,rich,ta,s.status);ta.classList.add('qbInlineFieldSource');
   createView(s,rich,()=>{ta.value=s.view.state.doc.firstChild.textContent;updateState(s)});
   updateState(s);if(focused)s.view.focus();
   const shortcut=e=>{
@@ -257,6 +272,7 @@ function mountField(ta,field,record,initial,label){
   };
   window.addEventListener('keydown',shortcut,true);
   const control={field,textarea:ta,
+    dirty:()=>s.dirty,
     read(){const draft=readDoc(s.view.state.doc);return window.QBExplanationFormat.snapshot(draft.text,draft.record?.ranges||[],true)},
     isComposing:()=>s.view.composing,
     setSaving(value){s.saving=value;s.view.setProps({editable:()=>!value});s.tools.querySelectorAll('button').forEach(b=>b.disabled=value)},
@@ -265,12 +281,28 @@ function mountField(ta,field,record,initial,label){
   };
   choiceFields.add(control);return control;
 }
-function cleanChoiceFields(){for(const field of choiceFields)if(!field.connected())field.destroy()}
+function cleanChoiceFields(){for(const field of choiceFields)if(!field.connected())field.destroy();if(choiceGroup&&!choiceGroup.ed.isConnected)releaseChoiceEditor(choiceGroup.ed)}
+function releaseChoiceEditor(ed){
+  if(choiceGroup?.ed!==ed)return;
+  for(const [name,original,wrapper] of choiceGroup.wrappers)if(window[name]===wrapper)window[name]=original;
+  choiceGroup=null;if(!active)window.removeEventListener('beforeunload',beforeUnload);
+}
+function registerChoiceEditor(ed,close){
+  const inputs=[...ed.querySelectorAll('input,textarea')].map(node=>({node,value:node.type==='checkbox'?node.checked:node.value}));
+  const fields=()=>[...choiceFields].filter(f=>ed.contains(f.textarea));
+  choiceGroup={ed,close,wrappers:[],dirty:()=>inputs.some(({node,value})=>(node.type==='checkbox'?node.checked:node.value)!==value)||fields().some(f=>f.dirty()),saving:()=>!!ed.querySelector('.adeSave')?.disabled,composing:()=>fields().some(f=>f.isComposing()),message:text=>{const st=ed.querySelector('.adeStatus');if(st)st.textContent=text}};
+  for(const name of ['qbRetryCurrent','qbOpenSubjects','qbOpenProblemList','showGradeScreen','qbResumeSession']){
+    const original=window[name];if(typeof original!=='function')continue;
+    const wrapper=function(...args){if(!mayLeave())return;return original.apply(this,args)};
+    choiceGroup.wrappers.push([name,original,wrapper]);window[name]=wrapper;
+  }
+  css();window.addEventListener('beforeunload',beforeUnload);
+}
 for(const event of ['qb-screen-change','qb-retry-current','qb-content-updated','qb-admin-editor-opened'])window.addEventListener(event,()=>queueMicrotask(cleanChoiceFields));
 async function open(host,q,mode='overview'){
   const config=MODES[mode];if(!config)return;
   if(active?.host===host&&active.mode===mode){active.view.focus();return}
-  if(active&&!mayLeave())return;
+  if((active||choiceGroup)&&!mayLeave())return;
   if(opening||!host?.isConnected||!q)return;opening=true;
   const launch=host.querySelector(config.launch);if(launch)launch.disabled=true;
   let created=null;
@@ -319,7 +351,7 @@ function captureClick(e){
   if(new URLSearchParams(location.search).get('editor')==='classic')return;
   const launch=e.target?.closest?.('[data-ade-v2="overview"],.adeStemBtn');
   if(launch){e.preventDefault();e.stopImmediatePropagation();const mode=launch.classList.contains('adeStemBtn')?'stem':'overview';open(launch.closest('.card'),current(),mode);return}
-  const s=active;if(!s)return;
+  if(!active&&!choiceGroup)return;
   const other=e.target?.closest?.('.adeEditBtnV2,.adeStemBtn,.oaiEditBtn');
   const nav=e.target?.closest?.(NAV);
   if(!nav&&!other)return;if(nav?.disabled)return;
@@ -327,5 +359,5 @@ function captureClick(e){
 }
 window.addEventListener('click',captureClick,true);
 window.addEventListener('keydown',handleShortcut,true);
-window.QBInlineOverview={open,mountField,requestLeave:mayLeave,isEditing:()=>!!active,hasUnsavedChanges:()=>!!active?.dirty,editingStem};
+window.QBInlineOverview={open,mountField,registerChoiceEditor,releaseChoiceEditor,requestLeave:mayLeave,isEditing:()=>!!active||!!choiceGroup,hasUnsavedChanges:()=>!!active?.dirty||!!choiceGroup?.dirty(),editingStem};
 if(window.QB_INLINE_TEST)window.QBInlineOverview.codec={docFrom,readDoc};

@@ -47,7 +47,7 @@ function enhanceExistingChoiceCard(root,q){
   if(!card)return;
   const exps=[...card.querySelectorAll(':scope > .exp')];
   (q.choices||[]).forEach((c,i)=>{
-    const exp=exps[i];if(!exp)return;
+    const exp=exps[i];if(!exp)return;if(exp.dataset.qbInlineChoiceEditing)return;
     const details=detailRows(c);
     for(const cls of ['qbChoiceCorrection','qbChoiceOtherContext','qbChoiceDistinction']){
       if(!details.some(d=>d[2]===cls))exp.querySelector(':scope > .'+cls)?.remove();

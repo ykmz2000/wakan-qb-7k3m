@@ -43,6 +43,9 @@ async function run(browser,name){
   assert.equal(await note.locator('textarea').inputValue(),'保存前の個人メモ');
   let ed=await open(p);
   assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote),true);
+  assert.equal(await ed.evaluate(el=>el.classList.contains('qbChoiceInPlace')&&getComputedStyle(el).borderTopWidth==='0px'),true,'no detached editor panel');
+  assert.equal(await row.locator(':scope > .line,:scope > .qbChoiceDetail').count(),0,'displayed text moves into its edit position without duplicate paragraphs');
+  assert.equal(await row.evaluate(el=>el.querySelector('.qbMediaHostV2')===choiceMedia),true);
   assert.equal(await ed.locator('.qbInlineTools').count(),4);
   assert.equal(await ed.locator('.qbFmtPreview,textarea:visible').count(),0);
   let field=ed.locator('[data-qb-format-field="explanation"]');
@@ -55,6 +58,8 @@ async function run(browser,name){
   await p.keyboard.press('Control+z');assert.equal(await field.locator('.qbFmt-marker').count(),1);
   await p.keyboard.press('Control+Shift+z');assert.equal(await field.locator('.qbFmt-marker').count(),0);
   await ed.locator('.adeCancel').click();assert.deepEqual(await p.evaluate(()=>testDB.choices[0]),before.choice);
+  assert.equal(await row.locator(':scope > .line').textContent(),before.choice.explanation);
+  assert.equal(await row.locator(':scope > .qbChoiceDetail').count(),3);
   console.log(name+' PASS choice toolbar/shortcuts/undo/cancel; late details keep existing note and draft last');
   ed=await open(p);
   for(const key of ['explanation','correction_text','correct_for_other_context','examiner_distinction']){
@@ -74,7 +79,8 @@ async function run(browser,name){
   console.log(name+' PASS all four fields persist text and formatting, reload, and immediately update displayed details');
   await note.locator('.qbNoteSave').click();
   await p.waitForFunction(()=>testDB.user_notes.some(n=>n.choice_id==='c1'&&n.note_text==='保存前の個人メモ'));
-  ed=await open(p);await ed.locator('.oeiFile').waitFor({state:'attached'});
+  ed=await open(p);await ed.locator('.oeiFile').waitFor({state:'attached'});await ed.locator('.qbInlineImageToggle').click();
+  assert.equal(await ed.locator('.oeiBox').isVisible(),true);
   await ed.locator('.oeiFile').setInputFiles({name:'choice.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuQAAAAASUVORK5CYII=','base64')});
   await p.waitForFunction(()=>testUploads===1);await ed.locator('.adeCancel').click();
   assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote),true);
@@ -91,6 +97,10 @@ async function run(browser,name){
   await p.waitForFunction(()=>document.querySelector('[data-ade-v2-editor="choice-c1"] .adeStatus')?.textContent.includes('別の更新'));
   assert.equal(await p.evaluate(()=>testDB.choices[0].explanation),'別の更新');await ed.locator('.adeCancel').click();
   assert.deepEqual(await p.evaluate(()=>testDB.attempts),before.attempts);assert.deepEqual(errors,[]);
+  ed=await open(p);field=ed.locator('[data-qb-format-field="explanation"]');await select(field,0,2);await p.keyboard.press('Control+b');
+  p.once('dialog',d=>d.dismiss());await p.locator('[data-ade-v2="overview"]').click();assert.equal(await ed.count(),1,'declining discard preserves choice draft');
+  p.once('dialog',d=>d.accept());await p.locator('[data-ade-v2="overview"]').click();await ed.waitFor({state:'detached'});await p.locator('.qbInlineCancel').click();
+  console.log(name+' PASS inline position, no duplicate text, cancel restoration, image toggle, switching editors protects drafts');
   console.log(name+' PASS failure retains editable draft, concurrent changes are rejected, grading history is preserved');
   await p.close();
 }

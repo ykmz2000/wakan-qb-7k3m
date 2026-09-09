@@ -1,0 +1,55 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),Module=require('node:module');
+const {chromium,webkit}=require('playwright');
+const root=path.resolve(__dirname,'..'),fixtureFile=path.join(__dirname,'answer-history.browser.cjs');
+const source=fs.readFileSync(fixtureFile,'utf8'),end=source.lastIndexOf('(async()=>{for(const [name,type]');
+assert.ok(end>0);const fixture=new Module(fixtureFile,module);fixture.filename=fixtureFile;fixture.paths=module.paths;fixture._compile(source.slice(0,end)+'\nmodule.exports={boot};',fixtureFile);
+const {boot}=fixture.exports;
+const selected=p=>p.locator('.problem input:checked').evaluateAll(xs=>xs.map(x=>x.dataset.q).sort());
+async function scope(p,unit){await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').click();await p.locator('[data-u="'+unit+'"]').click();await p.locator('#qbRatingFilterPanel [data-source="year"]').first().waitFor();await p.waitForTimeout(300)}
+async function only(p,axis,values){for(const b of await p.locator('[data-source="'+axis+'"]').all()){const value=await b.getAttribute('data-value'),on=await b.getAttribute('aria-pressed')==='true';if(on!==values.includes(value))await b.click()}await p.waitForTimeout(50)}
+async function run(browser,name){
+ const {p,errors}=await boot(browser);
+ await p.evaluate(()=>{
+   qbSupabase.auth.onAuthStateChange=()=>({data:{subscription:{unsubscribe(){}}}});
+   const o=(year,type)=>({academic_year:year,exam_type:type});
+   const template=structuredClone(testDB.questions[0]);
+   testDB.questions[1].question_occurrences=[o(2024,'本試'),o(2025,'再試')];
+   testDB.questions[2].question_occurrences=[];
+   for(const [id,year,type,unit] of [['q4',2019,'本試','unit1'],['q5',2020,null,'unit1'],['q6',null,'再試','unit2']])testDB.questions.push({...structuredClone(template),id,unit_id:unit,stem:'追加設問 '+id,study_order:Number(id.slice(1)),question_occurrences:[o(year,type)]});
+   testDB.units.push({id:'unit2',subject_id:'s1',name:'別単元',is_active:true});
+   testDB.question_ratings.push({user_id:'u1',question_id:'q4',rating:'×'});
+   testDB.user_question_flags=[{user_id:'u1',question_id:'q2',flag_type:'review_later'},{user_id:'u1',question_id:'q4',flag_type:'review_later'}];
+ });
+ for(const f of ['theme-system-v1.js','theme-coverage-v2.js','problem-rating-filter-v1.js','review-later-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
+ await scope(p,'__all__');
+ assert.deepEqual(await selected(p),['q1','q2','q3','q4','q5','q6']);
+ assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['2025','2024','2020','2019','unknown']);
+ const rows=await p.locator('.problem input').evaluateAll(xs=>xs.map(x=>x.dataset.q));
+ await only(p,'year',['2025']);await only(p,'exam',['main']);
+ assert.deepEqual(await selected(p),['q1'],'year and exam must match the same occurrence');
+ assert.equal(await p.locator('.problem:visible').count(),6,'excluded questions remain visible');
+ await only(p,'exam',['retry']);assert.deepEqual(await selected(p),['q2']);
+ await only(p,'year',['unknown']);assert.deepEqual(await selected(p),['q6']);
+ await only(p,'exam',['unknown']);assert.deepEqual(await selected(p),['q3'],'missing occurrence is unknown');
+ await only(p,'year',['2020']);assert.deepEqual(await selected(p),['q5'],'unknown exam does not erase a known year');
+ await only(p,'year',['2019']);await p.locator('[data-source-all="exam"]').click();
+ for(const b of await p.locator('[data-cat]').all())if(await b.getAttribute('data-cat')!=='×')await b.click();
+ assert.deepEqual(await selected(p),['q4']);await p.locator('[data-qbrl="filter"]').click();assert.deepEqual(await selected(p),['q4']);
+ assert.deepEqual(await p.locator('.problem input').evaluateAll(xs=>xs.map(x=>x.dataset.q)),rows,'source filters never reorder rows');
+ console.log(name+' PASS dynamic old years, paired occurrences, unknown fields, rating and star combination, visible rows and stable order');
+ await p.locator('#toggleAll').click();await p.waitForTimeout(400);assert.equal((await selected(p)).length,6,'select all survives rebuilding controls');
+ await p.locator('#toggleAll').click();await p.waitForTimeout(400);assert.deepEqual(await selected(p),[],'clear all survives rebuilding controls');
+ await p.locator('input[data-q="q2"]').check();await p.evaluate(()=>window.dispatchEvent(new Event('qb-question-order-updated')));await p.waitForTimeout(400);assert.deepEqual(await selected(p),['q2'],'manual checks survive order update');
+ assert.match(await p.locator('#start').textContent(),/1問/);
+ await scope(p,'unit2');assert.equal(await p.locator('.problem').count(),1);assert.deepEqual(await selected(p),['q6']);assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['unknown']);
+ await scope(p,'unit1');assert.equal(await p.locator('.problem').count(),5);assert.equal((await selected(p)).length,5);
+ await p.evaluate(()=>{const q=structuredClone(testDB.questions[3]);q.id='q7';q.study_order=7;q.question_occurrences=[{academic_year:2010,exam_type:'本試'}];testDB.questions.push(q)});
+ await scope(p,'__all__');assert.equal(await p.locator('[data-source="year"][data-value="2010"]').count(),1);assert.equal((await selected(p)).length,7);
+ await p.setViewportSize({width:320,height:800});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await p.locator('[data-source="year"][data-value="2010"]').click();assert.equal((await selected(p)).includes('q7'),false);
+ await p.locator('[data-source-all="year"]').click();assert.equal((await selected(p)).includes('q7'),true);
+ assert.deepEqual(await p.evaluate(()=>testWrites.filter(x=>['questions','choices','question_occurrences','question_ratings','user_question_flags','attempts'].includes(x.table))),[],'filters do not modify stored data');
+ assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS per-unit/all-unit scope, future data additions, manual selection, all/none, count and narrow screen');
+}
+(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
