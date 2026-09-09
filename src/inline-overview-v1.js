@@ -218,7 +218,17 @@ function createView(s,rich,changed=updateState){
       attributes:{class:'qbInlineRich',role:'textbox','aria-label':s.config.label+'を直接編集','aria-multiline':'true'},
       dispatchTransaction(tr){if(s.closed)return;this.updateState(this.state.apply(tr));changed(s)},
       handleKeyDown(view,e){if(e.key==='Enter'&&!view.composing&&!e.isComposing){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false},
-      handleDOMEvents:{beforeinput(view,e){if(!view.composing&&(e.inputType==='insertParagraph'||e.inputType==='insertLineBreak')){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false}},
+      handleDOMEvents:{beforeinput(view,e){
+        if(view.composing||e.isComposing||!e.cancelable||!['insertParagraph','insertLineBreak'].includes(e.inputType))return false;
+        e.preventDefault();
+        // prosemirror-view 1.41.7 defers iOS Enter to a 200ms fallback.
+        // We handle the cancellable beforeinput ourselves, so acknowledge it
+        // before dispatching: no native DOM change will consume that fallback.
+        view.input.lastIOSEnter=0;
+        clearTimeout(view.input.lastIOSEnterFallbackTimeout);
+        view.input.lastIOSEnterFallbackTimeout=-1;
+        view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true;
+      }},
       handlePaste(view,e){e.preventDefault();if(e.clipboardData?.files?.length){status(s,'画像は「画像を編集・追加」から追加してください。');return true}const text=e.clipboardData?.getData('text/plain')||'';if(text)view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g,'\n')).scrollIntoView());return true},
       handleDrop(view,e){e.preventDefault();status(s,'画像は「画像を編集・追加」、文章はコピー＆ペーストをご利用ください。');return true}
     });
