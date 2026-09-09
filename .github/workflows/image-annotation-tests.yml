@@ -51,3 +51,10 @@ jobs:
           node tests/recent-image-scope-preview.browser.cjs
           node tests/image-crop.browser.cjs
           node tests/image-gallery.browser.cjs
+      - name: Preserve browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-annotation-browser-results
+          path: test-results
+          retention-days: 7

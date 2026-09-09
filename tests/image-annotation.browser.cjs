@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),Module=require('node:module');
 const {chromium,webkit}=require('playwright');
 const root=path.resolve(__dirname,'..'),read=file=>fs.readFileSync(path.join(root,file),'utf8');
+fs.mkdirSync(path.join(root,'test-results'),{recursive:true});
 const fixturePath=path.join(__dirname,'inline-stem.browser.cjs'),source=fs.readFileSync(fixturePath,'utf8'),end=source.lastIndexOf('(async()=>{for(const [name,type]');
 assert.ok(end>0);const fixture=new Module(fixturePath,module);fixture.filename=fixturePath;fixture.paths=module.paths;fixture._compile(source.slice(0,end)+'\nmodule.exports={boot};',fixturePath);
 async function install(p,integration=false){
@@ -37,6 +38,7 @@ async function core(browser,name){
   await p.locator('[data-tool=pen]').click();await p.getByRole('button',{name:'緑',exact:true}).click();await drag(p,map,[[100,340],[200,340],[250,380]]);
   await p.locator('[data-tool=arrow]').click();await p.getByRole('button',{name:'オレンジ',exact:true}).click();await drag(p,map,[[100,440],[400,440]]);
   await p.locator('[data-tool=text]').click();const t=map(120,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('日本語の追記');
+  await p.screenshot({path:path.join(root,'test-results',name+'-annotation.png')});
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const out=await pixels(p,[[180,140],[220,180],[100,100],[200,280],[160,340],[200,440]]);
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
   console.log(name+' PASS transparent arbitrary rectangle, move/undo/redo, translucent marker, handwriting, arrow, Japanese text, flattened PNG');
@@ -50,8 +52,8 @@ async function core(browser,name){
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const pasted=await pixels(p,[[660,150],[400,300]]);assert.ok(pasted.colors[0][2]>170&&pasted.colors[0][0]<70);assert.deepEqual(pasted.colors[1],[255,255,255,255]);
   console.log(name+' PASS image paste, separate crop, movement and aspect-preserving resize');
   for(const viewport of [{width:390,height:844},{width:1024,height:768},{width:844,height:390},{width:1366,height:900}]){
-    await p.setViewportSize(viewport);await launch(p);const a=await p.locator('.qbDrawSave').boundingBox(),stage=await p.locator('.qbDrawStage').boundingBox();assert.ok(a.y>=0&&a.y+a.height<=viewport.height+1&&a.x+a.width<=viewport.width+1);assert.ok(stage.height>60);
-    await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.waitForFunction(()=>window.drawResult===null);
+    await p.setViewportSize(viewport);await launch(p);const a=await p.locator('.qbDrawSave').boundingBox(),stage=await p.locator('.qbDrawStage').boundingBox();assert.ok(a.y>=0&&a.y+a.height<=viewport.height+1&&a.x+a.width<=viewport.width+1);assert.ok(stage.height>60);await p.screenshot({path:path.join(root,'test-results',name+'-layout-'+viewport.width+'.png')});
+    await p.locator('.qbDrawModal').getByRole('button',{name:'キャンセル',exact:true}).click();await p.waitForFunction(()=>window.drawResult===null);
   }
   // Pencil input draws; simultaneous palm touches must not create marks.
   await p.setViewportSize({width:1024,height:900});await launch(p);map=await mapping(p);const a=map(120,120),b=map(280,120),palm=map(400,300);
@@ -75,12 +77,12 @@ async function integration(browser,name){
   await p.locator('.qbExportButton').waitFor();assert.equal(await p.evaluate(()=>document.querySelector('.adeStemToolbar').firstElementChild.className),'qbExportButton');
   await p.locator('[data-ade-v2="overview"]').click();await p.locator('.qbInlineRich').waitFor();await paste(p,'.qbInlineRich',false);const draft=await p.locator('.qbInlineRich').textContent();assert.ok(draft.includes('テキスト貼付'));
   const before=await p.evaluate(()=>({images:testDB.question_images.length,writes:JSON.stringify(testWrites),uploads:testUploads}));await paste(p,'.qbInlineRich');assert.deepEqual(await p.evaluate(()=>({images:testDB.question_images.length,writes:JSON.stringify(testWrites),uploads:testUploads})),before);
-  await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});assert.equal(await p.locator('.qbInlineRich').textContent(),draft);
+  await p.locator('.qbDrawModal').getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});assert.equal(await p.locator('.qbInlineRich').textContent(),draft);
   await paste(p,'.qbInlineRich');await confirm(p);assert.equal(await p.locator('.qbInlineRich').textContent(),draft);
   let added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.placement,'explanation_overview');assert.ok(added.original_image_path);assert.notEqual(added.image_path,added.original_image_path);assert.equal(await p.evaluate(()=>testWrites.filter(w=>w.table==='questions').length),0);
   await p.locator('.qbInlineCancel').click();
   await p.locator('.adeStemBtn').click();await p.locator('.qbInlineRich').waitFor();await paste(p,'.qbInlineRich');await confirm(p);added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.placement,'question');assert.equal(added.question_id,'q1');await p.locator('.qbInlineCancel').click();
-  await p.locator('[data-ade-v2="choice-c1"]').click();await p.locator('[data-ade-v2-editor="choice-c1"]').waitFor();await paste(p,'[data-ade-v2-editor="choice-c1"] textarea');await confirm(p);added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.choice_id,'c1');assert.equal(added.placement,'choice_explanation');await p.locator('[data-ade-v2-editor="choice-c1"] .adeCancel').click();
+  await p.locator('[data-ade-v2="choice-c1"]').click();await p.locator('[data-ade-v2-editor="choice-c1"]').waitFor();await paste(p,'[data-ade-v2-editor="choice-c1"] .qbInlineRich');await confirm(p);added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.choice_id,'c1');assert.equal(added.placement,'choice_explanation');await p.locator('[data-ade-v2-editor="choice-c1"] .adeCancel').click();
   console.log(name+' PASS image clipboard routes to overview, stem and choice; text paste and cancelled/unsaved drafts are retained');
   const storage=await p.evaluate(async()=>{
     const c={sb:qbSupabase,bucket:'question-media',questionId:'q1',placement:'question',choiceId:null,host:document.querySelector('.qtext')},old=await QBImageStore.get(c,'stem-image'),row=await QBImageStore.replace(c,old,testImage),latest=await QBImageStore.get(c,'stem-image');
@@ -105,7 +107,7 @@ async function integration(browser,name){
   });assert.ok(exportResult.height>4000);assert.equal(exportResult.type,'image/png');assert.ok(exportResult.lines.includes('問題末尾')&&exportResult.lines.includes('b. 選択肢末尾')&&exportResult.lines.includes('a'));assert.ok(exportResult.unchanged);assert.equal(exportResult.nonChoice,'空欄1：模範解答\n補足：補足情報');
   await u.evaluate(()=>{Object.defineProperty(navigator,'clipboard',{configurable:true,value:{write:async items=>{window.testCopyType=items[0].types[0]}}});window.ClipboardItem=class{constructor(x){this.types=Object.keys(x)}};Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>false})});
   await u.locator('.qbExportButton').click();await u.getByRole('button',{name:'画像としてコピー',exact:true}).click();assert.equal(await u.evaluate(()=>testCopyType),'image/png');assert.equal(await u.locator('.qbDrawModal').count(),0);
-  const download=u.waitForEvent('download');await u.getByRole('button',{name:'画像として保存',exact:true}).click();assert.match((await download).suggestedFilename(),/\.png$/);await u.getByRole('button',{name:'閉じる',exact:true}).click();assert.deepEqual(user.errors,[]);await u.close();
+  const download=u.waitForEvent('download');await u.getByRole('button',{name:'画像として保存',exact:true}).click();const downloaded=await download;assert.match(downloaded.suggestedFilename(),/\.png$/);await downloaded.saveAs(path.join(root,'test-results',name+'-question-export.png'));await u.getByRole('button',{name:'閉じる',exact:true}).click();assert.deepEqual(user.errors,[]);await u.close();
   console.log(name+' PASS independent general-user export, complete long question/options/answers, PNG clipboard and download, no data writes');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await core(browser,name);await integration(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});

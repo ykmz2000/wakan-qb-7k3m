@@ -17,20 +17,34 @@ function wrappedLines(ctx,text,width){
 function imageFromBlob(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('問題画像を読み込めませんでした。'))};img.src=url})}
 async function render(Q){
   const sb=window.qbSupabase,id=qid(Q);if(!sb||!id)throw Error('問題の情報を読み込み中です。');
+  const record=await sb.from('questions').select('stem,stem_formatting').eq('id',id).maybeSingle();if(record.error)throw record.error;
   const r=await sb.from('question_images').select('image_path,caption,alt_text,sort_order,created_at').eq('question_id',id).eq('placement','question').is('choice_id',null).order('sort_order').order('created_at');if(r.error)throw r.error;
   const images=[];for(const row of r.data||[]){const file=await sb.storage.from('question-media').download(row.image_path);if(file.error)throw Error('問題画像の取得に失敗しました。通信状態を確認してください。');images.push({image:await imageFromBlob(file.data),caption:row.caption||''})}
   if(qid(q())!==id)throw Error('問題が切り替わりました。もう一度ボタンを押してください。');
   const width=1200,pad=54,inner=width-pad*2,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d'),font='-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif',blocks=[];let y=pad;
-  function text(t,size=30,bold=false,gap=22){ctx.font=`${bold?'700 ':''}${size}px ${font}`;const lines=wrappedLines(ctx,t,inner);blocks.push({type:'text',lines,x:pad,y,size,bold});y+=lines.length*size*1.55+gap}
+  function text(t,size=30,bold=false,gap=22,format=null){ctx.font=`${bold?'700 ':''}${size}px ${font}`;const lines=wrappedLines(ctx,t,inner);blocks.push({type:'text',lines,x:pad,y,size,bold,source:String(t),format});y+=lines.length*size*1.55+gap}
   text('定期テスト対策QB',22,true,14);
   const occurrences=(Q.occ||[]).map(o=>`${o.academic_year?o.academic_year+'年度':'年度不明'}・${o.exam_type||'試験区分不明'}${o.original_question_number?'・問'+o.original_question_number:''}`);if(occurrences.length)text(occurrences.join(' ／ '),21,false,24);
-  text(Q.stem||Q.q||'',32,true);if(Q.instruction)text(Q.instruction,26);
+  text(Q.stem||Q.q||'',32,true,22,record.data?.stem_formatting);if(Q.instruction)text(Q.instruction,26);
   for(const entry of images){const scale=Math.min(1,inner/entry.image.naturalWidth),w=entry.image.naturalWidth*scale,h=entry.image.naturalHeight*scale;blocks.push({type:'image',image:entry.image,x:pad+(inner-w)/2,y,w,h});y+=h+20;if(entry.caption)text(entry.caption,22)}
   const choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   if(choices.length){if(Q.answer_mode==='fill_blank')text('参考選択肢',24,true,14);for(const c of choices)text(`${c.choice_key}. ${c.choice_text}`,30,false,12)}
   y+=22;blocks.push({type:'line',y});y+=24;text('解答',28,true,12);text(answers(Q),30,false,0);y+=pad;
   const dim=window.QBImageModel.fitSize(width,y);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
-  for(const b of blocks){if(b.type==='image'){ctx.drawImage(b.image,b.x,b.y,b.w,b.h);continue}if(b.type==='line'){ctx.strokeStyle='#ccd3dd';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pad,b.y);ctx.lineTo(width-pad,b.y);ctx.stroke();continue}ctx.font=`${b.bold?'700 ':''}${b.size}px ${font}`;ctx.fillStyle='#172033';b.lines.forEach((line,i)=>ctx.fillText(line,b.x,b.y+i*b.size*1.55))}
+  const theme=getComputedStyle(document.documentElement),accent=theme.getPropertyValue('--accent').trim()||'#126fb3',marker=theme.getPropertyValue('--accent-soft').trim()||'#eaf4fb';
+  for(const b of blocks){
+    if(b.type==='image'){ctx.drawImage(b.image,b.x,b.y,b.w,b.h);continue}
+    if(b.type==='line'){ctx.strokeStyle='#ccd3dd';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pad,b.y);ctx.lineTo(width-pad,b.y);ctx.stroke();continue}
+    ctx.font=`${b.bold?'700 ':''}${b.size}px ${font}`;
+    const f=b.format,ranges=f?.version===1&&f.source_text===b.source&&Array.isArray(f.ranges)?f.ranges.slice(0,512).filter(r=>r&&['bold','underline','strike','marker','accent'].includes(r.kind)&&Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start>=0&&r.end<=b.source.length&&r.end>r.start):[];let offset=0;
+    b.lines.forEach((line,i)=>{
+      const top=b.y+i*b.size*1.55,spans=ranges.filter(r=>r.start<offset+line.length&&r.end>offset).map(r=>{const start=Math.max(0,r.start-offset),end=Math.min(line.length,r.end-offset);return{...r,start,end,x:b.x+ctx.measureText(line.slice(0,start)).width,w:ctx.measureText(line.slice(start,end)).width}});
+      for(const r of spans)if(r.kind==='marker'){ctx.fillStyle=marker;ctx.fillRect(r.x,top,r.w,b.size*1.2)}
+      ctx.fillStyle='#172033';ctx.fillText(line,b.x,top);
+      for(const r of spans){if(r.kind==='accent'){ctx.fillStyle=accent;ctx.fillText(line.slice(r.start,r.end),r.x,top)}if(r.kind==='underline'||r.kind==='strike'){ctx.fillStyle=accent;ctx.fillRect(r.x,top+b.size*(r.kind==='underline'?1.15:.58),r.w,Math.max(1,b.size/20))}}
+      offset+=line.length;if(b.source[offset]==='\n')offset++;
+    });
+  }
   const blob=await new Promise((resolve,reject)=>{canvas.toBlob(b=>b?resolve(b):reject(Error('画像の作成に失敗しました。')),'image/png')});canvas.width=canvas.height=1;
   return{blob,width:dim.width,height:dim.height,filename:`問題と解答-${id.slice(0,8)}.png`};
 }
