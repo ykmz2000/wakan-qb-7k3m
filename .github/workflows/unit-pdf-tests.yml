@@ -1,7 +1,7 @@
 name: Unit PDF export regression
 on:
   push:
-    branches: [feat/unit-pdf-export]
+    branches: [feat/unit-pdf-export, fix/pdf-save-links]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
           node --check qb-app.js
           node --test tests/unit-pdf-layout.unit.cjs
       - name: Install pinned test client
-        run: npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+        run: npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 jsqr@1.4.0
       - name: PDF and card interaction
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules

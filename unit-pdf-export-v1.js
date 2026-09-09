@@ -2,6 +2,9 @@
 (()=>{
 'use strict';
 const assetBase=new URL('.',document.currentScript?.src||location.href);
+// Fixed public app URL; QR generated with ReportLab, error correction M, quiet zone drawn below.
+const SITE_URL="https://ykmz2000.github.io/wakan-qb-7k3m/";
+const SITE_QR=["11111110011000100011101111111", "10000010011101111110101000001", "10111010100110111010101011101", "10111010111111100110101011101", "10111010101001000111101011101", "10000010110001010100001000001", "11111110101010101010101111111", "00000000100110100010000000000", "10111110001011010101001111100", "00111001011000101111101010001", "00111110000011011010010000000", "11101000101100110000111001010", "01101110001001111100110101100", "11010001100111001111101110001", "10100011111100111100110111100", "11101001011000111000010100010", "01100110000111000111010001100", "10111000110111000111101110101", "10101111001101110100110100100", "10011000010000101001110000010", "10001110101010000100111110111", "00000000101111001000100011111", "11111110000001111101101011100", "10000010100111010001100010000", "10111010110110110100111110111", "10111010100001001010110001111", "10111010101101111011101111110", "10000010010111000000110111010", "11111110100100000100010001100"];
 const DETAIL='id,unit_id,stem,instruction,answer_mode,answer_fields,source_answer,study_order,stem_formatting,explanation_overview,examiner_intent,exam_summary,medical_verification_note,explanation_formatting,choices(id,choice_key,choice_text,is_correct,sort_order,explanation,correction_text,correct_for_other_context,examiner_distinction,explanation_formatting),question_occurrences(id,academic_year,exam_type,original_question_number,official_answer,source_page,source_file)';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let dialog=null,libraryPromise=null;
@@ -101,9 +104,22 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
     aborted(signal);count++;draw(String(count),L.PAGE.width-80,1086,12);
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('ページ画像を作成できませんでした。')),'image/jpeg',.94));
     aborted(signal);const image=await pdf.embedJpg(await blob.arrayBuffer()),page=pdf.addPage([595.28,841.89]);page.drawImage(image,{x:0,y:0,width:595.28,height:841.89});
+    if(meta.type.endsWith('cover')){
+      // The page artwork is rasterized; add real PDF URI annotations above it.
+      for(const [x,y,width,height] of [[60,846,148,148],[230,872,504,72]]){
+        const sx=595.28/L.PAGE.width,sy=841.89/L.PAGE.height;
+        const annotation=pdf.context.obj({Type:'Annot',Subtype:'Link',Rect:[x*sx,841.89-(y+height)*sy,(x+width)*sx,841.89-y*sy],Border:[0,0,0],A:{Type:'Action',S:'URI',URI:lib.PDFString.of(SITE_URL)}});
+        page.node.addAnnot(pdf.context.register(annotation));
+      }
+    }
     if(onPage)await onPage({...meta,page:count},canvas);await new Promise(r=>setTimeout(r,0));
   }
-  async function cover(title,subtitle,type){reset();ctx.fillStyle=theme.accent;ctx.fillRect(60,310,54,5);let y=draw(title,60,350,30,true,674);if(subtitle)draw(subtitle,60,y+24,24,true,674);draw('定期テスト対策QB',60,1010,14);await savePage({type,title,subtitle})}
+  async function cover(title,subtitle,type){reset();ctx.fillStyle=theme.accent;ctx.fillRect(60,310,54,5);let y=draw(title,60,350,30,true,674);if(subtitle)draw(subtitle,60,y+24,24,true,674);// Crisp QR modules with a four-module white quiet zone on every side.
+    const moduleSize=4,qrX=60,qrY=846;ctx.fillStyle='#fff';ctx.fillRect(qrX,qrY,148,148);ctx.fillStyle='#000';
+    SITE_QR.forEach((row,y)=>[...row].forEach((bit,x)=>{if(bit==='1')ctx.fillRect(qrX+(x+4)*moduleSize,qrY+(y+4)*moduleSize,moduleSize,moduleSize)}));
+    draw('定期テスト対策QBを開く',230,880,18,true,504);
+    draw(SITE_URL,230,916,13,false,504);
+    draw('定期テスト対策QB',60,1010,14);await savePage({type,title,subtitle})}
   try{
     await cover(scope.subject.name,scope.all?'':scope.unit.name,scope.all?'subject-cover':'unit-cover');
     for(let start=0;start<scope.index.length;start+=20){
@@ -142,24 +158,31 @@ function close(){if(!dialog)return;const old=dialog;dialog=null;old.qbAbort?.abo
 function show(button){
   close();const target={subjectId:button.dataset.pdfSubject,unitId:button.dataset.pdfUnit};if(button.dataset.pdfQuestions)try{target.questionIds=JSON.parse(button.dataset.pdfQuestions)}catch{return}
   const d=document.createElement('dialog');d.className='qbPdfDialog';d.setAttribute('aria-labelledby','qbPdfTitle');d.qbReturnFocus=button;
-  d.innerHTML='<h2 id="qbPdfTitle">PDF出力</h2><p class="qbPdfTarget"></p><label>出力内容<select aria-label="PDFの出力内容"><option value="full">問題・解答・解説</option><option value="answers">問題・解答</option><option value="questions">問題のみ</option></select></label><p class="qbPdfStatus" role="status" aria-live="polite">A4・表紙付き</p><div class="qbPdfActions"><button type="button" class="qbPdfClose">閉じる</button><button type="button" class="qbPdfCreate">PDFを作成</button><button type="button" class="qbPdfSave" hidden>PDFを保存</button></div>';
+  d.innerHTML='<h2 id="qbPdfTitle">PDF出力</h2><p class="qbPdfTarget"></p><label>出力内容<select aria-label="PDFの出力内容"><option value="full">問題・解答・解説</option><option value="answers">問題・解答</option><option value="questions">問題のみ</option></select></label><p class="qbPdfStatus" role="status" aria-live="polite">A4・表紙付き</p><div class="qbPdfActions"><button type="button" class="qbPdfClose">閉じる</button><button type="button" class="qbPdfCreate">PDFを作成</button><button type="button" class="qbPdfShare" hidden>PDFを共有</button><button type="button" class="qbPdfSave" hidden>PDFを保存</button></div>';
   d.querySelector('.qbPdfTarget').textContent=button.getAttribute('aria-label').replace(/をPDF出力$/,'');
-  const select=d.querySelector('select'),status=d.querySelector('.qbPdfStatus'),create=d.querySelector('.qbPdfCreate'),save=d.querySelector('.qbPdfSave');let result=null,busy=false;
-  const reset=()=>{result=null;save.hidden=true;create.hidden=false;status.textContent='A4・表紙付き'};select.onchange=reset;
+  const select=d.querySelector('select'),status=d.querySelector('.qbPdfStatus'),create=d.querySelector('.qbPdfCreate'),save=d.querySelector('.qbPdfSave'),share=d.querySelector('.qbPdfShare');let result=null,shareFile=null,busy=false;
+  const reset=()=>{result=null;shareFile=null;save.hidden=share.hidden=true;create.hidden=false;status.textContent='A4・表紙付き'};select.onchange=reset;
   d.querySelector('.qbPdfClose').onclick=close;d.addEventListener('cancel',e=>{e.preventDefault();close()});
   d.addEventListener('click',e=>{e.stopPropagation();if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)close()}});
   d.addEventListener('keydown',e=>e.stopPropagation());
   create.onclick=async()=>{
     if(busy)return;busy=true;create.disabled=select.disabled=true;d.qbAbort=new AbortController();status.textContent='問題を読み込み中…';
-    try{result=await generate(target,{mode:select.value,signal:d.qbAbort.signal,onProgress:({done,total})=>{if(dialog===d)status.textContent=`PDFを作成中… ${done} / ${total}問`}});if(dialog!==d)return;create.hidden=true;save.hidden=false;status.textContent=`${result.questions}問・${result.pages}ページ`;save.focus()}
+    try{result=await generate(target,{mode:select.value,signal:d.qbAbort.signal,onProgress:({done,total})=>{if(dialog===d)status.textContent=`PDFを作成中… ${done} / ${total}問`}});if(dialog!==d)return;create.hidden=true;save.hidden=false;shareFile=new File([result.blob],result.filename,{type:'application/pdf'});try{share.hidden=!(typeof navigator.share==='function'&&navigator.canShare?.({files:[shareFile]}))}catch{share.hidden=true}status.textContent=`${result.questions}問・${result.pages}ページ`;save.focus()}
     catch(e){if(dialog===d&&e.name!=='AbortError')status.textContent='PDFを作成できませんでした：'+(e.message||e)}
     finally{busy=false;create.disabled=select.disabled=false}
   };
-  save.onclick=async()=>{
-    if(!result||busy)return;busy=true;save.disabled=true;const file=new File([result.blob],result.filename,{type:'application/pdf'});
-    try{if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:result.filename})}
-      else{const url=URL.createObjectURL(result.blob),a=document.createElement('a');a.href=url;a.download=result.filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
-    }catch(e){if(e.name!=='AbortError')status.textContent='保存を開始できませんでした。もう一度お試しください。'}finally{busy=false;save.disabled=false}
+  // Saving always downloads the actual PDF. Sharing is a separate, explicit action.
+  save.onclick=()=>{
+    if(!result||busy)return;
+    try{const url=URL.createObjectURL(result.blob),a=document.createElement('a');a.href=url;a.download=result.filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+    catch{status.textContent='保存を開始できませんでした。PDFを共有から保存するか、もう一度お試しください。'}
+  };
+  share.onclick=async()=>{
+    if(!shareFile||busy)return;busy=true;save.disabled=share.disabled=select.disabled=true;
+    // No title/text/url: some iPad share targets otherwise receive the filename as a text item.
+    try{await navigator.share({files:[shareFile]})}
+    catch(e){if(dialog===d&&e.name!=='AbortError')status.textContent='共有できませんでした。「PDFを保存」からダウンロードしてください。'}
+    finally{busy=false;save.disabled=share.disabled=select.disabled=false}
   };
   document.body.append(d);dialog=d;d.showModal();create.focus();
 }

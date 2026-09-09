@@ -2,6 +2,8 @@
 // Synthetic data only; test real cards, read-only export and resulting PDF bytes.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium,webkit}=require('playwright');
+const jsQR=require('jsqr');
+const siteURL='https://ykmz2000.github.io/wakan-qb-7k3m/';
 const root=path.resolve(__dirname,'..'),out=process.env.QB_PDF_RESULTS||'/tmp/qb-pdf-results';fs.mkdirSync(out,{recursive:true});
 const source=f=>fs.readFileSync(path.join(root,f),'utf8');
 async function run(type,name){
@@ -56,8 +58,12 @@ async function run(type,name){
       const controller=new AbortController();window.pdfMeta=[];window.pdfPageImages=[];
       const r=await QBUnitPdf.generate({subjectId:'s1',unitId:'__all__'},{signal:controller.signal,onPage:(m,c)=>{pdfMeta.push(m);if(pdfPageImages.length<6)pdfPageImages.push(c.toDataURL('image/png'))}});
       const doc=await PDFLib.PDFDocument.load(await r.blob.arrayBuffer());window.pdfBytes=Array.from(new Uint8Array(await r.blob.arrayBuffer()));
-      return{questions:r.questions,pages:r.pages,sizes:doc.getPages().map(p=>p.getSize()),meta:pdfMeta};
+      window.pdfCoverPixels=(()=>{const c=document.createElement('canvas');c.width=444;c.height=444;const x=c.getContext('2d');return new Promise(resolve=>{const i=new Image();i.onload=()=>{x.drawImage(i,180,2538,444,444,0,0,444,444);resolve(Array.from(x.getImageData(0,0,444,444).data))};i.src=pdfPageImages[0]})})();
+      const links=doc.getPages().map(page=>{const a=page.node.Annots();return a?a.asArray().map(ref=>{const v=doc.context.lookup(ref);return {uri:v.lookup(PDFLib.PDFName.of('A')).lookup(PDFLib.PDFName.of('URI')).decodeText(),rect:v.lookup(PDFLib.PDFName.of('Rect')).asArray().map(n=>n.asNumber())}}):[]});
+      return{questions:r.questions,pages:r.pages,sizes:doc.getPages().map(p=>p.getSize()),meta:pdfMeta,links};
     });
+    const qr=jsQR(new Uint8ClampedArray(await p.evaluate(()=>pdfCoverPixels)),444,444);assert.equal(qr?.data,siteURL);
+    result.links.forEach((links,i)=>{assert.equal(links.length,result.meta[i].type.endsWith('cover')?2:0);for(const link of links){assert.equal(link.uri,siteURL);assert.ok(link.rect[0]>=0&&link.rect[2]<=595.28&&link.rect[1]>=0&&link.rect[3]<=841.89)}});
     assert.equal(result.questions,3);assert.equal(result.pages,result.meta.length);assert.ok(result.sizes.every(s=>Math.abs(s.width-595.28)<.01&&Math.abs(s.height-841.89)<.01));
     assert.deepEqual(result.meta.filter(m=>m.type.includes('cover')).map(m=>[m.type,m.subtitle]),[['subject-cover',''],['unit-cover','第1単元・画像と解説'],['unit-cover','第2単元']]);
     assert.deepEqual([...new Set(result.meta.filter(m=>m.questionId).map(m=>m.questionId))],['q2','q1','q3']);
@@ -73,7 +79,21 @@ async function run(type,name){
     await p.evaluate(()=>{failPDF=true});await p.locator('[data-pdf-unit="u1"]').click();await p.locator('.qbPdfCreate').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus').textContent.includes('画像を取得できません'));
     assert.equal(await p.locator('.qbPdfSave').isVisible(),false);await p.locator('.qbPdfClose').click();
     await p.evaluate(()=>{failPDF=false;delayPDF=true});await p.locator('[data-pdf-unit="u1"]').click();await p.locator('.qbPdfCreate').click();await p.locator('.qbPdfClose').click();await p.waitForTimeout(500);assert.equal(await p.locator('.qbPdfDialog').count(),0);await p.evaluate(()=>{delayPDF=false});
-    await p.locator('[data-pdf-unit="u2"]').click();await p.locator('select[aria-label="PDFの出力内容"]').selectOption('answers');await p.locator('.qbPdfCreate').click();await p.locator('.qbPdfSave').waitFor();await p.locator('.qbPdfClose').click();
+    await p.evaluate(()=>{
+      window.sharedPayload=null;window.shareFail=null;
+      Object.defineProperty(navigator,'canShare',{configurable:true,value:d=>Object.keys(d).join(',')==='files'&&d.files[0] instanceof File&&d.files[0].type==='application/pdf'});
+      Object.defineProperty(navigator,'share',{configurable:true,value:async d=>{if(shareFail)throw new DOMException('test',shareFail);sharedPayload={keys:Object.keys(d),type:d.files[0].type,name:d.files[0].name,bytes:Array.from(new Uint8Array(await d.files[0].arrayBuffer()))}}});
+    });
+    await p.locator('[data-pdf-unit="u2"]').click();await p.locator('select[aria-label="PDFの出力内容"]').selectOption('answers');await p.locator('.qbPdfCreate').click();await p.locator('.qbPdfSave').waitFor();
+    await p.locator('.qbPdfShare').click();await p.waitForFunction(()=>sharedPayload!==null);
+    const shared=await p.evaluate(()=>sharedPayload);assert.deepEqual(shared.keys,['files']);assert.equal(shared.type,'application/pdf');assert.equal(Buffer.from(shared.bytes).subarray(0,5).toString(),'%PDF-');
+    let downloads=0;p.on('download',()=>downloads++);
+    const downloaded=p.waitForEvent('download');await p.locator('.qbPdfSave').click();const download=await downloaded;
+    assert.equal(download.suggestedFilename(),shared.name);const downloadedBytes=fs.readFileSync(await download.path());assert.deepEqual(downloadedBytes,Buffer.from(shared.bytes));
+    const saved=await p.evaluate(async bytes=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(bytes));return doc.getPageCount()},shared.bytes);assert.equal(saved,2);
+    await p.evaluate(()=>{shareFail='AbortError'});await p.locator('.qbPdfShare').click();assert.equal(await p.locator('.qbPdfSave').isEnabled(),true);assert.equal(downloads,1);
+    await p.evaluate(()=>{shareFail='NotAllowedError'});await p.locator('.qbPdfShare').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus').textContent.includes('ダウンロードしてください'));assert.equal(downloads,1);
+    await p.locator('.qbPdfClose').click();
     await p.locator('[data-u="u1"]').click();await p.locator('.problem').first().waitFor();assert.equal(await p.evaluate(()=>qbGetScreen()),'problems');
     assert.deepEqual(errors,[]);assert.equal(await p.evaluate(()=>pdfWrites.length),0);
     console.log(name+' PASS separate card/button interaction, narrow layout, A4 covers, sorted questions, complete images, read-only export, modes, cancellation, retry and navigation');
