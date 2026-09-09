@@ -76,6 +76,7 @@ async function pasteAndWait(p,selector,note=false){const before=await p.evaluate
 async function integration(browser,name){
   const {page:p,errors}=await fixture.exports.boot(browser);await augment(p);
   await p.locator('.qbExportButton').waitFor();assert.equal(await p.evaluate(()=>document.querySelector('.adeStemToolbar').firstElementChild.className),'qbExportButton');
+  await p.waitForFunction(()=>{const stem=document.querySelector('#view > .card > .qtext'),bar=document.querySelector('.adeStemToolbar'),images=document.querySelector('.qsiHost');return stem&&bar&&images&&(stem.compareDocumentPosition(bar)&4)&&(bar.compareDocumentPosition(images)&4)});
   await p.locator('[data-ade-v2="overview"]').click();await p.locator('.qbInlineRich').waitFor();await paste(p,'.qbInlineRich',false);const draft=await p.locator('.qbInlineRich').textContent();assert.ok(draft.includes('テキスト貼付'));
   const before=await p.evaluate(()=>testDB.question_images.length);await paste(p,'.qbInlineRich');await p.waitForFunction(n=>testDB.question_images.length===n+1,before);assert.equal(await p.locator('.qbDrawModal').count(),0);assert.equal(await p.locator('.qbInlineRich').textContent(),draft);
   let added=await p.evaluate(()=>testDB.question_images.at(-1));assert.equal(added.placement,'explanation_overview');assert.equal(added.original_image_path,null);assert.equal(await p.evaluate(()=>testWrites.filter(w=>w.table==='questions').length),0);

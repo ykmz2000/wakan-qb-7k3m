@@ -69,6 +69,7 @@ function mount(){
     if(!bar){bar=own;if(!bar){bar=document.createElement('div');bar.className='qbExportToolbar';stem.after(bar)}}
     let button=stem.parentElement.querySelector('.qbExportButton');if(!button){button=document.createElement('button');button.type='button';button.className='qbExportButton';button.textContent='問題・解答を画像として出力';button.onclick=()=>show(button)}
     if(button.parentElement!==bar)bar.prepend(button);if(own&&own!==bar)own.remove();
+    const images=stem.parentElement.querySelector(':scope > .qsiHost');if(images&&(images.compareDocumentPosition(bar)&Node.DOCUMENT_POSITION_FOLLOWING))images.before(bar);
   });
 }
 function boot(){['qb-question-ready','qb-screen-change','qb-content-updated','qb-answer-shown'].forEach(e=>window.addEventListener(e,()=>{if(e==='qb-screen-change')close();mount()}));const view=document.getElementById('view');if(view)new MutationObserver(ms=>{if(ms.some(m=>[...m.addedNodes].some(n=>n instanceof Element&&(n.matches('.adeStemToolbar,.qtext,.card')||n.querySelector('.adeStemToolbar,.qtext')))))mount()}).observe(view,{childList:true,subtree:true});mount()}
