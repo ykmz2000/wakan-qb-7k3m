@@ -1,7 +1,7 @@
 name: Inline overview manual-save regression
 on:
   push:
-    branches: [feat/inline-overview-manual-save, feat/inline-stem-manual-save]
+    branches: [feat/inline-overview-manual-save, feat/inline-stem-manual-save, feat/recent-image-scope-preview]
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,8 +25,10 @@ jobs:
           node scripts/build-inline-overview.cjs
           node --check inline-overview-v1.js
           node --check current-question-identity-v1.js
+          node --check recent-image-picker-v1.js
           node --check tests/inline-overview.browser.cjs
           node --check tests/inline-stem.browser.cjs
+          node --check tests/recent-image-scope-preview.browser.cjs
       - name: Existing text-format unit tests
         run: node --test tests/explanation-format.unit.cjs
       - name: Install browser client
@@ -44,4 +46,11 @@ jobs:
       - name: Inline stem identity, images and manual-save regression
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
-        run: node tests/inline-stem.browser.cjs
+        run: |
+          node tests/inline-stem.browser.cjs
+          node tests/fill-blank-reference.browser.cjs
+          node tests/question-image-add-theme.browser.cjs
+      - name: Scoped recent images and long-press preview
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/recent-image-scope-preview.browser.cjs
