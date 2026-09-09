@@ -24,3 +24,23 @@ test('undo and redo restore a full scene including image crop and page margins',
 test('large exports preserve all content within canvas dimensions',()=>{
   const d=M.fitSize(1200,60000);assert.ok(d.width*d.height<=12000000);assert.ok(d.height<=16384);assert.ok(Math.abs(d.width/d.height-.02)<.001);assert.throws(()=>M.fitSize(0,50));
 });
+
+test('axis endpoints preserve the starting coordinate including reverse drags',()=>{
+  const a={x:300,y:200},b={x:50,y:40};
+  assert.deepEqual(M.lineEnd(a,b,'horizontal'),{x:50,y:200});
+  assert.deepEqual(M.lineEnd(a,b,'vertical'),{x:300,y:40});
+  assert.deepEqual(M.lineEnd(a,b,'straight'),b);
+  assert.deepEqual(a,{x:300,y:200});
+});
+test('circle locks equal dimensions in all drag directions; ellipse remains unrestricted',()=>{
+  const a={x:300,y:300};
+  for(const sx of [-1,1])for(const sy of [-1,1]){
+    const b={x:300+sx*100,y:300+sy*60},c=M.shapeRect(a,b,'circle');
+    assert.equal(c.w,100);assert.equal(c.h,100);
+    assert.equal(c.x,sx<0?200:300);assert.equal(c.y,sy<0?200:300);
+    assert.deepEqual(M.shapeRect(a,b,'ellipse'),M.rect(a,b));
+  }
+  const circle={id:'circle',type:'circle',...M.shapeRect(a,{x:400,y:360},'circle'),width:4};
+  const moved=M.transform(circle,M.bounds(circle),{x:10,y:20,w:200,h:200});
+  assert.equal(moved.w,moved.h);assert.equal(moved.x,10);assert.equal(moved.y,20);
+});

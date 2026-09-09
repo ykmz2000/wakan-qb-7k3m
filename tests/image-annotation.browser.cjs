@@ -32,7 +32,7 @@ async function core(browser,name){
   const p=await browser.newPage({viewport:{width:1024,height:900},hasTouch:true});p.setDefaultTimeout(15000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   await p.route('**/*',r=>r.request().url()==='https://qb-draw.test/'?r.fulfill({contentType:'text/html',body:'<!doctype html><style>*{box-sizing:border-box}body{margin:0}</style><button>前の画面</button>'}):r.request().url().startsWith('blob:')?r.continue():r.abort());await p.goto('https://qb-draw.test/');await install(p);
   await launch(p);assert.equal(await p.locator('.qbDrawSwatch').count(),7);let map=await mapping(p);
-  await p.locator('[data-tool=rect]').click();await drag(p,map,[[100,100],[340,220]]);
+  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,100],[340,220]]);
   await p.locator('[data-tool=lasso]').click();await drag(p,map,[[220,160],[300,200]]);
   await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
   await p.locator('[data-tool=marker]').click();await p.getByRole('button',{name:'青',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,280],[400,280]]);
@@ -43,6 +43,7 @@ async function core(browser,name){
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const out=await pixels(p,[[180,140],[220,180],[100,100],[200,280],[160,340],[200,440]]);
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
   console.log(name+' PASS transparent arbitrary rectangle, move/undo/redo, translucent marker, handwriting, arrow, Japanese text, flattened PNG');
+  await penAndShapes(p,name);
   await straightMarker(p,name);
   await marginsAndPaste(p,name);
   await launch(p);map=await mapping(p);
@@ -51,7 +52,7 @@ async function core(browser,name){
   await p.waitForFunction(()=>document.querySelector('.qbDrawStatus').textContent.includes('画像を追加しました'));
   await p.getByRole('button',{name:'追加画像をトリミング',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbCropSave')?.disabled===false);
   await p.evaluate(()=>document.querySelector('.qbCropImage').cropper.setData({x:20,y:0,width:60,height:80}));await p.locator('.qbCropSave').click();await p.locator('.qbCropModal').waitFor({state:'detached'});
-  await drag(p,map,[[370,300],[650,150]]);await drag(p,map,[[680,190],[710,230]]);
+  map=await mapping(p);await drag(p,map,[[370,300],[650,150]]);await drag(p,map,[[680,190],[710,230]]);
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const pasted=await pixels(p,[[660,150],[400,300]]);assert.ok(pasted.colors[0][2]>170&&pasted.colors[0][0]<70);assert.deepEqual(pasted.colors[1],[255,255,255,255]);
   console.log(name+' PASS image paste, separate crop, movement and aspect-preserving resize');
   for(const viewport of [{width:390,height:844},{width:1024,height:768},{width:844,height:390},{width:1366,height:900}]){
@@ -63,6 +64,33 @@ async function core(browser,name){
   await p.evaluate(({a,b,palm})=>{const c=document.querySelector('.qbDrawCanvas'),event=(type,id,kind,point)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:kind,button:0,buttons:type==='pointerup'?0:1,clientX:point.x,clientY:point.y}));event('pointerdown',41,'pen',a);event('pointerdown',42,'touch',palm);event('pointerdown',43,'touch',{x:palm.x+30,y:palm.y});event('pointermove',41,'pen',b);event('pointerup',43,'touch',{x:palm.x+30,y:palm.y});event('pointerup',42,'touch',palm);event('pointerup',41,'pen',b)}, {a,b,palm});
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const pen=await pixels(p,[[180,120],[400,300]]);assert.ok(pen.colors[0][0]>180&&pen.colors[0][1]<100);assert.deepEqual(pen.colors[1],[255,255,255,255]);assert.deepEqual(errors,[]);await p.close();
   console.log(name+' PASS phone/tablet/landscape layout, pointer pencil input and concurrent palm-touch isolation');
+}
+async function penAndShapes(p,name){
+  await launch(p);
+  const mode=p.getByRole('combobox',{name:'ペンの描き方',exact:true});
+  assert.equal(await mode.inputValue(),'freehand');await mode.selectOption('straight');
+  let map=await mapping(p);await drag(p,map,[[100,100],[180,240],[300,200]]);
+  await mode.selectOption('horizontal');map=await mapping(p);await drag(p,map,[[400,280],[300,400],[100,350]]);
+  await mode.selectOption('vertical');map=await mapping(p);
+  await p.evaluate(({a,b})=>{const c=document.querySelector('.qbDrawCanvas');for(const [type,pt] of [['pointerdown',a],['pointerup',b]])c.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:81,pointerType:'pen',button:0,buttons:type==='pointerup'?0:1,clientX:pt.x,clientY:pt.y}))},{a:map(550,450),b:map(650,120)});
+  await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const out=await pixels(p,[[200,150],[180,240],[250,280],[250,330],[550,280],[600,280]]);
+  for(const i of [0,2,4])assert.ok(out.colors[i][0]>180&&out.colors[i][1]<110,'opaque constrained pen');
+  for(const i of [1,3,5])assert.deepEqual(out.colors[i],[255,255,255,255]);
+  await launch(p,false);assert.equal(await mode.inputValue(),'vertical');
+  await p.locator('[data-tool=marker]').click();assert.equal(await p.getByRole('combobox',{name:'マーカーの描き方',exact:true}).inputValue(),'freehand');
+  await p.locator('[data-tool=pen]').click();assert.equal(await mode.inputValue(),'vertical');await mode.selectOption('freehand');assert.ok(await p.getByRole('slider',{name:'手ぶれ補正',exact:true}).isVisible());
+  await p.locator('[data-tool=circle]').click();map=await mapping(p);await drag(p,map,[[280,280],[100,180]]);
+  await p.locator('[data-tool=ellipse]').click();map=await mapping(p);await drag(p,map,[[400,100],[700,220]]);
+  await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const shapes=await pixels(p,[[190,100],[100,190],[190,280],[280,190],[190,190],[550,100],[400,160],[550,220],[700,160],[550,160],[400,100]]);
+  for(const i of [0,1,2,3,5,6,7,8])assert.ok(shapes.colors[i][0]>180&&shapes.colors[i][1]<110,'round outline');
+  for(const i of [4,9,10])assert.deepEqual(shapes.colors[i],[255,255,255,255],'hollow center and ellipse corner');
+  await launch(p,false);assert.equal(await p.locator('[data-tool=ellipse]').getAttribute('aria-pressed'),'true');
+  await p.locator('.qbDrawModal').getByRole('button',{name:'キャンセル',exact:true}).click();await p.waitForFunction(()=>drawResult===null);
+  console.log(name+' PASS pen line modes, independent preferences, Pencil release, circle/ellipse PNG outlines and undo/redo');
 }
 async function marginsAndPaste(p,name){
   await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);x.fillStyle='#22b8dc';x.fillRect(40,40,80,80);localStorage.setItem('qb-image-editor-settings-v1','{}');window.drawResult=undefined;QBImageEditor.open(c.toDataURL()).then(b=>window.drawResult=b)});

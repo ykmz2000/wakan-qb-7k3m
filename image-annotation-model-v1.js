@@ -4,6 +4,8 @@
 const colors=Object.freeze([{name:'赤',value:'#e04444'},{name:'青',value:'#2463d3'},{name:'オレンジ',value:'#f28c28'},{name:'緑',value:'#23995a'},{name:'水色',value:'#22b8dc'},{name:'ピンク',value:'#ef476f'},{name:'黄色',value:'#ffd63d'}]);
 const copy=x=>JSON.parse(JSON.stringify(x));
 const rect=(a,b)=>({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)});
+function lineEnd(a,b,mode){return mode==='horizontal'?{...b,y:a.y}:mode==='vertical'?{...b,x:a.x}:{...b}}
+function shapeRect(a,b,type){if(type!=='circle')return rect(a,b);const size=Math.max(Math.abs(b.x-a.x),Math.abs(b.y-a.y));return rect(a,{x:a.x+(b.x<a.x?-size:size),y:a.y+(b.y<a.y?-size:size)})}
 function bounds(item){
   if(item.points?.length){let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;for(const p of item.points){left=Math.min(left,p.x);top=Math.min(top,p.y);right=Math.max(right,p.x);bottom=Math.max(bottom,p.y)}const pad=(item.width||1)/2;return{x:left-pad,y:top-pad,w:right-left+2*pad,h:bottom-top+2*pad}}
   if(item.type==='arrow'){const b=rect(item.a,item.b),pad=Math.max(item.width*3,8);return{x:b.x-pad,y:b.y-pad,w:b.w+pad*2,h:b.h+pad*2}}
@@ -23,6 +25,6 @@ class History{
   redo(){if(!this.future.length)return copy(this.current);this.past.push(this.current);this.current=this.future.pop();return copy(this.current)}
 }
 function stabilize(previous,point,strength,zoom=1){const radius=Math.max(0,Math.min(100,Number(strength)||0))*.08/Math.max(.02,zoom);if(!radius)return{...point};const distance=Math.hypot(point.x-previous.x,point.y-previous.y),alpha=1-Math.exp(-distance/radius);return{...point,x:previous.x+(point.x-previous.x)*alpha,y:previous.y+(point.y-previous.y)*alpha}}
-const api={colors,copy,rect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
+const api={colors,copy,rect,lineEnd,shapeRect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.QBImageModel=api;
 })();
