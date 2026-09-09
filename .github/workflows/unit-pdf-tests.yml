@@ -1,0 +1,32 @@
+name: Unit PDF export regression
+on:
+  push:
+    branches: [feat/unit-pdf-export]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and pagination invariants
+        run: |
+          node --check unit-pdf-export-v1.js
+          node --check qb-app.js
+          node --test tests/unit-pdf-layout.unit.cjs
+      - name: Install pinned test client
+        run: npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+      - name: PDF and card interaction
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/unit-pdf-export.browser.cjs
+      - name: Preserve synthetic PDFs and rendered pages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-pdf-results
+          path: /tmp/qb-pdf-results
+          retention-days: 7

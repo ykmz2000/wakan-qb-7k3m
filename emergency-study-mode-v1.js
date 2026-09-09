@@ -47,7 +47,7 @@ async function renderAreas(){
     const data=await getStudyData();if(!data||!onEmergencyUnits()||V.querySelector('#qbEmergencyAreaLayout'))return;
     const {grouped,stateMap}=data,buttonByUnit=new Map();
     unitButtons.forEach(b=>{if(b.dataset.u!=='__all__')buttonByUnit.set(b.dataset.u,b)});
-    const allBtn=unitButtons.find(b=>b.dataset.u==='__all__');if(allBtn)allBtn.remove();
+    const allBtn=unitButtons.find(b=>b.dataset.u==='__all__');if(allBtn)(allBtn.closest('.qbPdfUnitRow')||allBtn).remove();
     const layout=document.createElement('div');layout.id='qbEmergencyAreaLayout';
     Object.entries(GROUPS).sort((a,b)=>a[1].order-b[1].order).forEach(([type,g])=>{
       const group=grouped[type],ids=[...new Set(group.ids)],st=areaStats(ids,stateMap),area=document.createElement('section');area.className='qbEmArea';area.dataset.type=type;
@@ -57,17 +57,17 @@ async function renderAreas(){
         const original=buttonByUnit.get(uid);if(!original)return;
         const fullCount=Number((original.querySelector('.meta')?.textContent||'').match(/^(\d+)問/)?.[1]||subsetIds.length);
         if(subsetIds.length===fullCount){
-          original.addEventListener('click',()=>{activeFilter=null},{capture:true});list.appendChild(original);buttonByUnit.delete(uid)
+          original.addEventListener('click',()=>{activeFilter=null},{capture:true});list.appendChild(original.closest('.qbPdfUnitRow')||original);buttonByUnit.delete(uid)
         }else{
           const clone=original.cloneNode(true),meta=clone.querySelector('.meta'),prog=clone.querySelector('.progress>div'),ss=areaStats(subsetIds,stateMap);
           if(meta)meta.textContent=`${subsetIds.length}問・解答済み ${ss.answered}/${subsetIds.length}・解説確認済み ${ss.reviewed}/${subsetIds.length}`;if(prog)prog.style.width=`${subsetIds.length?ss.answered/subsetIds.length*100:0}%`;
-          clone.onclick=e=>{e.preventDefault();openFilteredList(type,subsetIds,clone.querySelector('.lt')?.textContent||g.heading).catch(console.error)};list.appendChild(clone)
+          clone.onclick=e=>{e.preventDefault();openFilteredList(type,subsetIds,clone.querySelector('.lt')?.textContent||g.heading).catch(console.error)};list.appendChild(window.QBUnitPdf?.wrapCard(clone,subsetIds)||clone)
         }
       });
       if(!list.children.length){const d=document.createElement('div');d.className='qbEmEmpty';d.textContent='現在、この区分に表示できる単元はありません。';list.appendChild(d)}
       area.querySelector('.qbEmAreaAll').onclick=()=>openFilteredList(type,ids,g.heading).catch(console.error);layout.appendChild(area)
     });
-    if(buttonByUnit.size){const area=layout.querySelector('.qbEmArea[data-type="continuing"] .qbEmUnitList');buttonByUnit.forEach(b=>area?.appendChild(b))}
+    if(buttonByUnit.size){const area=layout.querySelector('.qbEmArea[data-type="continuing"] .qbEmUnitList');buttonByUnit.forEach(b=>area?.appendChild(b.closest('.qbPdfUnitRow')||b))}
     const first=V.querySelector('.card');if(first)first.insertAdjacentElement('afterend',layout);else V.prepend(layout)
   }finally{rendering=false}
 }

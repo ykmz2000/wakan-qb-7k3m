@@ -13,13 +13,13 @@ function render(){
   timer=setTimeout(()=>{
     if(window.qbGetScreen?.()!=='units')return;
     const V=document.getElementById('view');if(!V||V.querySelector('.qbComingSoonCard'))return;
-    const unitBtns=[...V.querySelectorAll(':scope > button.list[data-u]')];
+    const unitBtns=[...V.querySelectorAll('button.list[data-u]')];
     if(unitBtns.length!==1||unitBtns[0].dataset.u!=='__all__')return;
     const meta=unitBtns[0].querySelector('.meta')?.textContent||'';
     if(!/^0問(?:・|$)/.test(meta.trim()))return;
     // Keep the synthetic __all__ button in the DOM (hidden) so shared unit-screen
     // extensions can still detect the subject context, including public-guide editing.
-    unitBtns[0].style.display='none';
+    (unitBtns[0].closest('.qbPdfUnitRow')||unitBtns[0]).style.display='none';
     unitBtns[0].setAttribute('aria-hidden','true');
     const card=document.createElement('div');card.className='qbComingSoonCard';
     card.innerHTML='<div class="qbComingSoonTitle">Coming Soon</div><div class="qbComingSoonSub">この科目は現在準備中です。<br>単元・問題を順次追加していきます。</div>';
