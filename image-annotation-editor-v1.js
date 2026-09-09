@@ -76,7 +76,7 @@ async function open(source,options={}){
   function touchPair(){const p=[...pointers.values()].filter(x=>x.type==='touch');return p.length>=2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,dist:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)}:null}
   listen(canvas,'pointerdown',e=>{
     if(!scene||busy||subDialog||e.button>0)return;e.preventDefault();try{canvas.setPointerCapture(e.pointerId)}catch{}const l=local(e);pointers.set(e.pointerId,{...l,type:e.pointerType});
-    if(e.pointerType==='touch'&&penDown)return;const pair=touchPair();if(pair){abortGesture();pinch=pair;return}commitText();canvas.focus({preventScroll:true});const p=point(e);
+    if(e.pointerType==='touch'&&penDown)return;const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){abortGesture();pinch=pair;return}commitText();canvas.focus({preventScroll:true});const p=point(e);
     if(e.pointerType==='touch'&&!finger.checked){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
     if(e.pointerType==='pen'){if(gesture?.kind==='pan')gesture=null;penDown=true}
     if(gesture)return;
@@ -92,7 +92,7 @@ async function open(source,options={}){
   });
   listen(canvas,'pointermove',e=>{
     if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
-    const pair=touchPair();if(pair){if(pinch){const ratio=pair.dist/Math.max(1,pinch.dist);zoomAt(ratio,pinch);ox+=pair.x-pinch.x;oy+=pair.y-pinch.y;requestDraw()}pinch=pair;return}
+    const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){if(pinch){const ratio=pair.dist/Math.max(1,pinch.dist);zoomAt(ratio,pinch);ox+=pair.x-pinch.x;oy+=pair.y-pinch.y;requestDraw()}pinch=pair;return}
     if(pinch||!gesture||gesture.id!==e.pointerId)return;const g=gesture,p=point(e);
     if(g.kind==='pan'){const l=local(e);ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}
     else if(g.kind==='draw'){if(g.item.points){const events=e.getCoalescedEvents?.()||[e];for(const ev of events.length?events:[e]){const n=point(ev),last=g.item.points.at(-1);if(Math.hypot(n.x-last.x,n.y-last.y)>=.6/zoom)g.item.points.push(n)}}else if(g.item.type==='rect')Object.assign(g.item,M.rect(g.start,p));else g.item.b=p}
