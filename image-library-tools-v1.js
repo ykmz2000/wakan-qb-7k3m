@@ -46,8 +46,8 @@ async function cropStem(button){
 }
 function css(){
   if(document.getElementById('qbilCss'))return;const s=document.createElement('style');s.id='qbilCss';s.textContent=`
-.qsiCropTool{position:absolute;right:7px;bottom:7px;z-index:3;border:1px solid #cbd7e3;background:#fffffff2;color:#126fb3;border-radius:8px;padding:5px 8px;font-weight:900;font-size:11px}
-.qsiRecentBtn{border:1px solid #126fb3;background:#fff;color:#126fb3;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:900}
+.qsiCropTool{position:absolute;right:7px;bottom:7px;z-index:3;border:1px solid var(--accent-border,var(--line));background:#fffffff2;color:var(--accent);border-radius:8px;padding:5px 8px;font-weight:900;font-size:11px}
+.qsiRecentBtn{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:8px;padding:8px 10px;font-size:11px;font-weight:900}
 .oeiRecentBtn:disabled,.qsiRecentBtn:disabled,.qsiCropTool:disabled{opacity:.5}
 `;
   document.head.appendChild(s)
@@ -67,5 +67,4 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-
 

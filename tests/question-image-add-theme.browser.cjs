@@ -48,6 +48,8 @@ async function run(browser,name){
   console.log(name+' PASS further-image text/border follows all seven themes without recreating the button');
   await p.locator('.qsiMoreBtn').click();
   await p.locator('.qsiHost .qsiEditor:not(.qsiHidden)').waitFor();
+  const controlColors=await p.evaluate(()=>{const root=document.documentElement;root.style.setProperty('--accent','#9864c9');const probe=document.createElement('i');probe.style.color='var(--accent)';document.body.append(probe);const expected=getComputedStyle(probe).color;const colors=[...document.querySelectorAll('.qsiPick,.qsiPasteBtn,.qsiPasteZone,.qsiRecentBtn,.qsiCropTool')].map(n=>getComputedStyle(n).color);probe.remove();return{expected,colors}});
+  assert.ok(controlColors.colors.length>=3);for(const color of controlColors.colors)assert.equal(color,controlColors.expected);
   assert.equal(await p.evaluate(()=>document.querySelector('.qsiMoreBtn')===testMoreButton),true);
   assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),initialDB);
   console.log(name+' PASS original click handler opens image controls without a DB write');

@@ -36,6 +36,7 @@ function css(){
 .qbCropFooter{padding:10px 14px;min-height:0;max-height:46vh;display:flex;flex-direction:column;gap:8px}.qbCropControls{display:flex;gap:7px;flex-wrap:wrap;overflow:auto;min-height:0;flex-shrink:1;padding:2px}.qbCropControls [aria-pressed="true"]{border-color:var(--accent,#126fb3);background:var(--accent-soft,#eaf4fb);color:var(--accent,#126fb3)}
 .qbCropActions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0}.qbCropActions .qbCropSave{background:var(--accent,#126fb3);color:var(--card,#fff);border-color:var(--accent,#126fb3)}.qbCropStatus{margin-right:auto}
 .qbCropStage .cropper-view-box{outline:2px solid var(--accent,#126fb3)}
+.qbCropStage .cropper-face,.qbCropStage .cropper-line{background-color:var(--accent)}
 .qbCropStage .cropper-point{width:44px!important;height:44px!important;background:transparent;opacity:1;margin:0!important;z-index:2}
 .qbCropStage .cropper-point::before{display:none!important}.qbCropStage .cropper-point::after{content:'';position:absolute;inset:15px;border:2px solid #fff;border-radius:4px;background:var(--accent,#126fb3);box-shadow:0 1px 3px #0009;pointer-events:none}
 .qbCropStage .point-nw{left:-22px;top:-22px}.qbCropStage .point-ne{right:-22px;top:-22px}.qbCropStage .point-sw{left:-22px;bottom:-22px}.qbCropStage .point-se{right:-22px;bottom:-22px}

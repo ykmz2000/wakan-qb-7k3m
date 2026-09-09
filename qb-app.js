@@ -95,11 +95,11 @@ function current(){return questions.find(q=>String(q.id)===String(practice[pi]))
 function renderPractice(){
   const q=current();if(!q){setScreen('problems');return}
   if(!q._detailLoaded){
-    C.textContent=`${subject.name} ＞ 演習 ${pi+1}/${practice.length}`;
+    C.textContent=`${subject.name} ＞ ${units.find(u=>String(u.id)===String(q.unit_id))?.name||'単元未分類'}`;
     V.innerHTML='<div class="card"><div class="title">問題を読み込んでいます…</div><div class="sub">この1問の選択肢と解説を取得しています。</div></div>';
     const id=String(q.id);ensureQuestionDetail(id).then(()=>{if(screen==='practice'&&String(practice[pi])===id)renderPractice()}).catch(showErr);return
   }
-  const o=q.occ[0]||{};C.textContent=`${subject.name} ＞ 演習 ${pi+1}/${practice.length}`;
+  const o=q.occ[0]||{};C.textContent=`${subject.name} ＞ ${units.find(u=>String(u.id)===String(q.unit_id))?.name||'単元未分類'}`;
   // Reference choices in ordering/short-answer questions must not enable MCQ grading.
   const isText=q.answer_mode==='fill_blank'||!q.choices.length,official=o.official_answer;
   const referenceChoices=isText&&q.choices.length?`<div class="choices fbReferenceChoices" role="list" aria-label="参照用の選択肢">${q.choices.map(c=>`<div class="choice fbReferenceChoice" role="listitem" style="white-space:pre-wrap">${esc(c.choice_key)}. ${esc(c.choice_text)}</div>`).join('')}</div>`:'';
