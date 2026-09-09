@@ -22,6 +22,12 @@ function css(){if(document.getElementById('qbEditorLayoutPolishCss'))return;cons
   max-width:none!important;
   margin-right:-78px!important;
 }
+/* Cards retain 15px of right padding; expanding by the entire reserved
+   padding incorrectly puts media and notes outside that content edge. */
+#ans>.card.adeHost>:is(.adeEditor,.qbPersonal,.qbMediaHostV2){
+  width:calc(100% + 63px)!important;
+  margin-right:-63px!important;
+}
 
 /* Personal-note header spans the complete width, so its edit button lines up with the official edit button. */
 .qbPersonalHead{width:100%!important;display:flex!important;align-items:center!important}
@@ -52,6 +58,10 @@ function css(){if(document.getElementById('qbEditorLayoutPolishCss'))return;cons
   #ans .exp.adeHost>.qbMediaHostV2{
     width:calc(100% + 66px)!important;
     margin-right:-66px!important;
+  }
+  #ans>.card.adeHost>:is(.adeEditor,.qbPersonal,.qbMediaHostV2){
+    width:calc(100% + 51px)!important;
+    margin-right:-51px!important;
   }
   #ans>.card.adeHost>.adeEditBtnV2,
   #ans>.card.adeHost>.adeEditBtn,

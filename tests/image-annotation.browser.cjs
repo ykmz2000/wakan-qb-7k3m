@@ -135,4 +135,19 @@ async function integration(browser,name){
   const download=u.waitForEvent('download');await u.getByRole('button',{name:'画像として保存',exact:true}).click();const downloaded=await download;assert.match(downloaded.suggestedFilename(),/\.png$/);await downloaded.saveAs(path.join(resultsDir,name+'-question-export.png'));await u.getByRole('button',{name:'閉じる',exact:true}).click();assert.deepEqual(user.errors,[]);await u.close();
   console.log(name+' PASS independent general-user export, complete long question/options/answers, PNG clipboard and download, no data writes');
 }
-(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await core(browser,name);await integration(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+async function mobileWidth(browser,name){
+  const {page:p}=await fixture.exports.boot(browser);await augment(p);
+  await p.evaluate(()=>{
+    const choices=document.createElement('div');choices.className='choices';
+    for(const text of ['コンタクトを装着したまま寝てしまうと、角膜上皮障害による激しい眼痛をきたすことがある。','急性緑内障発作では急激な眼圧上昇による角膜浮腫で眼痛を自覚するのはまれである。','https://example.invalid/'+ 'long-reference-'.repeat(35)]){const b=document.createElement('button');b.className='choice';b.textContent=text;choices.append(b)}
+    document.querySelector('#ans').before(choices);
+    document.querySelector('.qbPersonalBody').textContent='参考資料：'+ 'https://example.invalid/'+ 'long-reference-'.repeat(35);
+  });
+  for(const width of [375,390,430,768]){
+    await p.setViewportSize({width,height:844});
+    const result=await p.evaluate(()=>({viewport:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('.choice,.qbPersonal,.qbMediaHostV2')].filter(x=>x.getClientRects().length&&x.getBoundingClientRect().right>document.documentElement.clientWidth+1).map(x=>x.className)}));
+    console.log(name+' mobile width '+width+' '+JSON.stringify(result));assert.ok(result.scroll<=result.viewport+1);assert.deepEqual(result.overflow,[]);
+  }
+  await p.setViewportSize({width:390,height:844});await p.screenshot({path:path.join(resultsDir,name+'-mobile-width.png')});await p.close();
+}
+(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await core(browser,name);await integration(browser,name);await mobileWidth(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
