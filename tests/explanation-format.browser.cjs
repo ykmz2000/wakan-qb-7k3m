@@ -30,6 +30,7 @@ async function setup(browser,{role='admin',mode='single',db=null}={}){
         if(window.testFailSave&&this.mode==='update')return{data:null,error:{message:'fixture save failure'}};
         const rows=window.testDB[this.table]||(window.testDB[this.table]=[]);let found=rows.filter(x=>this.filters.every(f=>f(x)));
         if(this.mode==='update'){for(const x of found)Object.assign(x,clone(this.p),{updated_at:new Date(Date.parse(stamp)+(++tick)*1000).toISOString()});window.testWrites.push({table:this.table,mode:this.mode,p:clone(this.p),count:found.length})}
+        if(this.mode==='delete'){window.testDB[this.table]=rows.filter(x=>!found.includes(x));window.testWrites.push({table:this.table,mode:this.mode,count:found.length})}
         if(this.mode==='insert'||this.mode==='upsert'){
           let existing=this.mode==='upsert'?rows.find(x=>x.user_id===this.p.user_id&&x.question_id===this.p.question_id):null;
           if(existing)Object.assign(existing,clone(this.p));else{existing={id:'new-'+(++tick),...clone(this.p)};rows.push(existing)}found=[existing];window.testWrites.push({table:this.table,mode:this.mode,p:clone(this.p),count:1});
