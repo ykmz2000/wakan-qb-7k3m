@@ -35,10 +35,10 @@ async function core(browser,name){
   await p.locator('[data-tool=rect]').click();await drag(p,map,[[100,100],[340,220]]);
   await p.locator('[data-tool=lasso]').click();await drag(p,map,[[220,160],[300,200]]);
   await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
-  await p.locator('[data-tool=marker]').click();await p.getByRole('button',{name:'青',exact:true}).click();await drag(p,map,[[100,280],[400,280]]);
-  await p.locator('[data-tool=pen]').click();await p.getByRole('button',{name:'緑',exact:true}).click();await drag(p,map,[[100,340],[200,340],[250,380]]);
-  await p.locator('[data-tool=arrow]').click();await p.getByRole('button',{name:'オレンジ',exact:true}).click();await drag(p,map,[[100,440],[400,440]]);
-  await p.locator('[data-tool=text]').click();const t=map(120,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('日本語の追記');
+  await p.locator('[data-tool=marker]').click();await p.getByRole('button',{name:'青',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,280],[400,280]]);
+  await p.locator('[data-tool=pen]').click();await p.getByRole('button',{name:'緑',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,340],[200,340],[250,380]]);
+  await p.locator('[data-tool=arrow]').click();await p.getByRole('button',{name:'オレンジ',exact:true}).click();map=await mapping(p);await drag(p,map,[[100,440],[400,440]]);
+  await p.locator('[data-tool=text]').click();map=await mapping(p);const t=map(120,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('日本語の追記');
   await p.screenshot({path:path.join(resultsDir,name+'-annotation.png')});
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>window.drawResult instanceof Blob);const out=await pixels(p,[[180,140],[220,180],[100,100],[200,280],[160,340],[200,440]]);
   assert.deepEqual([out.width,out.height,out.type],[800,600,'image/png']);assert.ok(out.colors[0][0]>180&&out.colors[0][1]<100);assert.deepEqual(out.colors[1],[255,255,255,255]);assert.deepEqual(out.colors[2],[255,255,255,255]);assert.ok(out.colors[3][2]>220&&out.colors[3][0]>150&&out.colors[3][0]<220);assert.ok(out.colors[4][1]>110&&out.colors[4][0]<60);assert.ok(out.colors[5][0]>220&&out.colors[5][1]<170);
