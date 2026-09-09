@@ -1,6 +1,6 @@
-/* In-place editing for overview and canonical display stem only.
+/* Shared rich-text editing for overview, canonical display stem and choice explanations.
    Explicit save only. Images, notes, answers and occurrence source are independent.
-   ProseMirror is bundled locally; other explanation editors keep their existing UI. */
+   ProseMirror is bundled locally; choice fields retain their existing explicit save path. */
 import {Schema} from 'prosemirror-model';
 import {EditorState} from 'prosemirror-state';
 import {EditorView} from 'prosemirror-view';
@@ -69,6 +69,9 @@ function css(){
 #ans>.card.qbInlineActive.adeHost{padding-right:15px!important}
 #ans>.card.qbInlineActive.adeHost>.qbPersonal,#ans>.card.qbInlineActive.adeHost>.qbMediaHostV2{width:100%!important;max-width:100%!important;margin-right:0!important}
 .qbInlineActive>[data-ade-v2="overview"],.qbInlineStemActive>.adeStemToolbar{visibility:hidden}
+.qbInlineFieldSource{display:none!important}
+.qbInlineChoiceField .qbInlineStatus{margin:5px 0;min-width:0}
+.qbInlineChoiceField .qbInlineTools{margin-top:5px}
 .qbInlineTools{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:9px 0 7px}
 .qbInlineTools button{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);min-width:40px;min-height:44px;padding:5px 8px;font:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
 .qbInlineTools button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
@@ -98,7 +101,7 @@ function status(s,text){if(s.status.textContent!==text)s.status.textContent=text
 function updateState(s){
   if(!s.view||s.closed)return;
   s.dirty=!s.view.state.doc.eq(s.initialDoc);
-  if(s.dirty||s.saving)window.addEventListener('beforeunload',beforeUnload);else window.removeEventListener('beforeunload',beforeUnload);
+  if(!s.embedded){if(s.dirty||s.saving)window.addEventListener('beforeunload',beforeUnload);else window.removeEventListener('beforeunload',beforeUnload);}
   if(!s.saving)status(s,s.dirty?'未保存の変更があります':'本文・装飾は「保存」まで反映されません');
   const {from,to,empty,$from}=s.view.state.selection;
   for(const [kind,b] of s.formatButtons){
@@ -199,6 +202,61 @@ function toggleImages(s,toggle){
   const manager=el('div','adeEditor qbInlineImageManager');manager.dataset.adeEditor='overview';manager.dataset.qbQuestionId=s.id;s.media.append(manager);
   media?.classList.add('hidden');toggle.textContent='画像編集を閉じる';toggle.setAttribute('aria-expanded','true');
 }
+function createTools(s){
+    s.tools=el('div','qbInlineTools');s.tools.setAttribute('role','toolbar');s.tools.setAttribute('aria-label',s.config.label+'の文字装飾');
+    const mac=/Mac|iPhone|iPad|iPod/.test(navigator.platform+' '+navigator.userAgent),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
+    for(const [kind,sample,label,keys] of [['bold','B','太字',mod+'B'],['underline','U','下線',mod+'U'],['strike','S','取り消し線',mod+shift+'S'],['marker','M','マーカー',mod+shift+'M'],['accent','A','強調色',mod+shift+'A'],['clear','×','選択範囲の書式解除',''],['undo','↶','元に戻す',mod+'Z'],['redo','↷','やり直す',mod+shift+'Z']]){
+      const b=button('qbInlineTool');b.dataset.qbInlineFormat=kind;b.title=label+(keys?'（'+keys+'）':'');b.setAttribute('aria-label',label);b.append(el('span','qbiSample '+kind,sample));if(keys)b.append(el('kbd','',keys));
+      b.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault()});b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=()=>format(s,kind);
+      if(KINDS.includes(kind)){b.setAttribute('aria-pressed','false');s.formatButtons.set(kind,b)}s.tools.append(b);
+    }
+  return mod;
+}
+function createView(s,rich,changed=updateState){
+    s.view=new EditorView({mount:rich},{
+      state:EditorState.create({schema,doc:s.initialDoc,plugins:[history()]}),
+      attributes:{class:'qbInlineRich',role:'textbox','aria-label':s.config.label+'を直接編集','aria-multiline':'true'},
+      dispatchTransaction(tr){if(s.closed)return;this.updateState(this.state.apply(tr));changed(s)},
+      handleKeyDown(view,e){if(e.key==='Enter'&&!view.composing&&!e.isComposing){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false},
+      handleDOMEvents:{beforeinput(view,e){if(!view.composing&&(e.inputType==='insertParagraph'||e.inputType==='insertLineBreak')){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false}},
+      handlePaste(view,e){e.preventDefault();if(e.clipboardData?.files?.length){status(s,'画像は「画像を編集・追加」から追加してください。');return true}const text=e.clipboardData?.getData('text/plain')||'';if(text)view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g,'\n')).scrollIntoView());return true},
+      handleDrop(view,e){e.preventDefault();status(s,'画像は「画像を編集・追加」、文章はコピー＆ペーストをご利用ください。');return true}
+    });
+}
+const choiceFields=new Set();
+function mountField(ta,field,record,initial,label){
+  const initialDoc=docFrom(initial,record);
+  css();
+  const host=el('div','qbFmtField qbInlineChoiceField');host.dataset.qbFormatField=field;
+  const title=el('label','qbFmtLabel',label),rich=el('div','qbInlineRich');
+  if(!ta.id)ta.id='qbInlineField-'+Math.random().toString(36).slice(2);
+  rich.id=ta.id+'-rich';title.htmlFor=rich.id;
+  const s={host,body:rich,config:{label},initialDoc,formatButtons:new Map(),embedded:true,closed:false,saving:false,status:el('div','qbInlineStatus')};
+  s.status.setAttribute('role','status');
+  createTools(s);
+  const focused=document.activeElement===ta;
+  ta.before(host);host.append(title,s.tools,rich,ta,s.status);ta.classList.add('qbInlineFieldSource');
+  createView(s,rich,()=>{ta.value=s.view.state.doc.firstChild.textContent;updateState(s)});
+  updateState(s);if(focused)s.view.focus();
+  const shortcut=e=>{
+    if(s.closed||!host.contains(e.target))return;
+    const action=keyAction(e);if(!action)return;
+    e.preventDefault();e.stopImmediatePropagation();if(e.repeat||s.saving)return;
+    if(s.view.composing){status(s,'日本語の変換を確定してから操作してください。');return}
+    if(action==='save')host.closest('.adeEditor')?.querySelector('.adeSave')?.click();else format(s,action);
+  };
+  window.addEventListener('keydown',shortcut,true);
+  const control={field,textarea:ta,
+    read(){const draft=readDoc(s.view.state.doc);return window.QBExplanationFormat.snapshot(draft.text,draft.record?.ranges||[],true)},
+    isComposing:()=>s.view.composing,
+    setSaving(value){s.saving=value;s.view.setProps({editable:()=>!value});s.tools.querySelectorAll('button').forEach(b=>b.disabled=value)},
+    destroy(){if(s.closed)return;s.closed=true;s.view.destroy();window.removeEventListener('keydown',shortcut,true);choiceFields.delete(control)},
+    connected:()=>host.isConnected
+  };
+  choiceFields.add(control);return control;
+}
+function cleanChoiceFields(){for(const field of choiceFields)if(!field.connected())field.destroy()}
+for(const event of ['qb-screen-change','qb-retry-current','qb-content-updated','qb-admin-editor-opened'])window.addEventListener(event,()=>queueMicrotask(cleanChoiceFields));
 async function open(host,q,mode='overview'){
   const config=MODES[mode];if(!config)return;
   if(active?.host===host&&active.mode===mode){active.view.focus();return}
@@ -218,13 +276,7 @@ async function open(host,q,mode='overview'){
     const initialText=String(r.data[field]??''),initialRecord=clone(recordOf(r.data,mode)),initialDoc=docFrom(initialText,initialRecord);
     css();
     const s={host,q,id,userId,mode,config,body,initialText,initialRecord,initialDoc,originalNodes:[...body.childNodes],dirty:false,saving:false,closed:false,formatButtons:new Map(),wrappers:[]};
-    s.tools=el('div','qbInlineTools');s.tools.setAttribute('role','toolbar');s.tools.setAttribute('aria-label',config.label+'の文字装飾');
-    const mac=/Mac|iPhone|iPad|iPod/.test(navigator.platform+' '+navigator.userAgent),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
-    for(const [kind,sample,label,keys] of [['bold','B','太字',mod+'B'],['underline','U','下線',mod+'U'],['strike','S','取り消し線',mod+shift+'S'],['marker','M','マーカー',mod+shift+'M'],['accent','A','強調色',mod+shift+'A'],['clear','×','選択範囲の書式解除',''],['undo','↶','元に戻す',mod+'Z'],['redo','↷','やり直す',mod+shift+'Z']]){
-      const b=button('qbInlineTool');b.dataset.qbInlineFormat=kind;b.title=label+(keys?'（'+keys+'）':'');b.setAttribute('aria-label',label);b.append(el('span','qbiSample '+kind,sample));if(keys)b.append(el('kbd','',keys));
-      b.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault()});b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=()=>format(s,kind);
-      if(KINDS.includes(kind)){b.setAttribute('aria-pressed','false');s.formatButtons.set(kind,b)}s.tools.append(b);
-    }
+    const mod=createTools(s);
     s.actions=el('div','qbInlineActions');s.status=el('span','qbInlineStatus');s.status.setAttribute('role','status');
     s.cancelButton=button('qbInlineCancel','キャンセル');s.saveButton=button('qbInlineSave','保存');s.saveButton.append(el('kbd','',mod+'S'));s.actions.append(s.status,s.cancelButton,s.saveButton);
     s.cancelButton.onclick=()=>{if(!s.saving)closeEditor(s)};s.saveButton.onclick=()=>save(s);
@@ -242,15 +294,7 @@ async function open(host,q,mode='overview'){
       host.insertBefore(s.media,anchor||null);host.insertBefore(s.actions,anchor||null);
     }
     active=s;
-    s.view=new EditorView({mount:rich},{
-      state:EditorState.create({schema,doc:initialDoc,plugins:[history()]}),
-      attributes:{class:'qbInlineRich',role:'textbox','aria-label':config.label+'を直接編集','aria-multiline':'true'},
-      dispatchTransaction(tr){if(s.closed)return;this.updateState(this.state.apply(tr));updateState(s)},
-      handleKeyDown(view,e){if(e.key==='Enter'&&!view.composing&&!e.isComposing){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false},
-      handleDOMEvents:{beforeinput(view,e){if(!view.composing&&(e.inputType==='insertParagraph'||e.inputType==='insertLineBreak')){e.preventDefault();view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true}return false}},
-      handlePaste(view,e){e.preventDefault();if(e.clipboardData?.files?.length){status(s,'画像は「画像を編集・追加」から追加してください。');return true}const text=e.clipboardData?.getData('text/plain')||'';if(text)view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g,'\n')).scrollIntoView());return true},
-      handleDrop(view,e){e.preventDefault();status(s,'画像は「画像を編集・追加」、文章はコピー＆ペーストをご利用ください。');return true}
-    });
+    createView(s,rich);
     for(const name of ['qbRetryCurrent','qbOpenSubjects','qbOpenProblemList','showGradeScreen','qbResumeSession']){
       const original=window[name];if(typeof original!=='function')continue;
       const wrapper=function(...args){if(!mayLeave())return;return original.apply(this,args)};
@@ -273,5 +317,5 @@ function captureClick(e){
 }
 window.addEventListener('click',captureClick,true);
 window.addEventListener('keydown',handleShortcut,true);
-window.QBInlineOverview={open,requestLeave:mayLeave,isEditing:()=>!!active,hasUnsavedChanges:()=>!!active?.dirty,editingStem};
+window.QBInlineOverview={open,mountField,requestLeave:mayLeave,isEditing:()=>!!active,hasUnsavedChanges:()=>!!active?.dirty,editingStem};
 if(window.QB_INLINE_TEST)window.QBInlineOverview.codec={docFrom,readDoc};

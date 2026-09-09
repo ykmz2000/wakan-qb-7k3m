@@ -105,7 +105,13 @@ function prepareEditor(ed,q){
   for(const d of defs){if(!d.ta)return;expected[d.field]=target[d.field]??null;initial[d.field]=d.ta.value}
   if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct}
   const state={id,table:choice?'choices':'questions',targetId:String(target.id||target.dbId),metaField:isStem?STEM_META:META,expected,fields:[],error:null,ready:null};editors.set(ed,state);
-  state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=isStem?{stem:meta[STEM_META]}:choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];state.fields=defs.map(d=>mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
+  state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=isStem?{stem:meta[STEM_META]}:choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];for(const d of defs)state.fields.push(choice&&window.QBInlineOverview?.mountField&&new URLSearchParams(location.search).get('editor')!=='classic'?window.QBInlineOverview.mountField(d.ta,d.field,map?.[d.field],d.ta.value,LABELS[d.field]):mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
+}
+function destroyEditor(ed){const state=editors.get(ed);if(!state)return;for(const f of state.fields)f.destroy?.();editors.delete(ed)}
+async function setEditorSaving(ed,saving){
+  const state=editors.get(ed);if(!state)return;await state.ready;
+  if(saving&&state.fields.some(f=>f.isComposing?.()))throw new Error('日本語の変換を確定してから保存してください');
+  for(const f of state.fields)f.setSaving?.(saving);
 }
 async function saveEditor(ed,q,table,id,payload){
   const state=editors.get(ed);if(!state)throw new Error('編集欄を開き直してください');await state.ready;if(state.error)throw state.error;
@@ -163,7 +169,8 @@ function schedule(e){
   if(e?.type==='qb-content-updated'&&!/^(personal-note|personal-note-image|official-image)/.test(e.detail?.type||'')){const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}}
   clearTimeout(timer);timer=setTimeout(render,50);
 }
-window.QBExplanationFormat={html,prepareEditor,saveEditor};
+window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving};
 function boot(){css();['qb-question-ready','qb-screen-change','qb-retry-current','qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+

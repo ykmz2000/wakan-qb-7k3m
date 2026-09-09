@@ -48,12 +48,20 @@ function enhanceExistingChoiceCard(root,q){
   const exps=[...card.querySelectorAll(':scope > .exp')];
   (q.choices||[]).forEach((c,i)=>{
     const exp=exps[i];if(!exp)return;
-    detailRows(c).forEach(([label,text,cls])=>{
-      if(exp.querySelector(`.${cls}`))return;
-      const d=document.createElement('div');d.className=`qbChoiceDetail ${cls}`;
+    const details=detailRows(c);
+    for(const cls of ['qbChoiceCorrection','qbChoiceOtherContext','qbChoiceDistinction']){
+      if(!details.some(d=>d[2]===cls))exp.querySelector(':scope > .'+cls)?.remove();
+    }
+    details.forEach(([label,text,cls])=>{
+      let d=exp.querySelector(':scope > .'+cls);
+      if(d&&[...d.childNodes].filter(n=>n!==d.firstElementChild).map(n=>n.textContent).join('')===text)return;
+      if(!d){d=document.createElement('div');d.className=`qbChoiceDetail ${cls}`;}
       d.innerHTML=`<b>${esc(label)}：</b>${esc(text)}`;
-      exp.appendChild(d);
+      exp.insertBefore(d,exp.querySelector(':scope > .qbMediaHostV2,:scope > .qbPersonal,:scope > .adeEditor'));
     });
+    // Late detail rendering must leave the existing note (and its draft) last.
+    const note=exp.querySelector(':scope > .qbPersonal');
+    if(note&&exp.lastElementChild!==note)exp.appendChild(note);
   });
 }
 function automaticRating(root){
