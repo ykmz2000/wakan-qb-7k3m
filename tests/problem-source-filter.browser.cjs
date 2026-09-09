@@ -7,7 +7,7 @@ assert.ok(end>0);const fixture=new Module(fixtureFile,module);fixture.filename=f
 const {boot}=fixture.exports;
 const selected=p=>p.locator('.problem input:checked').evaluateAll(xs=>xs.map(x=>x.dataset.q).sort());
 async function scope(p,unit){await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').click();await p.locator('[data-u="'+unit+'"]').click();await p.locator('#qbRatingFilterPanel [data-source="year"]').first().waitFor();await p.waitForTimeout(300)}
-async function only(p,axis,values){for(const b of await p.locator('[data-source="'+axis+'"]').all()){const value=await b.getAttribute('data-value'),on=await b.getAttribute('aria-pressed')==='true';if(on!==values.includes(value))await b.click()}await p.waitForTimeout(50)}
+async function only(p,axis,values){for(const b of await p.locator('[data-source="'+axis+'"]').all()){const value=await b.getAttribute('data-value'),on=await b.getAttribute('aria-pressed')==='true';if(!(await b.isDisabled())&&on!==values.includes(value))await b.click()}await p.waitForTimeout(50)}
 async function run(browser,name){
  const {p,errors}=await boot(browser);
  await p.evaluate(()=>{
@@ -25,6 +25,9 @@ async function run(browser,name){
  await scope(p,'__all__');
  assert.deepEqual(await selected(p),['q1','q2','q3','q4','q5','q6']);
  assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['2025','2024','2020','2019','unknown']);
+ assert.match(await p.locator('[data-source="exam"][data-value="unknown"]').textContent(),/本試・追再試不明（2問）/);
+ assert.match(await p.locator('[data-source="year"][data-value="unknown"]').textContent(),/年度不明（2問）/);
+ assert.match(await p.locator('input[data-q="q3"]').locator('xpath=ancestor::div[contains(@class,"problem")]').textContent(),/年度不明｜本試・追再試不明/);
  const rows=await p.locator('.problem input').evaluateAll(xs=>xs.map(x=>x.dataset.q));
  await only(p,'year',['2025']);await only(p,'exam',['main']);
  assert.deepEqual(await selected(p),['q1'],'year and exam must match the same occurrence');
@@ -33,6 +36,11 @@ async function run(browser,name){
  await only(p,'year',['unknown']);assert.deepEqual(await selected(p),['q6']);
  await only(p,'exam',['unknown']);assert.deepEqual(await selected(p),['q3'],'missing occurrence is unknown');
  await only(p,'year',['2020']);assert.deepEqual(await selected(p),['q5'],'unknown exam does not erase a known year');
+ await p.locator('[data-source-unknown="only"]').click();
+ assert.deepEqual(await selected(p),['q3','q5','q6'],'unknown shortcut clears conflicting source axes and includes either missing field');
+ assert.equal(await p.locator('.problem:visible').count(),6);
+ await p.evaluate(()=>window.dispatchEvent(new Event('qb-question-order-updated')));await p.waitForTimeout(400);
+ assert.deepEqual(await selected(p),['q3','q5','q6'],'unknown selection survives a panel rebuild');
  await only(p,'year',['2019']);await p.locator('[data-source-all="exam"]').click();
  for(const b of await p.locator('[data-cat]').all())if(await b.getAttribute('data-cat')!=='×')await b.click();
  assert.deepEqual(await selected(p),['q4']);await p.locator('[data-qbrl="filter"]').click();assert.deepEqual(await selected(p),['q4']);
@@ -43,6 +51,9 @@ async function run(browser,name){
  await p.locator('input[data-q="q2"]').check();await p.evaluate(()=>window.dispatchEvent(new Event('qb-question-order-updated')));await p.waitForTimeout(400);assert.deepEqual(await selected(p),['q2'],'manual checks survive order update');
  assert.match(await p.locator('#start').textContent(),/1問/);
  await scope(p,'unit2');assert.equal(await p.locator('.problem').count(),1);assert.deepEqual(await selected(p),['q6']);assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['unknown']);
+ assert.equal(await p.locator('[data-source="exam"][data-value="main"]').isDisabled(),true);
+ assert.equal(await p.locator('[data-source="exam"][data-value="unknown"]').isDisabled(),true);
+ await p.locator('[data-source-unknown="only"]').click();assert.deepEqual(await selected(p),['q6'],'unknown year counts even with known exam');
  await scope(p,'unit1');assert.equal(await p.locator('.problem').count(),5);assert.equal((await selected(p)).length,5);
  await p.evaluate(()=>{const q=structuredClone(testDB.questions[3]);q.id='q7';q.study_order=7;q.question_occurrences=[{academic_year:2010,exam_type:'本試'}];testDB.questions.push(q)});
  await scope(p,'__all__');assert.equal(await p.locator('[data-source="year"][data-value="2010"]').count(),1);assert.equal((await selected(p)).length,7);
@@ -53,3 +64,4 @@ async function run(browser,name){
  assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS per-unit/all-unit scope, future data additions, manual selection, all/none, count and narrow screen');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+

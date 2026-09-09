@@ -3,12 +3,14 @@
 const CATEGORIES=['◎','○','△','×','未演習'];
 let active=new Set(CATEGORIES),ratingByQuestion=new Map(),fingerprint='',loadedFingerprint='',timer=0,loading=false;
 let years=null,exams=null;
-const EXAMS=[['main','本試'],['retry','追試・再試'],['unknown','区分不明']];
+const EXAMS=[['main','本試'],['retry','追試・再試'],['unknown','本試・追再試不明']];
 const yearOf=o=>/^\d+$/.test(String(o?.academic_year??''))&&Number(o.academic_year)>0?String(Number(o.academic_year)):'unknown';
 const examOf=o=>o?.exam_type==='本試'?'main':['再試','追試','追再試','追・再試','追試・再試'].includes(o?.exam_type)?'retry':'unknown';
 function occurrences(q){const xs=q?.occ||q?.question_occurrences||[];return xs.length?xs:[{}]}
+function hasUnknownSource(q){return occurrences(q).some(o=>yearOf(o)==='unknown'||examOf(o)==='unknown')}
+function scopedQuestions(){const ids=new Set(inputs().map(x=>x.dataset.q));return (window.QB_QUESTIONS||[]).filter(q=>ids.has(String(q.id)))}
 function sourceMatches(q){return occurrences(q).some(o=>(years===null||years.has(yearOf(o)))&&(exams===null||exams.has(examOf(o))))}
-function availableYears(){const ids=new Set(inputs().map(x=>x.dataset.q));return [...new Set((window.QB_QUESTIONS||[]).filter(q=>ids.has(String(q.id))).flatMap(q=>occurrences(q).map(yearOf)))].sort((a,b)=>a==='unknown'?1:b==='unknown'?-1:Number(b)-Number(a))}
+function availableYears(){return [...new Set(scopedQuestions().flatMap(q=>occurrences(q).map(yearOf)))].sort((a,b)=>a==='unknown'?1:b==='unknown'?-1:Number(b)-Number(a))}
 const screen=()=>window.qbGetScreen?.()||'';
 const allInputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
 const inputs=()=>{
@@ -37,6 +39,7 @@ function css(){
 #qbRatingFilterPanel .qbrfSource{border-top:1px solid var(--accent-border,var(--line));margin-top:12px;padding-top:10px}
 #qbRatingFilterPanel .qbrfSourceButtons{display:flex;flex-wrap:wrap;gap:7px}
 #qbRatingFilterPanel .qbrfSourceBtn{min-width:62px;padding:7px 11px;font-size:13px;background:var(--card);color:var(--text)}
+#qbRatingFilterPanel .qbrfSourceBtn:disabled{opacity:.45;cursor:default}
 #qbRatingFilterPanel .qbrfAll{border:0;background:transparent;color:var(--accent);font:inherit;font-size:12px;min-height:44px;padding:4px 8px}
 @media(max-width:390px){#qbRatingFilterPanel{padding:10px}#qbRatingFilterPanel .qbrfButtons{gap:5px}#qbRatingFilterPanel .qbrfBtn{min-height:41px;font-size:14px}#qbRatingFilterPanel .qbrfBtn[data-cat="未演習"]{font-size:11px}}
 `;
@@ -50,10 +53,10 @@ function syncCoreUi(){
   if(toggle)toggle.textContent=count===total?'すべて解除':'すべて選択';
   const c=document.querySelector('#qbRatingFilterPanel .qbrfCount');if(c)c.textContent=`${count}/${total}問を選択`;
 }
-function applySelection(){
+function applySelection(unknownOnly=false){
   const byId=new Map((window.QB_QUESTIONS||[]).map(q=>[String(q.id),q]));
   inputs().forEach(x=>{
-    const want=active.has(categoryOf(x.dataset.q))&&sourceMatches(byId.get(x.dataset.q));
+    const want=active.has(categoryOf(x.dataset.q))&&(unknownOnly?hasUnknownSource(byId.get(x.dataset.q)):sourceMatches(byId.get(x.dataset.q)));
     if(x.checked===want)return;
     x.checked=want;
     x.dispatchEvent(new Event('change',{bubbles:true}));
@@ -75,17 +78,24 @@ function buildPanel(){
   const scoped=inputs(),first=scoped[0]?.closest('.problem');if(!first)return;
   const listCard=first.closest('.card');if(!listCard)return;
   const panel=document.createElement('div');panel.id='qbRatingFilterPanel';panel.innerHTML=`<div class="qbrfHead"><div class="qbrfTitle">自己評価で絞り込み</div><div class="qbrfCount"></div></div><div class="qbrfButtons">${CATEGORIES.map(c=>`<button type="button" class="qbrfBtn ${active.has(c)?'on':''}" data-cat="${c}" aria-pressed="${active.has(c)}">${c}</button>`).join('')}</div><div class="qbrfHint">複数選択できます。未演習には「-（解説のみ）」と自己評価未登録を含みます。</div>`;
-  for(const [axis,label,options] of [['year','出題年度',availableYears().map(y=>[y,y==='unknown'?'年度不明':y])],['exam','試験区分',EXAMS]]){
+  const questions=scopedQuestions();
+  for(const [axis,label,options] of [['year','出題年度',availableYears().map(y=>[y,y==='unknown'?'年度不明':y])],['exam','本試・追再試',EXAMS]]){
     const group=document.createElement('div');group.className='qbrfSource';
     const head=document.createElement('div');head.className='qbrfHead';
     const title=document.createElement('div');title.className='qbrfTitle';title.textContent=label;
     const all=document.createElement('button');all.type='button';all.className='qbrfAll';all.textContent='すべて';all.dataset.sourceAll=axis;
     all.onclick=()=>{if(axis==='year')years=null;else exams=null;updateButtons();applySelection()};
     head.append(title,all);group.append(head);const buttons=document.createElement('div');buttons.className='qbrfSourceButtons';
-    for(const [value,text] of options){const b=document.createElement('button');b.type='button';b.className='qbrfBtn qbrfSourceBtn';b.dataset.source=axis;b.dataset.value=value;b.textContent=text;
+    for(const [value,text] of options){const b=document.createElement('button');b.type='button';b.className='qbrfBtn qbrfSourceBtn';b.dataset.source=axis;b.dataset.value=value;const count=questions.filter(q=>occurrences(q).some(o=>(axis==='year'?yearOf(o):examOf(o))===value)).length;b.textContent=`${text}（${count}問）`;b.dataset.count=String(count);b.disabled=count===0;
       b.onclick=()=>{let selected=axis==='year'?years:exams;if(selected===null)selected=new Set(options.map(o=>o[0]));if(selected.has(value))selected.delete(value);else selected.add(value);if(selected.size===options.length)selected=null;if(axis==='year')years=selected;else exams=selected;updateButtons();applySelection()};buttons.append(b)}
     group.append(buttons);panel.append(group);
   }
+  const unknownGroup=document.createElement('div');unknownGroup.className='qbrfSource';
+  const unknownCount=questions.filter(hasUnknownSource).length;
+  const unknownButton=document.createElement('button');unknownButton.type='button';unknownButton.className='qbrfBtn qbrfSourceBtn';unknownButton.dataset.sourceUnknown='only';unknownButton.textContent=`不明な問題をまとめて選択（${unknownCount}問）`;unknownButton.disabled=unknownCount===0;
+  unknownButton.onclick=()=>{years=null;exams=null;updateButtons();applySelection(true)};
+  const hint=document.createElement('div');hint.className='qbrfHint';hint.textContent='年度・本試／追再試のどちらかが不明な問題を選択します。年度と試験の条件を解除し、自己評価の条件は維持します。';
+  unknownGroup.append(unknownButton,hint);panel.append(unknownGroup);
   const orderBar=document.getElementById('qsoBar');
   if(orderBar&&orderBar.nextElementSibling===listCard)orderBar.insertAdjacentElement('afterend',panel);else listCard.insertAdjacentElement('beforebegin',panel);
   panel.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{
@@ -131,3 +141,4 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
