@@ -69,6 +69,7 @@ async function saveAnswered(Q,response){const c=await userCtx();if(!c)return;con
 async function saveReview(Q){const c=await userCtx();if(!c)return;const {sb,u}=c,now=new Date().toISOString();window.QBAnswerHistory?.review(Q,u.id);const r=await sb.from('user_question_state').select('has_answered,last_answered_at,last_is_correct,last_selected_choice_keys').eq('user_id',u.id).eq('question_id',Q.id).maybeSingle();if(r.error)throw r.error;const old=r.data||{};const p={user_id:u.id,question_id:Q.id,has_viewed_explanation:true,explanation_viewed_at:now,has_answered:!!old.has_answered,last_answered_at:old.last_answered_at||null,last_is_correct:typeof old.last_is_correct==='boolean'?old.last_is_correct:null,last_selected_choice_keys:old.last_selected_choice_keys||[],updated_at:now};const s=await sb.from('user_question_state').upsert(p,{onConflict:'user_id,question_id'});if(s.error)throw s.error}
 function renderResult(Q,response,reviewOnly){
   const ans=document.getElementById('ans');if(!ans)return;
+  ans.classList.remove('hidden');
   const fields=fieldsFor(Q),a=official(Q);
   const mine=reviewOnly?'':`<div class="fbAnswerGroup"><b>あなたの解答</b>${fields.map(f=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(response[f.key]||'')}</strong></div>`).join('')}</div>`;
   const off=`<div class="fbAnswerGroup"><b>公式解答</b>${fields.map((f,i)=>`<div class="fbAnswerLine"><span>${esc(f.label)}</span><strong>${esc(answerValue(a,f,i,fields))}</strong></div>`).join('')}${extraOfficial(a)}</div>`;
@@ -141,4 +142,3 @@ function css(){if(document.getElementById('fbCssV2'))return;const s=document.cre
 function boot(){css();schedule();['qb-screen-change','qb-retry-current','qb-app-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));document.addEventListener('click',dockCompat,true);const v=document.getElementById('view');if(v)new MutationObserver(schedule).observe(v,{childList:true,subtree:true})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-
