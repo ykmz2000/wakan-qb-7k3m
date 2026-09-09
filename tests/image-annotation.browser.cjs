@@ -120,6 +120,22 @@ async function straightMarker(p,name){
   assert.ok(free.colors[0][1]<230);assert.ok(free.colors[2][1]<110);
   for(const i of [1,3])assert.deepEqual(free.colors[i],[255,255,255,255]);
   console.log(name+' PASS straight marker endpoints, diagonal lines, undo/redo, saved preference, freehand switch and independent pen');
+  await launch(p);await p.locator('[data-tool=marker]').click();await mode.selectOption('horizontal');map=await mapping(p);
+  await drag(p,map,[[400,120],[300,250],[100,220]]);
+  await mode.selectOption('vertical');map=await mapping(p);
+  await drag(p,map,[[550,450],[700,250],[650,120]]);
+  // Axis constraints also apply to release-only movement from Pencil input.
+  await p.evaluate(({a,b})=>{const c=document.querySelector('.qbDrawCanvas');for(const [type,pt] of [['pointerdown',a],['pointerup',b]])c.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:71,pointerType:'pen',button:0,buttons:type==='pointerup'?0:1,clientX:pt.x,clientY:pt.y}))},{a:map(200,300),b:map(300,500)});
+  await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const axes=await pixels(p,[[250,120],[250,170],[550,280],[600,280],[200,400],[250,400]]);
+  for(const i of [0,2,4])assert.ok(axes.colors[i][0]>240&&axes.colors[i][1]>140&&axes.colors[i][1]<230,'axis constrained marker');
+  for(const i of [1,3,5])assert.deepEqual(axes.colors[i],[255,255,255,255],'diagonal path must not remain');
+  await launch(p,false);assert.equal(await mode.inputValue(),'vertical');await mode.selectOption('horizontal');
+  await p.locator('.qbDrawModal').getByRole('button',{name:'キャンセル',exact:true}).click();await p.waitForFunction(()=>drawResult===null);
+  await launch(p,false);assert.equal(await mode.inputValue(),'horizontal');
+  await p.locator('.qbDrawModal').getByRole('button',{name:'キャンセル',exact:true}).click();await p.waitForFunction(()=>drawResult===null);
+  console.log(name+' PASS horizontal and vertical marker constraints in both drag directions, Pencil release, undo/redo and remembered modes');
 }
 async function augment(p){
   await p.route('blob:**',r=>r.continue());
