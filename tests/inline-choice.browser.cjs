@@ -39,10 +39,20 @@ async function run(browser,name){
     window.dispatchEvent(new Event('qb-screen-change'));
   });
   await row.locator('.qbChoiceDistinction').waitFor();
-  assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote&&el.querySelector('.qbMediaHostV2')===choiceMedia),true);
+  assert.equal(await row.evaluate(el=>choiceNote.nextElementSibling===choiceMedia&&el.querySelector('.qbMediaHostV2')===choiceMedia),true);
   assert.equal(await note.locator('textarea').inputValue(),'保存前の個人メモ');
+  async function checkDisplay(){
+    await p.waitForFunction(()=>{const row=document.querySelector('#ans .exp');return row.querySelector(':scope > b')?.nextElementSibling===row.querySelector(':scope > .qbChoiceCorrection')});
+    assert.equal(await row.evaluate(el=>{
+      const correction=el.querySelector(':scope > .qbChoiceCorrection'),line=el.querySelector(':scope > .line');
+      return correction.nextElementSibling===line&&getComputedStyle(correction).fontSize===getComputedStyle(line).fontSize&&getComputedStyle(correction.firstElementChild).fontSize===getComputedStyle(line).fontSize;
+    }),true,'correction sits immediately below the choice at explanation font size');
+  }
+  await checkDisplay();
   let ed=await open(p);
-  assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote),true);
+  assert.deepEqual(await ed.locator('[data-qb-choice-field-host]').evaluateAll(nodes=>nodes.map(n=>n.dataset.qbFormatField)),['correction_text','explanation','correct_for_other_context','examiner_distinction']);
+  assert.equal(await ed.evaluate(el=>getComputedStyle(el.querySelector('.qbChoiceCorrection .qbInlineRich')).fontSize===getComputedStyle(el.querySelector('.line .qbInlineRich')).fontSize),true);
+  assert.equal(await row.evaluate(el=>choiceNote.nextElementSibling===choiceMedia),true);
   assert.equal(await ed.evaluate(el=>el.classList.contains('qbChoiceInPlace')&&getComputedStyle(el).borderTopWidth==='0px'),true,'no detached editor panel');
   assert.equal(await row.locator(':scope > .line,:scope > .qbChoiceDetail').count(),0,'displayed text moves into its edit position without duplicate paragraphs');
   assert.equal(await row.evaluate(el=>el.querySelector('.qbMediaHostV2')===choiceMedia),true);
@@ -61,7 +71,8 @@ async function run(browser,name){
   await ed.locator('.adeCancel').click();assert.deepEqual(await p.evaluate(()=>testDB.choices[0]),before.choice);
   assert.equal(await row.locator(':scope > .line').textContent(),before.choice.explanation);
   assert.equal(await row.locator(':scope > .qbChoiceDetail').count(),3);
-  console.log(name+' PASS choice toolbar/shortcuts/undo/cancel; late details keep existing note and draft last');
+  await checkDisplay();
+  console.log(name+' PASS choice toolbar/shortcuts/undo/cancel; late details keep the existing note and draft before official images');
   ed=await open(p);
   for(const key of ['explanation','correction_text','correct_for_other_context','examiner_distinction']){
     field=ed.locator('[data-qb-format-field="'+key+'"]');await select(field,0,2);
@@ -74,7 +85,8 @@ async function run(browser,name){
   assert.equal(saved.examiner_distinction,before.choice.examiner_distinction+'\n追記🙂');
   for(const key of ['explanation','correction_text','correct_for_other_context','examiner_distinction'])assert.equal(saved.explanation_formatting[key].ranges[0].kind,'marker');
   await p.waitForFunction(()=>document.querySelector('.qbChoiceDistinction')?.textContent.includes('追記🙂'));
-  assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote),true);
+  assert.equal(await row.evaluate(el=>choiceNote.nextElementSibling===choiceMedia),true);
+  await checkDisplay();
   ed=await open(p);assert.equal(await ed.locator('.qbInlineRich .qbFmt-marker').count(),4);
   await ed.locator('.adeCancel').click();
   console.log(name+' PASS all four fields persist text and formatting, reload, and immediately update displayed details');
@@ -84,7 +96,7 @@ async function run(browser,name){
   assert.equal(await ed.locator('.oeiBox').isVisible(),true);
   await ed.locator('.oeiFile').setInputFiles({name:'choice.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuQAAAAASUVORK5CYII=','base64')});
   await p.waitForFunction(()=>testUploads===1);await ed.locator('.adeCancel').click();
-  assert.equal(await row.evaluate(el=>el.lastElementChild===choiceNote),true);
+  assert.equal(await row.evaluate(el=>choiceNote.nextElementSibling===choiceMedia),true);
   console.log(name+' PASS personal-note saving and choice-image upload remain operable');
   ed=await open(p);field=ed.locator('[data-qb-format-field="explanation"]');
   await select(field,0,2);await p.keyboard.press('Control+b');

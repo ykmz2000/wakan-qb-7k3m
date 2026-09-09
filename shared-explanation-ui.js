@@ -14,7 +14,7 @@ function currentQuestion(){
   return cand.length===1?cand[0]:null;
 }
 window.pq=currentQuestion;
-function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}.qbChoiceDetail{margin-top:7px;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:13px;line-height:1.6;white-space:pre-wrap}.qbChoiceDetail b{font-size:12px;margin-right:5px}`;document.head.appendChild(s)}
+function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}.qbChoiceDetail{margin-top:7px;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:13px;line-height:1.6;white-space:pre-wrap}.qbChoiceDetail b{font-size:12px;margin-right:5px}#ans .exp .qbChoiceCorrection{font-size:14px;line-height:1.65}#ans .exp .qbChoiceCorrection>b{font-size:inherit;font-weight:700}`;document.head.appendChild(s)}
 function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
 function addCard(root,title,body,cls='line'){
   if(hasHeading(root,title))return;
@@ -29,8 +29,8 @@ function detailRows(c){
   if(c.examiner_distinction)rows.push(['区別ポイント',c.examiner_distinction,'qbChoiceDistinction']);
   return rows;
 }
-function choiceDetailHtml(c){
-  return detailRows(c).map(([label,text,cls])=>`<div class="qbChoiceDetail ${cls}"><b>${esc(label)}：</b>${esc(text)}</div>`).join('');
+function choiceDetailHtml(c,correction=false){
+  return detailRows(c).filter(row=>(row[2]==='qbChoiceCorrection')===correction).map(([label,text,cls])=>`<div class="qbChoiceDetail ${cls}"><b>${esc(label)}：</b>${esc(text)}</div>`).join('');
 }
 function choiceBody(q){
   const choices=q.choices||[];
@@ -38,7 +38,7 @@ function choiceBody(q){
   const ans=q.ans||choices.map((c,i)=>c.is_correct?i:null).filter(i=>i!==null);
   return choices.map((c,i)=>{
     const key=c.choice_key||String.fromCharCode(97+i),text=c.choice_text||String(c),ok=ans.includes(i),ex=c.explanation||'未登録';
-    return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b><div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
+    return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b>${choiceDetailHtml(c,true)}<div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
   }).join('');
 }
 function enhanceExistingChoiceCard(root,q){
@@ -47,21 +47,27 @@ function enhanceExistingChoiceCard(root,q){
   if(!card)return;
   const exps=[...card.querySelectorAll(':scope > .exp')];
   (q.choices||[]).forEach((c,i)=>{
-    const exp=exps[i];if(!exp)return;if(exp.dataset.qbInlineChoiceEditing)return;
+    const exp=exps[i];if(!exp)return;
+    // Move the existing note, including any draft/private images, before official images.
+    const note=exp.querySelector(':scope > .qbPersonal'),media=exp.querySelector(':scope > .qbMediaHostV2');
+    if(note&&media&&note.nextElementSibling!==media)exp.insertBefore(note,media);
+    if(exp.dataset.qbInlineChoiceEditing)return;
     const details=detailRows(c);
     for(const cls of ['qbChoiceCorrection','qbChoiceOtherContext','qbChoiceDistinction']){
       if(!details.some(d=>d[2]===cls))exp.querySelector(':scope > .'+cls)?.remove();
     }
     details.forEach(([label,text,cls])=>{
       let d=exp.querySelector(':scope > .'+cls);
-      if(d&&[...d.childNodes].filter(n=>n!==d.firstElementChild).map(n=>n.textContent).join('')===text)return;
+      const unchanged=d&&[...d.childNodes].filter(n=>n!==d.firstElementChild).map(n=>n.textContent).join('')===text;
       if(!d){d=document.createElement('div');d.className=`qbChoiceDetail ${cls}`;}
-      d.innerHTML=`<b>${esc(label)}：</b>${esc(text)}`;
-      exp.insertBefore(d,exp.querySelector(':scope > .qbMediaHostV2,:scope > .qbPersonal,:scope > .adeEditor'));
+      if(!unchanged)d.innerHTML=`<b>${esc(label)}：</b>${esc(text)}`;
+      if(cls==='qbChoiceCorrection'){
+        const heading=exp.querySelector(':scope > b');
+        if(heading&&heading.nextElementSibling!==d)heading.after(d);
+      }else if(!unchanged){
+        exp.insertBefore(d,exp.querySelector(':scope > .qbMediaHostV2,:scope > .qbPersonal,:scope > .adeEditor'));
+      }
     });
-    // Late detail rendering must leave the existing note (and its draft) last.
-    const note=exp.querySelector(':scope > .qbPersonal');
-    if(note&&exp.lastElementChild!==note)exp.appendChild(note);
   });
 }
 function automaticRating(root){
