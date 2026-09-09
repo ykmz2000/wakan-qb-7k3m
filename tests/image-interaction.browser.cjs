@@ -10,11 +10,11 @@ const near=(a,b)=>assert.ok(Math.abs(a-b)<.02,`${a} should equal ${b}`);
 async function native(p,type,scale){await p.locator('.qbDrawStage').evaluate((stage,{type,scale})=>{const b=stage.getBoundingClientRect(),e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperties(e,{scale:{value:scale},clientX:{value:b.x+b.width/2},clientY:{value:b.y+b.height/2}});document.dispatchEvent(e);if(!e.defaultPrevented)throw Error(type+' was not handled')},{type,scale});await settle(p)}
 async function run(browser,name){
   const p=await browser.newPage({viewport:{width:1024,height:900},hasTouch:true});p.setDefaultTimeout(12000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  await p.route('**/*',r=>r.request().url()==='https://qb-interaction.test/'?r.fulfill({contentType:'text/html',body:'<!doctype html><style>*{box-sizing:border-box}body{margin:0}</style>'}):r.request().url().startsWith('blob:')?r.continue():r.abort());await p.goto('https://qb-interaction.test/');await install(p);await launch(p);const map=await mapping(p);
+  await p.route('**/*',r=>r.request().url()==='https://qb-interaction.test/'?r.fulfill({contentType:'text/html',body:'<!doctype html><style>*{box-sizing:border-box}body{margin:0}</style>'}):r.request().url().startsWith('blob:')?r.continue():r.abort());await p.goto('https://qb-interaction.test/');await install(p);await launch(p);let map=await mapping(p);
   await drag(p,map,[[100,100],[500,100]]);await settle(p);
   const solid=await p.locator('.qbDrawCanvas').evaluate((c,{a,b})=>{const r=c.getBoundingClientRect(),d=c.width/r.width,x=c.getContext('2d');let gaps=0;for(let px=a.x;px<b.x;px+=2){const v=x.getImageData(Math.round((px-r.left)*d),Math.round((a.y-r.top)*d),1,1).data;if(v[0]<150||v[1]>130)gaps++}return gaps},{a:map(130,100),b:map(470,100)});assert.equal(solid,0,'live pen must stay solid across consecutive render frames');
   console.log(name+' PASS live handwriting remains a continuous solid line');
-  await p.locator('[data-tool=rect]').click();await drag(p,map,[[100,200],[300,280]]);await drag(p,map,[[200,240],[400,300]]);
+  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,200],[300,280]]);await drag(p,map,[[200,240],[400,300]]);
   await p.locator('[data-tool=arrow]').click();await drag(p,map,[[100,400],[300,400]]);await drag(p,map,[[200,400],[400,430]]);
   await p.locator('[data-tool=text]').click();let t=map(110,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('MOVE');await p.locator('[data-tool=rect]').click();
   t=map(150,515);await p.mouse.click(t.x,t.y);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'first click selects without entering text');
