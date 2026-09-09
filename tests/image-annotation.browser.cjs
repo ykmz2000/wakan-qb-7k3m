@@ -68,12 +68,12 @@ async function marginsAndPaste(p,name){
   await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);x.fillStyle='#22b8dc';x.fillRect(40,40,80,80);localStorage.setItem('qb-image-editor-settings-v1','{}');window.drawResult=undefined;QBImageEditor.open(c.toDataURL()).then(b=>window.drawResult=b)});
   await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
   await p.locator('[data-tool=rect]').click();let map=await mapping(p);await drag(p,map,[[160,160],[260,240]]);
-  if(name==='chromium')await p.context().grantPermissions(['clipboard-read','clipboard-write']);
-  await p.evaluate(async native=>{const c=document.createElement('canvas');c.width=120;c.height=80;const x=c.getContext('2d');x.fillStyle='#2463d3';x.fillRect(0,0,120,80);window.pasteTestBlob=await new Promise(r=>c.toBlob(r));if(native)await navigator.clipboard.write([new ClipboardItem({'image/png':pasteTestBlob})])},name==='chromium');
+  if(name.toLowerCase()==='chromium')await p.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await p.evaluate(async native=>{const c=document.createElement('canvas');c.width=120;c.height=80;const x=c.getContext('2d');x.fillStyle='#2463d3';x.fillRect(0,0,120,80);window.pasteTestBlob=await new Promise(r=>c.toBlob(r));if(native)await navigator.clipboard.write([new ClipboardItem({'image/png':pasteTestBlob})])},name.toLowerCase()==='chromium');
   // Exercise both non-editable focus locations. Chromium uses the real clipboard.
   for(const selector of ['.qbDrawCanvas','[data-tool=rect]']){
     await p.locator(selector).focus();
-    if(name==='chromium')await p.keyboard.press('Control+v');
+    if(name.toLowerCase()==='chromium')await p.keyboard.press('Control+v');
     else await p.evaluate(()=>{document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'v',metaKey:true,bubbles:true,cancelable:true}));if(!document.activeElement.classList.contains('qbDrawPasteTarget'))throw Error('Paste receiver was not focused');const d=new DataTransfer();d.items.add(new File([pasteTestBlob],'pasted.png',{type:'image/png'}));document.activeElement.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:d}))});
     await p.waitForFunction(()=>document.querySelector('.qbDrawStatus').textContent.includes('画像を追加しました'));
     // Move each image away from the paste position so a duplicate insertion is visible.
