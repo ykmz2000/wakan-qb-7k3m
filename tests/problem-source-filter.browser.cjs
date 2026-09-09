@@ -10,6 +10,7 @@ async function scope(p,unit){await p.evaluate(()=>qbOpenSubjects());await p.loca
 async function only(p,axis,values){for(const b of await p.locator('[data-source="'+axis+'"]').all()){const value=await b.getAttribute('data-value'),on=await b.getAttribute('aria-pressed')==='true';if(!(await b.isDisabled())&&on!==values.includes(value))await b.click()}await p.waitForTimeout(50)}
 async function run(browser,name){
  const {p,errors}=await boot(browser);
+ await p.clock.setFixedTime(new Date('2026-09-09T00:00:00Z'));
  await p.evaluate(()=>{
    qbSupabase.auth.onAuthStateChange=()=>({data:{subscription:{unsubscribe(){}}}});
    const o=(year,type)=>({academic_year:year,exam_type:type});
@@ -23,7 +24,7 @@ async function run(browser,name){
  });
  for(const f of ['theme-system-v1.js','theme-coverage-v2.js','problem-rating-filter-v1.js','review-later-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
  await scope(p,'__all__');
- assert.deepEqual(await selected(p),['q1','q2','q3','q4','q5','q6']);
+ assert.deepEqual(await selected(p),['q1','q2'],'initial selection uses current calendar year and preceding four years');
  assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['2025','2024','2020','2019','unknown']);
  assert.match(await p.locator('[data-source="exam"][data-value="unknown"]').textContent(),/本試・追再試不明（2問）/);
  assert.match(await p.locator('[data-source="year"][data-value="unknown"]').textContent(),/年度不明（2問）/);
@@ -50,18 +51,20 @@ async function run(browser,name){
  await p.locator('#toggleAll').click();await p.waitForTimeout(400);assert.deepEqual(await selected(p),[],'clear all survives rebuilding controls');
  await p.locator('input[data-q="q2"]').check();await p.evaluate(()=>window.dispatchEvent(new Event('qb-question-order-updated')));await p.waitForTimeout(400);assert.deepEqual(await selected(p),['q2'],'manual checks survive order update');
  assert.match(await p.locator('#start').textContent(),/1問/);
- await scope(p,'unit2');assert.equal(await p.locator('.problem').count(),1);assert.deepEqual(await selected(p),['q6']);assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['unknown']);
+ await scope(p,'unit2');assert.equal(await p.locator('.problem').count(),1);assert.deepEqual(await selected(p),[]);assert.deepEqual(await p.locator('[data-source="year"]').evaluateAll(xs=>xs.map(x=>x.dataset.value)),['unknown']);
  assert.equal(await p.locator('[data-source="exam"][data-value="main"]').isDisabled(),true);
  assert.equal(await p.locator('[data-source="exam"][data-value="unknown"]').isDisabled(),true);
  await p.locator('[data-source-unknown="only"]').click();assert.deepEqual(await selected(p),['q6'],'unknown year counts even with known exam');
- await scope(p,'unit1');assert.equal(await p.locator('.problem').count(),5);assert.equal((await selected(p)).length,5);
+ await scope(p,'unit1');assert.equal(await p.locator('.problem').count(),5);assert.deepEqual(await selected(p),['q1','q2']);
  await p.evaluate(()=>{const q=structuredClone(testDB.questions[3]);q.id='q7';q.study_order=7;q.question_occurrences=[{academic_year:2010,exam_type:'本試'}];testDB.questions.push(q)});
- await scope(p,'__all__');assert.equal(await p.locator('[data-source="year"][data-value="2010"]').count(),1);assert.equal((await selected(p)).length,7);
+ await scope(p,'__all__');assert.equal(await p.locator('[data-source="year"][data-value="2010"]').count(),1);assert.deepEqual(await selected(p),['q1','q2'],'adding older data does not widen the default');
  await p.setViewportSize({width:320,height:800});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await p.locator('[data-source="year"][data-value="2010"]').click();assert.equal((await selected(p)).includes('q7'),false);
+ await p.locator('[data-source="year"][data-value="2010"]').click();assert.equal((await selected(p)).includes('q7'),true);
  await p.locator('[data-source-all="year"]').click();assert.equal((await selected(p)).includes('q7'),true);
+ await p.evaluate(()=>{const template=structuredClone(testDB.questions[0]);for(const year of [2021,2022,2026,2027])testDB.questions.push({...structuredClone(template),id:'year-'+year,unit_id:'unit1',question_occurrences:[{academic_year:year,exam_type:'本試'}]})});
+ await scope(p,'__all__');assert.deepEqual(await selected(p),['q1','q2','year-2022','year-2026'],'include current year and boundary, exclude older and future years');
+ await p.clock.setFixedTime(new Date('2026-12-31T15:00:00Z'));await scope(p,'unit2');await scope(p,'__all__');assert.deepEqual(await selected(p),['q1','q2','year-2026','year-2027'],'advance automatically at the Japanese calendar year boundary');
  assert.deepEqual(await p.evaluate(()=>testWrites.filter(x=>['questions','choices','question_occurrences','question_ratings','user_question_flags','attempts'].includes(x.table))),[],'filters do not modify stored data');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS per-unit/all-unit scope, future data additions, manual selection, all/none, count and narrow screen');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
-

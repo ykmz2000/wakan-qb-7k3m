@@ -2,7 +2,7 @@
 'use strict';
 const CATEGORIES=['◎','○','△','×','未演習'];
 let active=new Set(CATEGORIES),ratingByQuestion=new Map(),fingerprint='',loadedFingerprint='',timer=0,loading=false;
-let years=null,exams=null;
+let years=null,exams=null,defaultSelectionPending=false;
 const EXAMS=[['main','本試'],['retry','追試・再試'],['unknown','本試・追再試不明']];
 const yearOf=o=>/^\d+$/.test(String(o?.academic_year??''))&&Number(o.academic_year)>0?String(Number(o.academic_year)):'unknown';
 const examOf=o=>o?.exam_type==='本試'?'main':['再試','追試','追再試','追・再試','追試・再試'].includes(o?.exam_type)?'retry':'unknown';
@@ -11,6 +11,11 @@ function hasUnknownSource(q){return occurrences(q).some(o=>yearOf(o)==='unknown'
 function scopedQuestions(){const ids=new Set(inputs().map(x=>x.dataset.q));return (window.QB_QUESTIONS||[]).filter(q=>ids.has(String(q.id)))}
 function sourceMatches(q){return occurrences(q).some(o=>(years===null||years.has(yearOf(o)))&&(exams===null||exams.has(examOf(o))))}
 function availableYears(){return [...new Set(scopedQuestions().flatMap(q=>occurrences(q).map(yearOf)))].sort((a,b)=>a==='unknown'?1:b==='unknown'?-1:Number(b)-Number(a))}
+function recentYears(){
+  const known=availableYears().filter(y=>y!=='unknown');
+  const current=Number(new Intl.DateTimeFormat('en-US',{year:'numeric',timeZone:'Asia/Tokyo'}).format(new Date()));
+  return new Set(known.filter(y=>Number(y)>=current-4&&Number(y)<=current));
+}
 const screen=()=>window.qbGetScreen?.()||'';
 const allInputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
 const inputs=()=>{
@@ -117,13 +122,14 @@ async function inject(force=false){
   clearTimeout(timer);timer=0;if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
   const xs=inputs();if(!xs.length)return;
   const fp=currentFingerprint();
-  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=null;exams=null;ratingByQuestion=new Map();}
+  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=recentYears();exams=null;ratingByQuestion=new Map();defaultSelectionPending=true;}
   if(loading)return;
   if(force||loadedFingerprint!==fp){
     loading=true;
     try{await loadRatings(xs.map(x=>x.dataset.q));loadedFingerprint=fp}catch(e){console.error('rating filter load',e)}finally{loading=false}
   }
   if(screen()!=='problems'||currentFingerprint()!==fp){schedule(true);return}
+  if(defaultSelectionPending){defaultSelectionPending=false;applySelection();}
   buildPanel();
 }
 function schedule(force=false){if(timer&&!force)return;clearTimeout(timer);timer=setTimeout(()=>inject(force).catch(console.error),120)}
@@ -141,4 +147,3 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-
