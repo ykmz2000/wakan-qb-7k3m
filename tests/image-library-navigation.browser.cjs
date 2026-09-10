@@ -17,7 +17,14 @@ async function run(browser,label){
  await lightbox.getByRole('button',{name:'閉じる',exact:true}).click();await lightbox.waitFor({state:'detached'});
  assert.equal(await p.locator('.qbLibraryOverlay').first().evaluate(n=>n.inert),false);
  await image.focus();await image.press('Enter');await lightbox.waitFor();await p.keyboard.press('Escape');await lightbox.waitFor({state:'detached'});await edit.waitFor();
- await edit.click();await p.getByLabel('画像名',{exact:true}).fill('戻るだけで保存');await p.getByLabel('キーワード',{exact:true}).fill('lung cancer');
+ await edit.click();
+ // The normal library editor, not just upload review, keeps the image above every metadata control.
+ for(const viewport of [{width:1024,height:768},{width:390,height:844}]){
+  await p.setViewportSize(viewport);
+  const order=await p.locator('.qbLibraryDetailImage').evaluate(img=>{const form=img.parentElement.querySelector('.qbLibraryForm'),name=form.querySelector('textarea'),advanced=form.querySelector('details'),save=[...form.querySelectorAll('button')].find(b=>b.textContent==='変更を保存');return [name,advanced,save].every(n=>n&&(img.compareDocumentPosition(n)&Node.DOCUMENT_POSITION_FOLLOWING)&&img.getBoundingClientRect().bottom<=n.getBoundingClientRect().top)});
+  assert.equal(order,true);
+ }
+ await p.getByLabel('画像名',{exact:true}).fill('戻るだけで保存');await p.getByLabel('キーワード',{exact:true}).fill('lung cancer');
  await p.evaluate(()=>{window.originalNavigationRpc=qbSupabase.rpc;window.navigationSaveCalls=0;qbSupabase.rpc=(n,a)=>{if(n==='qb_library_save'){navigationSaveCalls++;return new Promise(resolve=>window.releaseNavigationSave=()=>resolve(originalNavigationRpc(n,a)))}return originalNavigationRpc(n,a)}});
  const back=p.getByRole('button',{name:'一覧に戻る',exact:true});await back.click();assert.equal(await back.isDisabled(),true);
  await back.dispatchEvent('click');assert.equal(await p.evaluate(()=>navigationSaveCalls),1);

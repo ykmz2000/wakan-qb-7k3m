@@ -266,7 +266,7 @@ async function open({context=null}={}){
    if(!row.archived)top.append(btn('この画像に追加してセットにする',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'この画像を選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'この画像を選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
-   const form=el('form','qbLibraryForm'),controls={};detailView.insertBefore(form,img);
+   const form=el('form','qbLibraryForm'),controls={};detailView.append(form);
    const fields=metadataForm(form,m);Object.assign(controls,fields.controls);const advanced=fields.advanced;
    const collect=()=>Object.fromEntries(Object.entries(controls).map(([k,get])=>[k,get()]));let baseline=collect();dirty=()=>Object.keys(C.changed(baseline,collect())).length>0;
    const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();if(!imeActive(document.activeElement))saveForm()};
