@@ -128,6 +128,25 @@ async function run(browser,name){
  await p.evaluate(()=>{testRole='user';testUserId=null;authChanged()});await p.locator('.qbLibraryEntry').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryAction').count(),0);assert.equal(await p.locator('#oldUpload').count(),1);pass('signed-out entry hidden and old controls retained');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' image-library browser checks passed');
 }
+async function runPagination(browser,name){
+ const {page:p,errors}=await boot(browser);
+ await p.evaluate(()=>{
+  const original=db.qb_image_library_items[0];db.qb_image_library_items=Array.from({length:70},(_,i)=>({...structuredClone(original),id:'page-'+i,metadata:{...structuredClone(original.metadata),name:'ページ画像'+i}}));
+  const rpc=qbSupabase.rpc;window.pageRequests=[];window.failNextPage=true;
+  qbSupabase.rpc=async(n,a)=>{if(n==='qb_library_search_v2'){pageRequests.push(a.p_offset);if(a.p_offset===30&&failNextPage){failNextPage=false;return{error:{message:'再試行用の通信エラー'}}}await new Promise(r=>setTimeout(r,150))}return rpc(n,a)};
+ });
+ await p.locator('.qbLibraryEntry').click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===30);
+ const scroll=()=>p.locator('.qbLibraryBody').evaluate(n=>{n.scrollTop=n.scrollHeight;for(let i=0;i<20;i++)n.dispatchEvent(new Event('scroll'))});
+ await scroll();await p.getByRole('button',{name:'再読み込み',exact:true}).waitFor();
+ await scroll();assert.deepEqual(await p.evaluate(()=>pageRequests),[0,30]);
+ await p.getByRole('button',{name:'再読み込み',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===60);
+ await scroll();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===70);
+ await scroll();assert.deepEqual(await p.evaluate(()=>pageRequests),[0,30,30,60]);
+ assert.equal(await p.locator('.qbLibrarySelect input').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.selectImage)).size),70);
+ await p.getByRole('searchbox').fill('ページ画像69');await p.getByRole('button',{name:'検索',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===1);
+ assert.equal(await p.locator('.qbLibraryName').textContent(),'ページ画像69');
+ assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS automatic pagination, duplicate prevention, explicit retry, end-of-list and search reset');
+}
 module.exports={boot};
-if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);await runPagination(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
 
