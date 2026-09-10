@@ -10,7 +10,7 @@ let active=null,opening=false;
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=String(text);return n}
 function btn(text,fn,cls=''){const b=el('button',cls,text);b.type='button';if(fn)b.onclick=fn;return b}
 function inputField(label,value='',multiline=false){const l=el('label','qbLibraryField'),span=el('span','',label),i=el(multiline?'textarea':'input');i.value=value;l.append(span,i);return {host:l,input:i}}
-function selectField(label,options,value=''){const l=el('label','qbLibraryField'),span=el('span','',label),s=el('select');for(const [v,t] of options)s.add(new Option(t,v));s.value=value;l.append(span,s);return{host:l,input:s}}
+function selectField(label,options,value=''){const l=el('label','qbLibraryField'),span=el('span','',label),s=el('select');s.setAttribute('aria-label',label);for(const [v,t] of options)s.add(new Option(t,v));s.value=value;l.append(span,s);return{host:l,input:s}}
 function check(text,value){const l=el('label','qbLibraryCheck'),i=el('input');i.type='checkbox';i.checked=!!value;l.append(i,el('span','',text));return{host:l,input:i}}
 function detailBlock(label){const d=el('details','qbLibraryDetails');d.append(el('summary','',label));return d}
 function fieldText(value){return Array.isArray(value)?value.join('、'):String(value??'')}
