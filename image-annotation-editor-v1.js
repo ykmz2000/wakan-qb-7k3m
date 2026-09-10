@@ -202,7 +202,7 @@ async function open(source,options={}){
       const selected=scene.items.filter(i=>selection.includes(i.id)),box=M.union(selected);
       if(box){const corners=[{x:box.x,y:box.y},{x:box.x+box.w,y:box.y},{x:box.x,y:box.y+box.h},{x:box.x+box.w,y:box.y+box.h}],corner=corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<14/zoom);if(corner>=0){gesture={kind:'resize',before:M.copy(scene),box,corner,id:e.pointerId};return}}
       const hit=[...scene.items].reverse().find(i=>M.hit(i,p,6/zoom));
-      if(hit){const wasSelected=selection.length===1&&selection[0]===hit.id;if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId,moved:false,textId=undefined};gesture.textId=wasSelected&&hit.type==='text'?hit.id:null;return}
+      if(hit){const wasSelected=selection.length===1&&selection[0]===hit.id;if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId,moved:false,textId:wasSelected&&hit.type==='text'?hit.id:null};return}
     }else if(directTypes.has(tool)){
       const hit=[...scene.items].reverse().find(i=>i.type===tool&&M.hit(i,p,6/zoom));
       if(hit){const wasSelected=selection.length===1&&selection[0]===hit.id;if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId,moved:false,textId:wasSelected&&hit.type==='text'?hit.id:null};return}
