@@ -90,7 +90,7 @@ async function run(browser,name){
  await p.getByLabel('画像名',{exact:true}).fill('競合中の下書き');await p.evaluate(()=>db.qb_image_library_items[0].revision++);await p.getByRole('button',{name:'変更を保存',exact:true}).click();await p.getByRole('button',{name:'最新情報を別表示'}).waitFor();
  assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧へ戻る'}).click();pass('conflicting updates keep draft without overwriting');
  await p.getByRole('searchbox').fill('');await p.getByRole('button',{name:'検索',exact:true}).click();
- await p.locator('.qbLibraryTools input[type=file]').setInputFiles({name:'unprocessed.png',mimeType:'image/png',buffer:Buffer.from('independent original bytes')});await p.waitForFunction(()=>db.qb_image_library_items.length===3);
+ await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles({name:'unprocessed.png',mimeType:'image/png',buffer:Buffer.from('independent original bytes')});await p.waitForFunction(()=>db.qb_image_library_items.length===3);
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');
  assert.equal(await p.evaluate(()=>calls.filter(c=>c[1]==='qb_library_record_reading').length),0);
  await p.getByRole('button',{name:'閉じる',exact:true}).click();assert.equal(await p.locator('#draft').inputValue(),'保存していない問題文');assert.equal(await p.locator('main').evaluate(n=>n.inert),false);pass('upload immediately usable, no OCR, background draft preserved');
