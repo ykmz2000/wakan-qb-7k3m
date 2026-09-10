@@ -54,3 +54,15 @@ body .qbripModal :is(.qbripFoot button,.qbripFilterRetry){font-family:inherit;fo
 .qbLibraryEntry svg{width:21px;height:21px}.qbLibraryEntry:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:600px){.qbLibraryOverlay{padding:0}.qbLibraryPanel{width:100%;height:100dvh}.qbLibraryBody{padding:0 12px 14px}.qbLibraryHeader{padding:max(10px,env(safe-area-inset-top)) 12px 10px}.qbLibraryGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}.qbLibraryItem img{height:120px}.qbLibraryFilterGrid,.qbLibraryForm{grid-template-columns:1fr}.qbLibraryFooter{padding-left:12px;padding-right:12px}.qbLibraryHeader strong{font-size:16px}.qbLibraryDetailImage{max-height:300px}}
 @media(max-width:340px){.qbLibraryGrid{grid-template-columns:1fr}}
+/* Sets use native horizontal scrolling, preserving vertical page scrolling. */
+.qbLibrarySlides{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:thin;min-width:0;width:100%}
+.qbLibrarySlides button.qbLibrarySlide{flex:0 0 100%;width:100%;min-width:100%;padding:0;border:0;scroll-snap-align:start;background:transparent}
+.qbLibrarySlideNav{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:14px}
+.qbLibrarySetMember{display:grid;grid-template-columns:100px 1fr;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.qbLibrarySetMember img{width:100px;height:90px;object-fit:contain}.qbLibrarySetMember .qbLibraryCheck{grid-column:2}
+.qbLibrarySetMembers{margin:10px 0}.qbLibraryFooter{flex-wrap:wrap}
+.qbLibraryField>.qbLibraryChecks{max-height:260px;overflow:auto}.qbLibraryFilters>.qbLibraryChecks{max-height:220px;overflow:auto}
+body:has(>.qbLibraryOverlay)>.qbDrawModal{z-index:10130}
+body:has(>.qbLibraryOverlay)>.qbCropModal{z-index:10140}
+body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.qbCropModal button){border-radius:0}
+@media(max-width:600px){.qbLibrarySetMember{grid-template-columns:80px 1fr}.qbLibrarySetMember img{width:80px}.qbLibrarySlideNav button{padding:6px}}

@@ -16,7 +16,7 @@ function fileInfo(file){if(!file||!file.size||file.size>20*1024*1024)throw Error
 async function upload(sb,id,file){const {type,ext}=fileInfo(file),path=id+'/'+crypto.randomUUID()+'.'+ext;unwrap(await sb.storage.from(BUCKET).upload(path,file,{contentType:type,upsert:false,cacheControl:'3600'}));return path}
 async function add(sb,file){
  await authorize(sb);const id=crypto.randomUUID(),path=await upload(sb,id,file);
- const payload={id,object_path:path,original_path:path,metadata:{name:file.name||'画像',subject_ids:[],topics:[],keywords:[],aspects:[],roles:[],aliases:[],related_keywords:[],notes:'',ocr_text:'',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown'}};
+ const payload={id,object_path:path,original_path:path,metadata:{name:file.name||'画像',subject_ids:[],unit_ids:[],topics:[],keywords:[],aspects:[],roles:[],aliases:[],related_keywords:[],notes:'',ocr_text:'',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown'}};
  // An ambiguous write may already have committed. Never remove the original on error.
  const r=await sb.from('qb_image_library_items').insert(payload).select('*').single();
  if(r.error){const check=await get(sb,id).catch(()=>null);if(check?.object_path===path)return check;throw Error('登録結果を確認できません。再確認用の画像ID: '+id+' / '+r.error.message)}return r.data;
@@ -35,8 +35,8 @@ async function save(sb,row,patch,options={}){
  C.validate(patch);const r=await sb.rpc('qb_library_save',{p_id:row.id,p_revision:row.revision,p_patch:patch,p_origin:options.origin||'manual',p_reason:options.reason||'情報を編集',p_archived:options.archived??null,p_object_path:options.objectPath||null});return one(unwrap(r));
 }
 async function replace(sb,row,file){await authorize(sb);const latest=await get(sb,row.id);if(latest.revision!==row.revision)throw Error('別の更新があります。最新の情報を確認してください。');const path=await upload(sb,row.id,file);return save(sb,row,{}, {objectPath:path,reason:'原本を新しい画像に差し替え'})}
-async function search(sb,state={}){return unwrap(await sb.rpc('qb_library_search',{p_query:state.query||'',p_subjects:state.subjects||[],p_aspect:state.aspect||'',p_analysis:state.analysis||'',p_classification:state.classification||'',p_used:state.used||'',p_related:!!state.related,p_archived:!!state.archived,p_offset:state.offset||0,p_limit:30}))||[]}
-async function catalog(sb,table){let rows=[];for(let n=0;;n+=200){const q=sb.from(table).select('*').order(table==='subjects'?'sort_order':'canonical').range(n,n+199),batch=unwrap(await q)||[];rows.push(...batch);if(batch.length<200)return rows}}
+async function search(sb,state={}){return unwrap(await sb.rpc('qb_library_search_v2',{p_query:state.query||'',p_subjects:state.subjects||[],p_aspect:state.aspect||'',p_analysis:state.analysis||'',p_classification:state.classification||'',p_used:state.used||'',p_related:!!state.related,p_archived:!!state.archived,p_offset:state.offset||0,p_limit:30,p_role:state.role||'',p_unit:state.unit||null,p_sort:state.sort||'logical',p_view:state.view||'all'}))||[]}
+async function catalog(sb,table){let rows=[];for(let n=0;;n+=200){const q=sb.from(table).select('*').order(table==='subjects'?'sort_order':table==='qb_image_library_sets'?'name':'canonical').range(n,n+199),batch=unwrap(await q)||[];rows.push(...batch);if(batch.length<200)return rows}}
 async function history(sb,id,offset=0){return unwrap(await sb.from('qb_image_library_history').select('*').eq('image_id',id).order('revision',{ascending:false}).range(offset,offset+49))||[]}
 async function readings(sb,id){return unwrap(await sb.from('qb_image_library_readings').select('*').eq('image_id',id).order('created_at',{ascending:false}).limit(20))||[]}
 async function usages(sb,id,offset=0){return unwrap(await sb.from('qb_image_library_usages').select('*').eq('image_id',id).order('created_at',{ascending:false}).range(offset,offset+49))||[]}
@@ -55,6 +55,19 @@ async function termSave(sb,row,canonical,aliases){
  q=row?q.update({canonical,aliases,revision:row.revision+1,updated_at:new Date().toISOString()}).eq('id',row.id).eq('revision',row.revision):q.insert({canonical,aliases});
  const r=await q.select('*').maybeSingle();const value=unwrap(r);if(!value)throw Error('検索語に別の更新があります。最新の情報を確認してください。');return value;
 }
+
+async function taxonomy(sb){return unwrap(await sb.rpc('qb_library_catalog_tree',{}))||[]}
+async function structureSave(sb,table,row,patch){
+ await authorize(sb);const id=row?.id||crypto.randomUUID();
+ let q=sb.from(table);q=row?q.update({...patch,revision:row.revision+1}).eq('id',id).eq('revision',row.revision):q.insert({id,...patch});
+ const r=await q.select('*').maybeSingle();const value=unwrap(r);if(!value)throw Error('別の更新があります。入力内容を控えて最新情報を確認してください。');return value;
+}
+async function setGet(sb,id){const set=unwrap(await sb.from('qb_image_library_sets').select('*').eq('id',id).maybeSingle());if(!set)throw Error('セットが見つかりません。');const members=await Promise.all(set.image_ids.map(id=>get(sb,id)));return {...set,members}}
+async function setSave(sb,row,name,imageIds,archived=false){return structureSave(sb,'qb_image_library_sets',row,{name:name.trim(),image_ids:imageIds,archived})}
+async function sets(sb){return catalog(sb,'qb_image_library_sets')}
+async function catalogSave(sb,row,patch){return structureSave(sb,'qb_image_library_catalog',row,patch)}
+async function download(sb,row){await authorize(sb);return unwrap(await sb.storage.from(BUCKET).download(row.object_path))}
+
 function newJob(row,context){const requestId=crypto.randomUUID(),ext=row.object_path.split('.').pop().toLowerCase();if(!Object.values(TYPES).includes(ext))throw Error('元画像の形式を確認できません。');return {imageId:row.id,revision:row.revision,sourcePath:row.object_path,questionId:context.questionId,placement:context.placement,choiceId:context.choiceId||null,requestId,path:`${context.questionId}/${context.placement}/${context.choiceId||'question'}/library-${requestId}.${ext}`,copied:false}}
 async function usageByRequest(sb,id){return unwrap(await sb.from('qb_image_library_usages').select('*').eq('id',id).maybeSingle())}
 async function attach(sb,row,context,job){
@@ -76,5 +89,5 @@ async function attach(sb,row,context,job){
  if(r.error){const check=await usageByRequest(sb,job.requestId).catch(()=>null);if(check)return check;throw r.error;}
  return one(r.data);
 }
-root.QBImageLibraryStore={BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
+root.QBImageLibraryStore={taxonomy,setGet,setSave,sets,catalogSave,download,BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
 })(typeof window!=='undefined'?window:globalThis);
