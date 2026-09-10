@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {chromium,webkit}=require('playwright'),{boot}=require('./image-library.browser.cjs');
+const {chromium,webkit}=require('playwright'),{boot,edit,peek}=require('./image-library.browser.cjs');
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
 async function run(browser,name){
  const {page:p,errors}=await boot(browser);let count=0;const pass=s=>console.log(name+' '+(++count)+' '+s);
@@ -33,13 +33,13 @@ async function run(browser,name){
   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>{throw new DOMException('denied','NotAllowedError')}}});
  });
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
- await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).click();await p.getByRole('textbox',{name:'ライブラリへの画像貼り付け欄'}).waitFor();
+ await p.locator('.qbLibraryPanel').getByRole('button',{name:'コピペで追加',exact:true}).click();await p.getByRole('textbox',{name:'ライブラリへの画像貼り付け欄'}).waitFor();
  await p.locator('.qbLibraryPasteZone').evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['pasted pixels'],'clipboard.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
  await p.waitForFunction(()=>db.qb_image_library_items.length===3);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryPasteZone').isVisible(),false);
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');
  pass('denied clipboard read falls back to iPad paste target and registers immediately');
  await p.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>[{types:['image/png'],getType:async()=>new Blob(['direct clipboard pixels'],{type:'image/png'})}]}}));
- await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items.length===4);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
+ await p.locator('.qbLibraryPanel').getByRole('button',{name:'コピペで追加',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items.length===4);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  pass('clipboard button imports image bytes without typing into question editor');
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'最近の画像',exact:true}).click();await p.locator('.qbripItem').first().waitFor();
  assert.equal(await p.locator('.qbLibraryPanel').evaluate(n=>n.inert),true);
@@ -57,11 +57,11 @@ async function run(browser,name){
  pass('selected variants copied independently in selection order; no AI, question writes or bulk migration');
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'最近の画像',exact:true}).click();await p.locator('.qbripItem').first().waitFor();await p.locator('.qbripItem[data-id="r1"]').click();
  await p.evaluate(()=>objects.delete('question-media/q1/current.png'));await p.locator('.qbripUse').click();await p.getByText(/0枚を登録済み。missing/).waitFor();
- assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),6);assert.equal(await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).isEnabled(),true);pass('source download failure leaves no library record and restores controls');
- await p.locator('.qbLibraryImageButton').first().click();await p.getByLabel('読み取り本文',{exact:true}).fill('下書き本文');
+ assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),6);assert.equal(await p.locator('.qbLibraryPanel').getByRole('button',{name:'コピペで追加',exact:true}).isEnabled(),true);pass('source download failure leaves no library record and restores controls');
+ await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);await p.getByLabel('読み取り本文',{exact:true}).fill('下書き本文');
  await p.getByLabel('読み取り本文',{exact:true}).evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['do not import'],'text-field.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),6);assert.equal(await p.getByLabel('読み取り本文',{exact:true}).inputValue(),'下書き本文');
- await p.getByRole('button',{name:'閉じる',exact:true}).click();assert.equal(await p.locator('#draft').inputValue(),'保存していない問題文');assert.equal(await p.evaluate(()=>outsidePastes),0);assert.equal(await p.locator('main').evaluate(n=>n.inert),false);
+ await p.getByRole('button',{name:'一覧に戻る',exact:true}).click();await p.getByRole('button',{name:'閉じる',exact:true}).click();assert.equal(await p.locator('#draft').inputValue(),'保存していない問題文');assert.equal(await p.evaluate(()=>outsidePastes),0);assert.equal(await p.locator('main').evaluate(n=>n.inert),false);
  pass('metadata paste and background draft remain untouched; nested dialogs clean up');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+count+' library-add checks passed');
 }

@@ -78,3 +78,32 @@ body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.
 .qbLibraryGrid>.qbLibraryItem>.qbLibraryAuthor{position:absolute;top:6px;left:6px;z-index:2;max-width:calc(100% - 12px);margin:0;padding:2px 4px;background:var(--card,#fff);color:var(--text,#172033);pointer-events:none}
 .qbLibraryGrid>.qbLibraryItem>.qbLibraryAuthor>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qbLibraryAuthorIcon img{margin:0}
+/* Reading, choosing and editing share the same cards without exposing form controls. */
+.qbLibraryImageButton,.qbLibrarySlide{position:relative;-webkit-touch-callout:none;user-select:none}
+.qbLibraryItem [data-pick-ids].is-selected::after,.qbLibraryItem [data-pick-ids].is-partial::after{content:'✓';position:absolute;right:6px;top:6px;z-index:3;padding:2px 7px;background:var(--accent);color:white;font-size:16px;pointer-events:none}
+.qbLibraryItem [data-pick-ids].is-partial::after{content:'−'}
+.qbLibraryItem [data-pick-ids].is-selected{box-shadow:inset 0 0 0 2px var(--accent)}
+.qbLibrarySet>button.qbLibraryName{width:100%;position:relative;color:var(--accent);font-weight:650}
+.qbLibrarySet>button.qbLibraryName::after{display:none}
+.qbLibrarySelectionMode[aria-pressed=true],.qbLibraryMemberChoice.is-selected{background:var(--accent-soft,var(--bg));box-shadow:inset 0 0 0 2px var(--accent)}
+.qbLibraryFooter>.qbLibraryStatus{flex:1;margin:0}.qbLibraryFooter>.qbLibrarySelectionMode{margin-left:auto}
+.qbLibraryMemberChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.qbLibraryMemberChoice{position:relative;display:flex;flex-direction:column;gap:8px;align-items:center;overflow-wrap:anywhere}
+.qbLibraryMemberChoice img{width:100%;height:180px;object-fit:contain}
+.qbLibraryMemberChoice.is-selected::after{content:'✓';position:absolute;top:4px;right:4px;color:var(--accent)}
+.qbLibraryPreview{z-index:10120;background:#0006;backdrop-filter:blur(8px)}
+.qbLibraryPreview>.qbLibraryPanel{width:min(740px,94%);height:min(780px,88dvh);box-shadow:0 18px 70px #0004;animation:qbLibraryPeek .3s cubic-bezier(.22,1.3,.36,1)}
+@keyframes qbLibraryPeek{from{opacity:0;transform:scale(.91) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@media(prefers-reduced-motion:reduce){.qbLibraryPreview>.qbLibraryPanel{animation:none}}
+
+.qbLibraryPanel textarea.qbLibraryAutoGrow{min-height:44px;height:44px;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.6}
+
+.qbLibraryTagEditor{border:1px solid var(--line);padding:8px;min-width:0}
+.qbLibraryTags{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.qbLibraryTag{display:inline-flex;max-width:100%;align-items:center;border:1px solid var(--accent-border,var(--line));background:var(--accent-soft,var(--bg));color:var(--text);font-size:14px;overflow-wrap:anywhere}
+.qbLibraryTag.is-editing{outline:2px solid var(--accent)}
+.qbLibraryPanel .qbLibraryTag button{font-size:14px;font-weight:600;border:0;background:transparent;min-height:36px;color:var(--text)}
+.qbLibraryPanel button.qbLibraryTagText{min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:left;padding:6px 8px}
+.qbLibraryPanel button.qbLibraryTagRemove{flex-shrink:0;padding:4px 9px}
+.qbLibraryReadTag{padding:6px 8px}
+.qbLibraryPanel .qbLibraryTagEditor textarea.qbLibraryAutoGrow{border:0;margin-top:4px;padding:8px;min-height:44px;background:transparent}

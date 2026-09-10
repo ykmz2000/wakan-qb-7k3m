@@ -4,7 +4,7 @@ const {chromium,webkit}=require('playwright'),{boot}=require('./image-library.br
 async function run(browser,label){
  const {page:p,errors}=await boot(browser);
  await p.evaluate(()=>{
-  window.ocrJobs=[];window.terminations=0;
+  window.ocrJobs=[];window.terminations=0;window.originalReviewRPC=qbSupabase.rpc;
   window.Tesseract={createWorker:async()=>({recognize:()=>new Promise(resolve=>ocrJobs.push(resolve)),terminate:async()=>{terminations++}})};
  });
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
@@ -18,13 +18,13 @@ async function run(browser,label){
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),4);
  assert.equal(await p.locator('.qbLibraryOverlay > .qbLibraryPanel').first().evaluate(n=>n.inert),true);
  await review.getByLabel('画像名',{exact:true}).first().fill('手入力のタイトル');
- await review.getByLabel('読み取り本文',{exact:true}).first().fill('自分で入力');
+ await review.getByText('細かい設定',{exact:true}).first().click();await review.getByLabel('読み取り本文',{exact:true}).first().fill('自分で入力');
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'上書きしてはいけない本文'}}));
  await p.waitForFunction(()=>ocrJobs.length===1);
  assert.equal(await review.getByLabel('読み取り本文',{exact:true}).first().inputValue(),'自分で入力');
  await review.getByRole('button',{name:'次の画像',exact:true}).click();
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'眼球運動と動眼神経'}}));
- await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryUploadReview textarea')[5].value==='眼球運動と動眼神経');
+ await p.waitForFunction(()=>[...document.querySelectorAll('.qbLibraryUploadReview .qbLibraryTranscript')].some(n=>n.value==='眼球運動と動眼神経'));
  assert.equal(await review.getByLabel('解析状況',{exact:true}).nth(1).inputValue(),'needs_review');
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.ocr_text),'');
  await review.getByRole('button',{name:'前の画像',exact:true}).click();
@@ -36,6 +36,19 @@ async function run(browser,label){
  await review.getByRole('button',{name:'確定',exact:true}).click();await review.waitFor({state:'detached'});
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'遅れて届いた本文'}}));
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.ocr_text),'');
+ // Saving responds on the first click, prevents duplicate writes and closes without waiting for list refresh.
+ await upload(['responsive.png']);await review.getByLabel('画像名',{exact:true}).fill('一度で保存する');
+ await p.evaluate(()=>{const rpc=qbSupabase.rpc;window.saveRequests=0;window.refreshRequests=0;qbSupabase.rpc=(n,a)=>{if(n==='qb_library_save'){saveRequests++;return new Promise(resolve=>window.releaseSave=()=>resolve(rpc(n,a)))}if(n==='qb_library_search_v2'){refreshRequests++;return new Promise(resolve=>window.releaseRefresh=()=>resolve(rpc(n,a)))}return rpc(n,a)}});
+ await review.getByRole('button',{name:'確定',exact:true}).click();
+ const pending=review.getByRole('button',{name:'保存中…',exact:true});assert.equal(await pending.isDisabled(),true);assert.equal(await pending.getAttribute('aria-busy'),'true');
+ await pending.dispatchEvent('click');await review.press('Meta+s');assert.equal(await p.evaluate(()=>saveRequests),1);
+ await p.evaluate(()=>releaseSave());await review.waitFor({state:'detached'});assert.equal(await p.evaluate(()=>refreshRequests),1);assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.name),'一度で保存する');
+ await p.evaluate(()=>{releaseRefresh();const rpc=qbSupabase.rpc;qbSupabase.rpc=window.originalReviewRPC});await p.locator('.qbLibraryItem').first().waitFor();
+ // A failed confirmation keeps the draft and restores a working retry button.
+ await upload(['retry.png']);await review.getByLabel('画像名',{exact:true}).fill('再試行でも残る');
+ await p.evaluate(()=>{const rpc=qbSupabase.rpc;let fail=true;qbSupabase.rpc=(n,a)=>{if(n==='qb_library_save'&&fail){fail=false;return Promise.resolve({error:{message:'一時的な保存エラー'}})}return rpc(n,a)}});
+ await review.getByRole('button',{name:'確定',exact:true}).click();await review.getByText('一時的な保存エラー 入力内容は保持しています。',{exact:true}).waitFor();assert.equal(await review.getByLabel('画像名',{exact:true}).inputValue(),'再試行でも残る');
+ await review.getByRole('button',{name:'確定',exact:true}).click();await review.waitFor({state:'detached'});assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.name),'再試行でも残る');
  // Loading/recognition failure is non-blocking.
  await p.evaluate(()=>Tesseract.createWorker=async()=>{throw Error('offline')});
  await upload(['offline.png']);await review.getByText('OCRを利用できませんでした。未入力でも確定できます。',{exact:true}).waitFor();

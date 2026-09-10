@@ -86,27 +86,33 @@ async function boot(browser){
  for(const s of ['image-library-store-v1.js','image-library-ui-v1.js','image-library-integration-v1.js'])await page.addScriptTag({content:read(s)});
  await page.locator('.qbLibraryEntry').waitFor();return{page,errors};
 }
+async function edit(p){
+ const button=p.getByRole('button',{name:'編集',exact:true});if(await button.count())await button.click();
+ const details=p.locator('details').filter({has:p.locator('summary').filter({hasText:/^細かい設定$/})}).last();
+ if(await details.count()&&!(await details.evaluate(n=>n.open)))await details.locator('summary').first().click();
+}
+async function peek(p,target){await target.dispatchEvent('pointerdown',{pointerId:1,pointerType:'touch',clientX:10,clientY:10,button:0});await p.getByRole('dialog',{name:'画像のプレビュー',exact:true}).waitFor();await target.dispatchEvent('pointerup',{pointerId:1,pointerType:'touch'});}
 async function run(browser,name){
  const {page:p,errors}=await boot(browser);let n=0;const pass=s=>console.log(name+' '+(++n)+' '+s);
  assert.deepEqual(await p.locator('.qbAccountCluster button').evaluateAll(es=>es.map(e=>e.className||e.id)),['qbRankBtn','qbLibraryEntry','acctBtn']);
  assert.equal(await p.locator('.qbLibraryAction').count(),2);await p.locator('#oldUpload').click();await p.locator('#oldRecent').click();assert.equal(await p.evaluate(()=>oldClicks),2);
  assert.equal(await p.evaluate(()=>calls.filter(c=>c[0]==='rpc').length),0);pass('additive entry and no startup AI or mutations');
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
- await p.getByRole('searchbox').fill('どうがんしんけい');await p.getByRole('button',{name:'検索',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySnippet mark').length===2);
- assert.ok(await p.locator('.qbLibrarySnippet').first().textContent());pass('body alias matches visible without classification');
- await p.locator('.qbLibraryImageButton').first().click();await p.getByLabel('画像名',{exact:true}).waitFor();
+ await p.getByRole('searchbox').fill('どうがんしんけい');await p.getByRole('button',{name:'検索',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryImageButton').length===2);
+ assert.equal(await p.locator('.qbLibrarySnippet').count(),0);pass('body alias matches visible without classification');
+ await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);await p.getByLabel('画像名',{exact:true}).waitFor();
  await p.getByLabel('神経学',{exact:true}).last().check();await p.getByLabel('補足・学習意図',{exact:true}).fill('比較したいところ');await p.getByLabel('読み取り本文',{exact:true}).fill('手動で直した動眼神経の本文');
  await p.getByRole('button',{name:'変更を保存',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items[0].revision===2);await p.getByLabel('画像名',{exact:true}).waitFor();
  assert.deepEqual(await p.evaluate(()=>db.qb_image_library_items[0].metadata.subject_ids),['s1','s2']);pass('multiple subjects and editable full body');
  await p.getByLabel('画像名',{exact:true}).fill('競合中の下書き');await p.evaluate(()=>db.qb_image_library_items[0].revision++);await p.getByRole('button',{name:'変更を保存',exact:true}).click();await p.getByRole('button',{name:'最新情報を別表示'}).waitFor();
- assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧へ戻る'}).click();pass('conflicting updates keep draft without overwriting');
+ assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧に戻る'}).click();pass('conflicting updates keep draft without overwriting');
  await p.getByRole('searchbox').fill('');await p.getByRole('button',{name:'検索',exact:true}).click();
  await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles({name:'unprocessed.png',mimeType:'image/png',buffer:Buffer.from('independent original bytes')});await p.waitForFunction(()=>db.qb_image_library_items.length===3);
  await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');
  assert.equal(await p.evaluate(()=>calls.filter(c=>c[1]==='qb_library_record_reading').length),0);
  await p.getByRole('button',{name:'閉じる',exact:true}).click();assert.equal(await p.locator('#draft').inputValue(),'保存していない問題文');assert.equal(await p.locator('main').evaluate(n=>n.inert),false);pass('upload immediately usable, no OCR, background draft preserved');
- await p.locator('.qsiEditor .qbLibraryAction').click();await p.locator('.qbLibrarySelect').first().waitFor();await p.locator('.qbLibrarySelect input').nth(1).check();await p.locator('.qbLibrarySelect input').nth(0).check();await p.getByRole('button',{name:'選択した画像を貼る'}).click();await p.locator('.qbLibraryOverlay').waitFor({state:'detached'});
+ await p.locator('.qsiEditor .qbLibraryAction').click();await p.locator('.qbLibraryImageButton').first().waitFor();await p.locator('.qbLibraryImageButton').nth(1).click();await p.locator('.qbLibraryImageButton').nth(0).click();await p.getByRole('button',{name:'選択した画像を貼る'}).click();await p.locator('.qbLibraryOverlay').waitFor({state:'detached'});
  const copied=await p.evaluate(()=>({images:db.question_images,uses:db.qb_image_library_usages,events}));assert.equal(copied.images.length,2);assert.notEqual(copied.images[0].image_path,copied.images[1].image_path);assert.deepEqual(copied.uses.map(r=>r.image_id),['i2','i1']);assert.equal(copied.events.length,1);pass('selection order, independent copies and recent-image table registration');
  const faults=await p.evaluate(async()=>{
   const S=QBImageLibraryStore,sb=qbSupabase,row=await S.get(sb,'i1'),context={questionId:'q1',placement:'question',choiceId:null,alive:()=>true};
@@ -119,11 +125,11 @@ async function run(browser,name){
   const byteBefore=await objects.get('question-media/'+job.path).text();objects.set('qb-image-library/'+row.object_path,new Blob(['changed original']));const independent=(await objects.get('question-media/'+job.path).text())===byteBefore;
   return{rpcOnce,collision,navigation,stale,independent,count:db.question_images.length-start,uploads:calls.filter(c=>c[0]==='upload'&&c[2]===job.path).length};
  });assert.deepEqual(faults,{rpcOnce:true,collision:true,navigation:true,stale:true,independent:true,count:2,uploads:1});pass('lost responses, collisions, navigation and stale sources fail safely');
- await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();await p.locator('.qbLibraryImageButton').first().click();await p.getByLabel('画像名',{exact:true}).waitFor();
+ await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);await p.getByLabel('画像名',{exact:true}).waitFor();
  await p.getByText('AIに依頼する・結果を取り込む',{exact:true}).click();const envelope=await p.evaluate(()=>{const r=db.qb_image_library_items[0];return{image_id:r.id,image_version:r.image_version,revision:r.revision,request_id:crypto.randomUUID(),reading:{raw_text:'動□神経',corrected_text:'AIの修正',visual_summary:'図も確認',repairs:[{before:'動□神経',after:'動眼神経',reason:'前後の文脈',confidence:'uncertain'}]}}});
- await p.getByLabel('AIから受け取った結果',{exact:true}).fill(JSON.stringify(envelope));await p.getByRole('button',{name:'結果を取り込む',exact:true}).click();await p.getByText('手動編集を保持したAIの変更案',{exact:true}).waitFor();
+ await p.getByLabel('AIから受け取った結果',{exact:true}).fill(JSON.stringify(envelope));await p.getByRole('button',{name:'結果を取り込む',exact:true}).click();await p.getByLabel('画像名',{exact:true}).waitFor();await edit(p);await p.getByText('手動編集を保持したAIの変更案',{exact:true}).waitFor();
  assert.equal(await p.getByLabel('読み取り本文',{exact:true}).inputValue(),'手動で直した動眼神経の本文');await p.getByText('読み取り・補完結果',{exact:true}).click();await p.getByText(/画像版 1/).first().waitFor();pass('explicit AI import preserves manual text and exposes repair history');
- await p.getByRole('button',{name:'ライブラリから削除',exact:true}).click();await p.getByRole('searchbox').waitFor();await p.getByText('絞り込み',{exact:true}).click();await p.getByLabel('削除した画像を表示',{exact:true}).check();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===1);await p.locator('.qbLibraryImageButton').click();await p.getByRole('button',{name:'ライブラリへ戻す',exact:true}).click();await p.waitForFunction(()=>!db.qb_image_library_items[0].archived);pass('archive can be reversed, copies survive');
+ await p.getByRole('button',{name:'ライブラリから削除',exact:true}).click();await p.getByRole('searchbox').waitFor();await p.getByText('絞り込み',{exact:true}).click();await p.getByLabel('削除した画像を表示',{exact:true}).check();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===1);await p.locator('.qbLibraryImageButton').click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);await p.getByRole('button',{name:'ライブラリへ戻す',exact:true}).click();await p.waitForFunction(()=>!db.qb_image_library_items[0].archived);pass('archive can be reversed, copies survive');
  await p.getByRole('button',{name:'閉じる',exact:true}).click();
  await p.evaluate(()=>{testRole='user';testUserId=null;authChanged()});await p.locator('.qbLibraryEntry').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryAction').count(),0);assert.equal(await p.locator('#oldUpload').count(),1);pass('signed-out entry hidden and old controls retained');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' image-library browser checks passed');
@@ -142,11 +148,11 @@ async function runPagination(browser,name){
  await p.getByRole('button',{name:'再読み込み',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===60);
  await scroll();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===70);
  await scroll();assert.deepEqual(await p.evaluate(()=>pageRequests),[0,30,30,60]);
- assert.equal(await p.locator('.qbLibrarySelect input').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.selectImage)).size),70);
+ assert.equal(await p.locator('.qbLibraryImageButton').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.pickIds)).size),70);
  await p.getByRole('searchbox').fill('ページ画像69');await p.getByRole('button',{name:'検索',exact:true}).click();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===1);
  assert.equal(await p.locator('.qbLibraryName').textContent(),'ページ画像69');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS automatic pagination, duplicate prevention, explicit retry, end-of-list and search reset');
 }
-module.exports={boot};
+module.exports={boot,edit,peek};
 if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);await runPagination(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
 
