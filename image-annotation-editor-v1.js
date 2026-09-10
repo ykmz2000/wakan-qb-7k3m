@@ -45,7 +45,7 @@ async function open(source,options={}){
   const oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';panel.focus();
   let done;const result=new Promise(resolve=>{done=resolve});current={modal};
   let scene=null,history=null,selection=[],tool='pen',color=M.colors[0].value,zoom=1,ox=0,oy=0,frame=0,closed=false,busy=false,subDialog=false,changed=false,gesture=null,lassoPoints=null,penDown=false,textStart=null;
-  const pointers=new Map();let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=0,lastPoint=null;
+  const pointers=new Map();let textHistory=null,textComposing=false;let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=0,lastPoint=null;
   if(['lasso','pen','marker','text','arrow','rect','circle','ellipse'].includes(preferences.tool))tool=preferences.tool;
   if(M.colors.some(c=>c.value===preferences.color))color=preferences.color;
   if([2,5,10].includes(preferences.size))size.value=preferences.size;
@@ -60,9 +60,9 @@ async function open(source,options={}){
   listen(finger,'change',remember);
   function close(value){if(closed)return;remember();closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}
   function cancel(){if(busy||subDialog)return;commitText();if(changed&&!confirm('今回の画像編集を破棄しますか？'))return;close(null)}
-  function update(){updateCorrection();if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!history.past.length;redoButton.disabled=busy||!history.future.length;saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.disabled=busy||selected.length!==1||selected[0].type!=='image';[deleteButton,frontButton,backButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
+  function update(){updateCorrection();if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!(textHistory?.past.length||history.past.length);redoButton.disabled=busy||!(textHistory?.future.length||history.future.length);saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.disabled=busy||selected.length!==1||selected[0].type!=='image';[deleteButton,frontButton,backButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
   function checkpoint(){history.push(scene);changed=history.past.length>0;update()}
-  function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
+  function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textHistory=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
   function useTool(next){if(busy||subDialog)return;commitText();tool=next;remember();selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
   function select(ids){commitText();selection=ids;const item=scene.items.find(i=>ids.length===1&&i.id===ids[0]);if(item){color=item.color||color;if(item.type==='text'){textInput.value=item.text;font.value=String(item.fontSize)}}update()}
   const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['text','文字'],['arrow','矢印'],['rect','四角い枠'],['circle','正円の枠'],['ellipse','楕円の枠']];
@@ -71,7 +71,9 @@ async function open(source,options={}){
   for(const c of M.colors){const b=btn('','qbDrawSwatch',()=>{if(busy)return;commitText();color=c.value;remember();scene?.items.filter(i=>selection.includes(i.id)&&i.type!=='image').forEach(i=>i.color=color);if(selection.length)checkpoint();else update()});b.dataset.color=c.value;b.style.setProperty('--swatch',c.value);b.title=c.name;b.setAttribute('aria-label',c.name);palette.append(b)}
   size.onchange=()=>{if(busy)return;remember();scene.items.filter(i=>selection.includes(i.id)&&['pen','marker','arrow','rect','circle','ellipse'].includes(i.type)).forEach(i=>i.width=strokeWidth(i.type));if(selection.length)checkpoint()};
   font.onchange=()=>{if(busy)return;remember();scene.items.filter(i=>selection.includes(i.id)&&i.type==='text').forEach(i=>{i.fontSize=Number(font.value);measureText(i)});if(selection.length)checkpoint()};
-  const undoButton=btn('↶ 元に戻す','',()=>{if(busy)return;commitText();scene=history.undo();selection=[];changed=history.past.length>0;update()}),redoButton=btn('↷ やり直す','',()=>{if(busy)return;commitText();scene=history.redo();selection=[];changed=history.past.length>0;update()});tools.append(undoButton,redoButton);
+  function undo(redo=false){if(busy||subDialog||gesture||textComposing||!history)return;if(editingTextId&&textHistory){const stack=redo?textHistory.future:textHistory.past;if(stack.length){const value=redo?textHistory.redo():textHistory.undo();textInput.value=value.text;textInput.setSelectionRange(Math.min(value.start,value.text.length),Math.min(value.end,value.text.length));applyText();update();return}if(redo)return;}commitText();scene=redo?history.redo():history.undo();selection=[];changed=history.past.length>0;update()}
+  const undoButton=btn('↶ 元に戻す','',()=>undo()),redoButton=btn('↷ やり直す','',()=>undo(true));tools.append(undoButton,redoButton);
+  for(const b of [undoButton,redoButton])b.addEventListener('pointerdown',e=>e.preventDefault());
   const deleteButton=btn('削除','',()=>{if(busy)return;commitText();scene.items=scene.items.filter(i=>!selection.includes(i.id));selection=[];checkpoint()});
   const frontButton=btn('前面へ','',()=>reorder(true)),backButton=btn('背面へ','',()=>reorder(false)),cropButton=btn('追加画像をトリミング','',()=>cropSelected());editActions.append(deleteButton,frontButton,backButton,cropButton);
   function reorder(front){if(busy)return;commitText();const a=scene.items.filter(i=>selection.includes(i.id)),b=scene.items.filter(i=>!selection.includes(i.id));scene.items=front?[...b,...a]:[...a,...b];checkpoint()}
@@ -105,9 +107,16 @@ async function open(source,options={}){
   }
   function editText(item,selectAll=false){
     editingTextId=item.id;selection=[item.id];textInput.value=item.text;textInput.hidden=false;textStart=M.copy(scene);positionTextInput();textInput.focus({preventScroll:true});
-    if(selectAll)textInput.select();else textInput.setSelectionRange(item.text.length,item.text.length);update();
+    if(selectAll)textInput.select();else textInput.setSelectionRange(item.text.length,item.text.length);textHistory=new M.History(textSnapshot());update();
   }
-  textInput.onblur=commitText;textInput.oninput=()=>{if(!scene||busy)return;const item=scene.items.find(i=>selection.length===1&&selection[0]===i.id&&i.type==='text');if(item){item.text=textInput.value;measureText(item);requestDraw()}};
+  function textSnapshot(){return{text:textInput.value,start:textInput.selectionStart,end:textInput.selectionEnd}}
+  function applyText(){const item=scene?.items.find(i=>i.id===editingTextId&&i.type==='text');if(!item)return;item.text=textInput.value;measureText(item);requestDraw()}
+  textInput.onblur=commitText;
+  textInput.oninput=()=>{if(busy||!textHistory)return;applyText();if(!textComposing&&textInput.value!==textHistory.current.text)textHistory.push(textSnapshot());update()};
+  textInput.addEventListener('compositionstart',()=>textComposing=true);
+  textInput.addEventListener('compositionend',()=>{textComposing=false;textInput.oninput()});
+  textInput.addEventListener('beforeinput',e=>{if(['historyUndo','historyRedo'].includes(e.inputType)){e.preventDefault();e.stopImmediatePropagation();undo(e.inputType==='historyRedo')}else if(textHistory&&textInput.value===textHistory.current.text){textHistory.current=textSnapshot()}});
+
   async function addImages(files){if(!scene||busy||subDialog||!files.length)return;commitText();busy=true;status.textContent='画像を追加中…';try{const pending=[];for(const f of files){const id=await asset(f);if(closed)return;const img=assets.get(id).img,scale=Math.min(1,scene.width*.6/img.width,scene.height*.6/img.height),w=img.width*scale,h=img.height*scale;pending.push({id:crypto.randomUUID(),type:'image',assetId:id,x:(scene.width-w)/2+pending.length*16,y:(scene.height-h)/2+pending.length*16,w,h})}scene.items.push(...pending);selection=pending.map(i=>i.id);tool='lasso';checkpoint();status.textContent='画像を追加しました'}catch(e){status.textContent=e.message}finally{busy=false;update()}}
   async function cropSelected(){const item=scene.items.find(i=>selection.length===1&&selection[0]===i.id&&i.type==='image');if(!item||busy||subDialog)return;commitText();subDialog=true;try{const blob=await window.QBImageCrop.open(assets.get(item.assetId).url,{title:'追加画像をトリミング',rotatable:false});if(blob){const id=await asset(blob),img=assets.get(id).img,scale=Math.min(item.w/img.width,item.h/img.height);item.assetId=id;item.w=img.width*scale;item.h=img.height*scale;checkpoint()}}catch(e){status.textContent=e.message}finally{subDialog=false;panel.focus({preventScroll:true})}}
   function abortGesture(){if(gesture?.before)scene=gesture.before;gesture=null;lassoPoints=null;requestDraw()}
@@ -126,6 +135,7 @@ async function open(source,options={}){
       const hit=[...scene.items].reverse().find(i=>(tool==='lasso'||['text','arrow','rect','circle','ellipse','image'].includes(i.type))&&M.hit(i,p,6/zoom));
       if(hit){const wasSelected=selection.length===1&&selection[0]===hit.id;if(!selection.includes(hit.id))select([hit.id]);gesture={kind:'move',before:M.copy(scene),start:p,id:e.pointerId,moved:false,textId:wasSelected&&hit.type==='text'?hit.id:null};return}
     }
+    if(tool==='text'&&selection.length){select([]);return}
     if(e.pointerType==='touch'&&!finger.checked){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
     if(tool==='lasso'){select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return}
     if(p.x<0||p.y<0||p.x>scene.width||p.y>scene.height)return;
@@ -157,7 +167,7 @@ async function open(source,options={}){
     if(mod&&key==='v'){if(busy||!scene||gesture)e.preventDefault();else if(!input&&!e.target.isContentEditable){pasteTarget.value='';pasteTarget.focus({preventScroll:true})}e.stopImmediatePropagation();return}
     if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();return}
     if(mod&&key==='s'){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat&&!e.isComposing)save();return}
-    if(mod&&key==='z'&&!input){e.preventDefault();e.stopImmediatePropagation();(e.shiftKey?redoButton:undoButton).click();return}
+    if(mod&&(key==='z'||e.code==='KeyZ')&&(!input||input===textInput)){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat&&!e.isComposing)undo(e.shiftKey);return}
     if(['Delete','Backspace'].includes(e.key)&&!input){e.preventDefault();e.stopImmediatePropagation();deleteButton.click();return}
     if(e.key==='Tab'){const all=[...panel.querySelectorAll('button,input,select,textarea,[tabindex="0"]')].filter(n=>n!==pasteTarget&&!n.disabled&&!n.hidden&&n.getClientRects().length),first=all[0],last=all.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===panel)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
     // Keep page-level save/navigation/format shortcuts scoped to this dialog.
@@ -170,3 +180,4 @@ async function open(source,options={}){
 }
 window.QBImageEditor={open,filesFromPaste,isOpen:()=>!!current};
 })();
+

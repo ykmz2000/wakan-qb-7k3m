@@ -18,13 +18,13 @@ async function run(browser,label){
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),4);
  assert.equal(await p.locator('.qbLibraryOverlay > .qbLibraryPanel').first().evaluate(n=>n.inert),true);
  await review.getByLabel('画像名',{exact:true}).first().fill('手入力のタイトル');
- await review.getByLabel('読み取り本文',{exact:true}).first().fill('自分で入力');
+ await review.getByText('細かい設定',{exact:true}).first().click();await review.getByLabel('読み取り本文',{exact:true}).first().fill('自分で入力');
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'上書きしてはいけない本文'}}));
  await p.waitForFunction(()=>ocrJobs.length===1);
  assert.equal(await review.getByLabel('読み取り本文',{exact:true}).first().inputValue(),'自分で入力');
  await review.getByRole('button',{name:'次の画像',exact:true}).click();
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'眼球運動と動眼神経'}}));
- await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryUploadReview textarea')[5].value==='眼球運動と動眼神経');
+ await p.waitForFunction(()=>[...document.querySelectorAll('.qbLibraryUploadReview .qbLibraryTranscript')].some(n=>n.value==='眼球運動と動眼神経'));
  assert.equal(await review.getByLabel('解析状況',{exact:true}).nth(1).inputValue(),'needs_review');
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.ocr_text),'');
  await review.getByRole('button',{name:'前の画像',exact:true}).click();

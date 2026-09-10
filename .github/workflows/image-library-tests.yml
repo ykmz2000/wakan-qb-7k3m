@@ -8,6 +8,8 @@ on:
       - 'save-shortcut-input-guard-v1.js'
       - 'supabase/image-library-*.sql'
       - 'tests/image-library*'
+      - 'tests/image-annotation-undo.browser.cjs'
+      - 'image-annotation-editor-v1.js'
       - '.github/workflows/image-library-tests.yml'
 permissions:
   contents: read
@@ -37,10 +39,13 @@ jobs:
           node --check image-library-ui-v1.js
           node --check image-library-integration-v1.js
           node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs
+          node tests/image-library-modes.browser.cjs
+          node tests/image-annotation-undo.browser.cjs
           node tests/image-library.browser.cjs
           node tests/image-library-add.browser.cjs
           node tests/image-library-upload-review.browser.cjs
           node tests/image-library-sets.browser.cjs
           node tests/image-library-community.browser.cjs
           node tests/recent-image-scope-preview.browser.cjs
+
 
