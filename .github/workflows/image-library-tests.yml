@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Archive tested source revision
-        run: git archive HEAD > /tmp/qb-ui-tested-source.tar
+        run: git -c safe.directory="$GITHUB_WORKSPACE" archive HEAD > /tmp/qb-ui-tested-source.tar
       - name: Prepare existing editor and browser dependencies
         run: |
           mkdir -p /tmp/qb-inline-build
