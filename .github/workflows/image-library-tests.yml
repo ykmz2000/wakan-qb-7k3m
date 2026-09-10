@@ -8,8 +8,6 @@ on:
       - 'supabase/image-library-*.sql'
       - 'tests/image-library*'
       - '.github/workflows/image-library-tests.yml'
-  push:
-    branches: ['codex/image-library-v1']
 permissions:
   contents: read
 concurrency:
