@@ -11,7 +11,7 @@ async function run(browser,name){
  assert.equal(await p.getByRole('button',{name:'コピペで追加',exact:true}).count(),1);
  const toggle=p.getByRole('button',{name:'選択モード',exact:true});assert.equal(await toggle.getAttribute('aria-pressed'),'false');
  await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();
- assert.equal(await p.locator('input:visible').count(),0);
+ assert.equal(await p.locator('.qbLibraryPanel input:visible').count(),0);
  assert.equal(await p.getByRole('button',{name:'閉じる',exact:true}).count(),0);
  assert.equal(await p.getByRole('button',{name:'一覧に戻る',exact:true}).count(),1);
  await p.getByRole('button',{name:'編集',exact:true}).click();

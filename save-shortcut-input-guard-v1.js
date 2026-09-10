@@ -1,5 +1,5 @@
-/* A consumed Save shortcut must not become text on iPad/external keyboards.
-   Existing editors still own saving; no polling, blur, or global text cleanup. */
+/* A consumed Save or image-text Undo shortcut must not become text on iPad/external keyboards.
+   Existing editors still own the actions; no polling, blur, or global text cleanup. */
 (()=>{
 'use strict';
 let pending=null;
