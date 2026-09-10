@@ -46,7 +46,7 @@ async function boot(browser){
    remove:async()=>{throw Error('Destructive Storage operation attempted')}
   })},rpc:async(name,a)=>{
    calls.push(['rpc',name]);
-   if(name==='qb_library_catalog_tree')return {data:clone(db.qb_image_library_catalog)};
+   if(name==='qb_library_catalog_tree'){const tree=[];function walk(parent,path=[],sort=[],subject=null){for(const c of db.qb_image_library_catalog.filter(c=>c.parent_id===parent).sort((a,b)=>a.sort_order-b.sort_order)){const next=[...path,c.name],ss=[...sort,c.sort_order],sid=subject||c.id;tree.push({...clone(c),path:next.join(' / '),sort_path:ss,subject_id:sid});walk(c.id,next,ss,sid)}}walk(null);return {data:tree};}
    if(name==='qb_library_search_v2'){
     const forms=C.searchForms(a.p_query,db.qb_image_library_terms);
     let results=db.qb_image_library_items.filter(r=>r.archived===a.p_archived&&(!a.p_subjects.length||a.p_subjects.some(s=>r.metadata.subject_ids.includes(s)))).map(r=>{const match=forms.length?Object.entries(r.metadata).find(([,v])=>forms.every(ff=>ff.some(f=>C.normalize(Array.isArray(v)?v.join('、'):v).includes(f)))):null;return (!forms.length||match)?{item:clone(r),match_source:match?.[0]||'',match_text:String(match?.[1]||''),score:1}:null}).filter(Boolean);
