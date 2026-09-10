@@ -79,7 +79,7 @@ async function core(browser,name){
   await p.evaluate(()=>document.querySelector('.qbDrawPasteTarget').focus());
   await p.keyboard.press('Meta+z');assert.equal(await p.getByLabel('次に貼る番号',{exact:true}).inputValue(),'a');
   await p.keyboard.press('Meta+Shift+z');assert.equal(await p.getByLabel('次に貼る番号',{exact:true}).inputValue(),'b');
-  await p.locator('.qbDrawCanvas').dispatchEvent('beforeinput',{inputType:'historyUndo',bubbles:true,cancelable:true});
+  await p.locator('.qbDrawCanvas').evaluate(c=>c.dispatchEvent(new InputEvent('beforeinput',{inputType:'historyUndo',bubbles:true,cancelable:true})));
   assert.equal(await p.getByLabel('次に貼る番号',{exact:true}).inputValue(),'a');
   await p.locator('.qbDrawCanvas').dispatchEvent('wheel',{deltaX:30,deltaY:20,bubbles:true,cancelable:true});
   assert.deepEqual(await p.evaluate(()=>[backgroundKeys,backgroundWheel,document.querySelector('#backgroundEditor').value]),[0,0,'background draft']);
