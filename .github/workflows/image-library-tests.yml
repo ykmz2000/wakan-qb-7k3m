@@ -38,4 +38,5 @@ jobs:
           node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs
           node tests/image-library.browser.cjs
           node tests/image-library-add.browser.cjs
+          node tests/image-library-sets.browser.cjs
           node tests/recent-image-scope-preview.browser.cjs

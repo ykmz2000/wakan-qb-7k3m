@@ -102,3 +102,20 @@ update public.qb_image_library_config set enabled=false where singleton=true;
 検証は `node --test tests/image-library.unit.cjs`、`node tests/image-library.browser.cjs`（Chromium/WebKit）、およびDBのROLLBACK検証。ブラウザ検証は実UI・実保存コードを使い、DB・Auth・Storageだけを合成データにする。GitHub Actionsで既存の最近の画像の回帰テストも実行する。本番への公開にはmainへの取り込みと既存Pages workflowの成功が必要。
 
 追加経路と共通ボタンは `node tests/image-library-add.browser.cjs` で検証する。画面幅・テーマ、クリップボードの許可/拒否、入れ子の画像選択・拡大・キャンセル、書き込み前の版、選択順、独立コピー、取得失敗、本文編集中の貼り付けを確認する。このUI更新ではDB変更や既存画像の一括取り込みは不要。
+
+## 2026-09-10: image sets, editing and teaching catalog
+
+- Image detail supports Cmd+S / Ctrl+S using the same revision-checked save as the button. The detail stays open; failures preserve the form. Neither the background question draft nor OCR is invoked.
+- Library originals use the existing crop and annotation editors. Each save uploads a fresh immutable object and records the prior path in history; `original_path` never changes. Restore returns to the uploaded image; pasted copies remain independent. Editing clears the current reading because it belongs to the old image version.
+- `qb_image_library_sets` stores a name and ordered unique image IDs (1–100), with optimistic revision checks and append-only structure history. Sets group individual image records; no image is merged, resized, moved or auto-classified. Existing images remain single until explicitly grouped.
+- In management mode, select images and choose “選択した画像をセットにする”. Name/reorder the set and save; the same screen can append the selected images to an existing set. “セットを解除” archives only the grouping and leaves all members intact.
+- File, clipboard and recent-image registration share an explicit “複数枚を1セットとして追加” choice. It defaults off. A failed upload leaves successful images in the library; the batch is not silently made into a partial set.
+- Sets appear once in the mixed search, with native horizontal scroll-snap thumbnails, previous/next controls and a page count. “個別画像” view also exposes members separately. Archived members are excluded from thumbnails and attachment selections, and remain identified in set management.
+- A picker offers all members or a checked subset. Attachment retains set order and creates independent question-media objects for every selected member. Partial network failure preserves remaining selection and existing idempotent jobs; retry does not duplicate completed uses.
+- The library-only catalog has 42 subjects, multiple subject/unit assignments and editable names, aliases, hierarchy and order. It does not add empty problem subjects or reorder existing problems. Unknown values are still allowed by leaving classification blank.
+- The supplied digestive-system contents informed 111 hierarchical library units: digestive tract; liver; biliary tract/pancreas; care/management/trauma. Other subjects can receive units through the same manager as their references become available. Parent filters include descendants. Default result order follows the catalog, with search relevance first when searching; recent order remains available.
+- “語呂合わせ” is an image role alongside overview, comparison, individual explanation etc. Multiple roles may coexist with content aspects. The dictionary maps ごろ / ゴロ / ごろあわせ / 語呂 / mnemonic; there is a role filter and selection controls.
+- `supabase/image-library-sets-v2.sql` is an additive deployment script. New tables use admin RLS and invoker functions. Existing v1 RPC signatures remain available for older clients; v2 search groups before pagination. Hierarchy cycles and unit/subject mismatches are rejected. Used units cannot be moved to another parent; their sort order remains editable.
+- Rollback: restore the prior UI assets. Keep the additive tables/data and existing v1 RPCs; do not drop data to roll back presentation. V1 clients do not edit sets or unit assignments.
+
+Validation: existing 14 unit checks; production UI/store/crop/annotation browser flows on Chromium and WebKit; SQL transactions for full-text/alias/descendant search, grouping, order, conflicting saves, history, ungrouping and admin-only access. DB fixtures are rolled back.

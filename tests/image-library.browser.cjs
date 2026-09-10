@@ -19,6 +19,7 @@ async function boot(browser){
   window.events=[];addEventListener('qb-content-updated',e=>events.push(e.detail));
   const item=(id,name,extra={})=>({id,object_path:id+'/original.png',original_path:id+'/original.png',revision:1,image_version:1,metadata:{name,subject_ids:['s1'],topics:['眼球運動'],keywords:[],aspects:['構造'],roles:['総まとめ'],aliases:[],related_keywords:[],notes:'',ocr_text:'本文には動眼神経の説明があります',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown',...extra},manual_fields:[],ai_suggestions:{},archived:false,created_at:'2026-09-10T00:00:00Z'});
   window.db={profiles:[{id:'admin',role:'admin'}],qb_image_library_config:[{singleton:true,enabled:true}],subjects:[{id:'s1',name:'眼科学',sort_order:1},{id:'s2',name:'神経学',sort_order:2}],qb_image_library_terms:[{id:'t1',canonical:'動眼神経',aliases:['どうがんしんけい'],revision:1}],qb_image_library_items:[item('i1','眼球運動の総まとめ'),item('i2','神経に絞った図',{topics:['動眼神経']})],qb_image_library_usages:[],qb_image_library_readings:[],qb_image_library_history:[],question_images:[]};
+  db.qb_image_library_sets=[];db.qb_image_library_catalog=db.subjects.map(s=>({...s,kind:'subject',parent_id:null,aliases:[],revision:1,subject_id:s.id,path:s.name,sort_path:[s.sort_order]}));
   window.objects=new Map();window.calls=[];window.fault='';window.downloadHook=null;
   const pixel=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
   for(const r of db.qb_image_library_items)objects.set('qb-image-library/'+r.object_path,new Blob([pixel],{type:'image/png'}));
@@ -31,7 +32,7 @@ async function boot(browser){
    async run(){
     calls.push([this.mode,this.t]);if(this.t==='profiles')return {data:{role:testRole}};
     let rows=db[this.t]||[],matching=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v)&&this.excludes.every(([k,v])=>r[k]!==v));
-    if(this.mode==='insert'){const r={...this.payload};if(this.t==='qb_image_library_items')Object.assign(r,{revision:1,image_version:1,manual_fields:[],ai_suggestions:{},archived:false,created_at:new Date().toISOString()});rows.push(r);matching=[r]}
+    if(this.mode==='insert'){const r={revision:1,...this.payload};if(this.t==='qb_image_library_items')Object.assign(r,{revision:1,image_version:1,manual_fields:[],ai_suggestions:{},archived:false,created_at:new Date().toISOString()});rows.push(r);matching=[r]}
     if(this.mode==='update')matching.forEach(r=>Object.assign(r,this.payload));
     matching=matching.slice(this.bounds[0],this.bounds[1]+1);return{data:clone(this.one?(matching[0]||null):matching),error:null};
    }
@@ -45,9 +46,15 @@ async function boot(browser){
    remove:async()=>{throw Error('Destructive Storage operation attempted')}
   })},rpc:async(name,a)=>{
    calls.push(['rpc',name]);
-   if(name==='qb_library_search'){
+   if(name==='qb_library_catalog_tree')return {data:clone(db.qb_image_library_catalog)};
+   if(name==='qb_library_search_v2'){
     const forms=C.searchForms(a.p_query,db.qb_image_library_terms);
-    const results=db.qb_image_library_items.filter(r=>r.archived===a.p_archived&&(!a.p_subjects.length||a.p_subjects.some(s=>r.metadata.subject_ids.includes(s)))).map(r=>{const match=forms.length?Object.entries(r.metadata).find(([,v])=>forms.every(ff=>ff.some(f=>C.normalize(Array.isArray(v)?v.join('、'):v).includes(f)))):null;return (!forms.length||match)?{item:clone(r),match_source:match?.[0]||'',match_text:String(match?.[1]||''),score:1}:null}).filter(Boolean);
+    let results=db.qb_image_library_items.filter(r=>r.archived===a.p_archived&&(!a.p_subjects.length||a.p_subjects.some(s=>r.metadata.subject_ids.includes(s)))).map(r=>{const match=forms.length?Object.entries(r.metadata).find(([,v])=>forms.every(ff=>ff.some(f=>C.normalize(Array.isArray(v)?v.join('、'):v).includes(f)))):null;return (!forms.length||match)?{item:clone(r),match_source:match?.[0]||'',match_text:String(match?.[1]||''),score:1}:null}).filter(Boolean);
+    results=results.filter(x=>(!a.p_role||x.item.metadata.roles.includes(a.p_role))&&(!a.p_unit||(x.item.metadata.unit_ids||[]).includes(a.p_unit)));
+    if(a.p_view!=='images'){
+     const groups=db.qb_image_library_sets.filter(s=>!s.archived).map(s=>{const hit=results.find(r=>s.image_ids.includes(r.item.id));return hit?{...hit,set_data:{...clone(s),members:s.image_ids.map(id=>clone(db.qb_image_library_items.find(i=>i.id===id)))}}:null}).filter(Boolean);
+     results=[...results.filter(r=>a.p_view!=='sets'&&!groups.some(s=>s.set_data.image_ids.includes(r.item.id))),...groups];
+    }
     return{data:results.slice(a.p_offset,a.p_offset+a.p_limit).map(r=>({...r,total_count:results.length,use_count:0}))};
    }
    const r=db.qb_image_library_items.find(r=>r.id===a.p_id);if(!r)return err('missing image');
