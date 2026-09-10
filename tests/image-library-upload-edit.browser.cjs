@@ -15,7 +15,7 @@ async function run(browser,label){
  const before=await p.evaluate(()=>db.qb_image_library_items.slice(-2).map(r=>({id:r.id,path:r.object_path,version:r.image_version})));
  // Crop cancellation never discards metadata or mutates the image.
  await review.getByRole('button',{name:'トリミング',exact:true}).first().click();await review.getByText('画像の編集をキャンセルしました。',{exact:true}).waitFor();assert.equal(await name.inputValue(),'入力中の名前');assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-2).object_path),before[0].path);
- await review.getByRole('button',{name:'書き込み',exact:true}).first().click();await p.locator('.qbDrawSave:enabled').waitFor();assert.equal(await review.evaluate(n=>n.inert),true);
+ await review.getByRole('button',{name:'書き込み',exact:true}).first().click();try{await p.locator('.qbDrawSave:enabled').waitFor()}catch(e){console.error(await p.evaluate(()=>({status:document.querySelector('.qbDrawStatus')?.textContent,review:document.querySelector('.qbLibraryUploadReview .qbLibraryFooter')?.textContent,editor:!!document.querySelector('.qbDrawModal'),files:db.qb_image_library_items.slice(-2).map(r=>{const b=objects.get('qb-image-library/'+r.object_path);return {size:b?.size,type:b?.type}})})));throw e}assert.equal(await review.evaluate(n=>n.inert),true);
  assert.ok(await p.locator('.qbDrawModal').evaluate(n=>Number(getComputedStyle(n).zIndex))>10100);
  await p.getByRole('button',{name:'連番',exact:true}).click();await p.locator('.qbDrawNavigation').getByRole('button',{name:'全体表示',exact:true}).click();await p.locator('.qbDrawCanvas').click();
  // Failed image save keeps the annotation editor open, allowing retry.
