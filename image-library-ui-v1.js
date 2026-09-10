@@ -35,7 +35,7 @@ async function open({context=null}={}){
   const state={query:'',subjects:[],unit:'',role:'',sort:'recent',view:'all',aspect:'',analysis:'',classification:'',used:'',related:false,archived:false,offset:0};
   const selected=new Map(),jobs=new Map(),added=[];let busy=false,closed=false,generation=0,detailGeneration=0,subjects=[],catalogRows=[],terms=[],saveCurrent=null,dirty=()=>false,searchTimer=0,listScroll=0,hasMore=false,loading=false,autoPaused=false,selectionMode=!!context;
   const listView=el('div'),detailView=el('div');let detailPaste=null;detailView.hidden=true;body.append(listView,detailView);
-  const fieldWidths=new WeakMap(),fieldResize=new ResizeObserver(entries=>{for(const {target,contentRect} of entries){if(fieldWidths.get(target)!==contentRect.width){fieldWidths.set(target,contentRect.width);growField(target)}}});
+  const fieldWidths=new WeakMap(),fieldResize=new ResizeObserver(entries=>{for(const {target,contentRect} of entries){if(fieldWidths.get(target)!==contentRect.width){fieldWidths.set(target,contentRect.width);requestAnimationFrame(()=>growField(target))}}});
   function growField(field){if(!field.isConnected||!field.getClientRects().length)return;field.style.height='auto';field.style.height=Math.max(44,field.scrollHeight+2)+'px';}
   function autoGrow(field){field.classList.add('qbLibraryAutoGrow');field.rows=1;field.addEventListener('input',()=>growField(field));fieldResize.observe(field);requestAnimationFrame(()=>growField(field))}
   function report(target,e){target.textContent=e?.message||String(e)}
@@ -76,7 +76,7 @@ async function open({context=null}={}){
    const m=row.metadata||{},basic=el('dl','qbLibraryReadOnly'),extra=detailBlock('細かい情報'),info=el('dl','qbLibraryReadOnly');
    for(const key of ['name','topics','keywords','subject_ids',...C.FIELDS.filter(k=>!['name','topics','keywords','subject_ids'].includes(k))]){
     const value=key==='subject_ids'?subjectNames(m[key]):key==='unit_ids'?(m[key]||[]).map(id=>catalogRows.find(c=>c.id===id)?.path||id).join('、'):key==='analysis_status'?ANALYSIS[m[key]]:key==='classification_status'?CLASSIFICATION[m[key]]:fieldText(m[key]);
-    if(!value)continue;const target=['name','topics','keywords','subject_ids'].includes(key)?basic:info;target.append(el('dt','',C.LABELS[key]),el('dd','',value));
+    if(!value)continue;const target=['name','topics','keywords','subject_ids'].includes(key)?basic:info;const content=el('dd','',key==='keywords'?'':value);if(key==='keywords'){content.className='qbLibraryTags';(m.keywords||[]).forEach(tag=>content.append(el('span','qbLibraryTag qbLibraryReadTag',tag)))}target.append(el('dt','',C.LABELS[key]),content);
    }host.append(basic);if(info.childElementCount){extra.append(info);host.append(extra)}
   }
   function memberChoices(host,members){
@@ -113,17 +113,30 @@ async function open({context=null}={}){
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
    if(registered.length)await reviewUploads(registered);
   }
+  function keywordField(values){
+   const host=el('div','qbLibraryField qbLibraryWide'),label=el('span','','キーワード'),wrap=el('div','qbLibraryTagEditor'),list=el('div','qbLibraryTags'),input=el('textarea');
+   label.id='qb-keywords-'+crypto.randomUUID();input.setAttribute('aria-labelledby',label.id);input.placeholder='入力してEnterで追加';input.setAttribute('enterkeyhint','done');host.append(label,wrap);wrap.append(list,input);autoGrow(input);
+   let tags=C.list(values),editing=null,composing=false,compositionEnd=0;
+   const parts=()=>input.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+   function value(){const next=tags.filter((_,i)=>i!==editing);if(editing===null)next.push(...parts());else next.splice(Math.min(editing,next.length),0,...parts());const seen=new Set();return next.filter(t=>{const n=C.normalize(t);if(seen.has(n))return false;seen.add(n);return true})}
+   function commit(){if(composing)return;tags=value();editing=null;input.value='';draw();growField(input)}
+   function draw(){list.replaceChildren();tags.forEach((tag,index)=>{const chip=el('span','qbLibraryTag'+(editing===index?' is-editing':'')),edit=btn(tag,()=>{commit();editing=tags.indexOf(tag);if(editing<0)editing=null;input.value=tag;draw();growField(input);input.focus();input.select()},'qbLibraryTagText'),remove=btn('×',()=>{tags.splice(index,1);if(editing===index){editing=null;input.value=''}else if(editing!==null&&editing>index)editing--;draw();growField(input);input.focus()},'qbLibraryTagRemove');edit.setAttribute('aria-label',tag+'を編集');remove.setAttribute('aria-label',tag+'を削除');chip.append(edit,remove);list.append(chip)})}
+   input.addEventListener('compositionstart',()=>composing=true);input.addEventListener('compositionend',()=>{composing=false;compositionEnd=performance.now()});
+   input.addEventListener('keydown',e=>{if(e.key==='Enter'){if(composing||e.isComposing||e.keyCode===229||performance.now()-compositionEnd<40)return;e.preventDefault();e.stopPropagation();commit()}});
+   input.addEventListener('beforeinput',e=>{if(e.inputType==='insertParagraph'&&!composing&&!e.isComposing&&performance.now()-compositionEnd>=40){e.preventDefault();commit()}});
+   draw();return{host,input,value,commit};
+  }
   function metadataForm(form,m){
-   const controls={},inputs={},advanced=detailBlock('細かい設定'),advancedGrid=el('div','qbLibraryForm');advanced.classList.add('qbLibraryWide');advanced.append(advancedGrid);
+   let keyword;const controls={},inputs={},advanced=detailBlock('細かい設定'),advancedGrid=el('div','qbLibraryForm');advanced.classList.add('qbLibraryWide');advanced.append(advancedGrid);
    function field(key,parent){const f=inputField(C.LABELS[key],fieldText(m[key]),['name','topics','keywords','notes','visual_summary','ocr_text'].includes(key));if(['name','topics','keywords'].includes(key))autoGrow(f.input);f.host.classList.add('qbLibraryWide');if(key==='roles')f.input.placeholder=ROLES.join('、');if(key==='aspects')f.input.placeholder=ASPECTS.join('、');if(key==='ocr_text')f.input.classList.add('qbLibraryTranscript');inputs[key]=f.input;controls[key]=()=>C.ARRAY_FIELDS.includes(key)?C.list(f.input.value):f.input.value;parent.append(f.host)}
-   for(const key of ['name','topics','keywords'])field(key,form);
+   for(const key of ['name','topics'])field(key,form);keyword=keywordField(m.keywords);form.append(keyword.host);controls.keywords=keyword.value;inputs.keywords=keyword.input;
    function choices(key,label,options,parent){const group=el('div','qbLibraryField qbLibraryWide'),checks=el('div','qbLibraryChecks'),values=[];group.append(el('span','',label),checks);searchChecks(group,checks,label+'候補を検索');for(const option of options){const c=check(option.path||option.name,(m[key]||[]).includes(option.id));c.host.dataset.aliases=(option.aliases||[]).join(' ');values.push([option,c]);checks.append(c.host)}controls[key]=()=>values.filter(([,c])=>c.input.checked).map(([o])=>o.id);parent.append(group);return values;}
    const subjectInputs=choices('subject_ids','科目',subjects,form);form.append(advanced);
    const units=choices('unit_ids','単元',catalogRows.filter(c=>c.kind==='unit'),advancedGrid);
    const visibleUnits=()=>{const ids=controls.subject_ids();for(const [u,c] of units){c.host.hidden=!ids.includes(u.subject_id)&&!c.input.checked;c.host.dataset.excluded=String(c.host.hidden)}};subjectInputs.forEach(([,c])=>c.input.addEventListener('change',visibleUnits));visibleUnits();
    for(const key of ['aspects','roles','aliases','related_keywords','notes','visual_summary','ocr_text'])field(key,advancedGrid);
    for(const [key,label,options] of [['analysis_status','解析状況',Object.entries(ANALYSIS)],['classification_status','分類状況',Object.entries(CLASSIFICATION)]]){const f=selectField(label,options,m[key]||(key==='analysis_status'?'unprocessed':'unknown'));inputs[key]=f.input;controls[key]=()=>f.input.value;advancedGrid.append(f.host)}
-   return {controls,inputs,advanced};
+   return {controls,inputs,advanced,commit:()=>keyword.commit()};
   }
   async function reviewUploads(rows){
    if(closed||!rows.length)return;
@@ -137,7 +150,7 @@ async function open({context=null}={}){
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage');im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,draft.row.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{im.alt='画像を読み込めませんでした'});
     const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.prepend(form);draft.view.append(draft.ocrStatus);host.append(draft.view);
-    const fields=metadataForm(form,m);draft.fields=fields.controls;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
+    const fields=metadataForm(form,m);draft.fields=fields.controls;draft.commit=fields.commit;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
     draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);
     draft.ocrInput.addEventListener('input',()=>draft.ocrTouched=true);draft.analysisInput.addEventListener('change',()=>draft.analysisTouched=true);
     draft.collect=()=>Object.fromEntries(Object.entries(draft.fields).map(([k,get])=>[k,get()]));draft.baseline=draft.collect();
@@ -149,12 +162,12 @@ async function open({context=null}={}){
    return new Promise(resolveReview=>{
     function finish(){if(finished)return;finished=true;stopOCR();window.removeEventListener('qb-library-access-changed',finish);modal.querySelectorAll('.qbLibraryAutoGrow').forEach(n=>fieldResize.unobserve(n));modal.remove();panel.inert=false;resolveReview(drafts.map(d=>d.row));}
     window.addEventListener('qb-library-access-changed',finish);
-    const confirmButton=btn('確定',confirmReview,'qbLibraryPrimary');footer.append(confirmButton);header.append(btn('一覧に戻る',()=>{if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('未保存の変更を破棄しますか？追加した画像は残ります。')))finish()}));
+    const confirmButton=btn('確定',confirmReview,'qbLibraryPrimary');footer.append(confirmButton);const reviewBack=btn('一覧に戻る',()=>{if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('未保存の変更を破棄しますか？追加した画像は残ります。')))finish()});header.append(reviewBack);
     async function confirmReview(){
-     if(saving||finished)return;saving=true;stopOCR();content.inert=true;confirmButton.disabled=true;note.textContent='保存中…';
-     try{for(const d of drafts){const patch=C.changed(d.baseline,d.collect());if(Object.keys(patch).length){d.row=await S.save(sb,d.row,patch,{reason:d.ocrApplied?'アップロード後の内容確認（ブラウザOCRの仮読み取りを含む）':'アップロード後の内容確認'});d.baseline=d.collect();if(selected.has(d.row.id))selected.set(d.row.id,d.row)}}await load(true);finish()}
+     if(saving||finished)return;saving=true;stopOCR();content.inert=true;confirmButton.disabled=true;confirmButton.textContent='保存中…';confirmButton.setAttribute('aria-busy','true');reviewBack.disabled=true;note.textContent='変更内容を保存しています…';
+     try{for(const d of drafts){d.commit();const patch=C.changed(d.baseline,d.collect());if(Object.keys(patch).length){d.row=await S.save(sb,d.row,patch,{reason:d.ocrApplied?'アップロード後の内容確認（ブラウザOCRの仮読み取りを含む）':'アップロード後の内容確認'});d.baseline=d.collect();if(selected.has(d.row.id))selected.set(d.row.id,d.row)}}finish();void load(true)}
      catch(e){note.textContent=(e.message||e)+' 入力内容は保持しています。';}
-     finally{saving=false;content.inert=false;confirmButton.disabled=false;display()}
+     finally{saving=false;if(!finished){content.inert=false;confirmButton.disabled=false;confirmButton.textContent='確定';confirmButton.removeAttribute('aria-busy');reviewBack.disabled=false;confirmButton.focus({preventScroll:true})}}
     }
     modal.addEventListener('keydown',e=>{
      e.stopPropagation();if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing)confirmReview();return}
@@ -255,7 +268,7 @@ async function open({context=null}={}){
    const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();saveForm()};
    async function showLatest(){try{const latest=await S.get(sb,row.id);const d=detailBlock('現在保存されている情報（入力内容は保持しています）');d.open=true;const p=el('pre');p.textContent=JSON.stringify(latest.metadata,null,2);d.append(p);detailView.append(d);note.textContent='入力内容を確認・控えたうえで詳細を開き直してください。強制上書きは行いません。'}catch(e){report(note,e)}}
    saveCurrent=saveForm;
-   async function saveForm(){if(busy)return;const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';await load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;if(focus?.isConnected)focus.focus({preventScroll:true})}}
+   async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';await load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
    async function editImage(kind){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);

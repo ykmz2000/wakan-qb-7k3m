@@ -97,3 +97,13 @@ body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.
 @media(prefers-reduced-motion:reduce){.qbLibraryPreview>.qbLibraryPanel{animation:none}}
 
 .qbLibraryPanel textarea.qbLibraryAutoGrow{min-height:44px;height:44px;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.6}
+
+.qbLibraryTagEditor{border:1px solid var(--line);padding:8px;min-width:0}
+.qbLibraryTags{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.qbLibraryTag{display:inline-flex;max-width:100%;align-items:center;border:1px solid var(--accent-border,var(--line));background:var(--accent-soft,var(--bg));color:var(--text);font-size:14px;overflow-wrap:anywhere}
+.qbLibraryTag.is-editing{outline:2px solid var(--accent)}
+.qbLibraryPanel .qbLibraryTag button{font-size:14px;font-weight:600;border:0;background:transparent;min-height:36px;color:var(--text)}
+.qbLibraryPanel button.qbLibraryTagText{min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:left;padding:6px 8px}
+.qbLibraryPanel button.qbLibraryTagRemove{flex-shrink:0;padding:4px 9px}
+.qbLibraryReadTag{padding:6px 8px}
+.qbLibraryPanel .qbLibraryTagEditor textarea.qbLibraryAutoGrow{border:0;margin-top:4px;padding:8px;min-height:44px;background:transparent}
