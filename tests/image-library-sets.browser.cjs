@@ -25,4 +25,36 @@ async function run(browser,label){
  await p.waitForFunction(()=>!document.querySelector('.qbLibraryBody > div').inert);await p.getByRole('button',{name:'科目・単元を管理',exact:true}).click();await p.getByLabel('編集対象',{exact:true}).selectOption('new-unit');await p.getByLabel('名称',{exact:true}).fill('検査');await p.getByLabel('所属する科目・上位単元',{exact:true}).selectOption('s1');await p.getByRole('spinbutton',{name:'並び順',exact:true}).fill('20');await p.keyboard.press('Meta+s');await p.waitForFunction(()=>db.qb_image_library_catalog.some(c=>c.name==='検査'));await p.getByRole('button',{name:'一覧へ戻る'}).click();await p.getByText('絞り込み',{exact:true}).click();assert.ok((await p.getByLabel('単元（下位も含む）',{exact:true}).textContent()).includes('眼科学 / 検査'));assert.equal(await p.evaluate(()=>db.subjects.length),2);pass('catalog manager adds ordered library units without changing problem subjects');
  assert.deepEqual(errors,[]);await p.close();console.log(label+' '+n+' set browser checks passed');
 }
-(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+async function runAppend(browser,label){
+ const {page:p,errors}=await boot(browser);
+ await p.addScriptTag({content:read('recent-image-picker-v1.js')});
+ await p.evaluate(()=>{
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>{throw Error('denied')}}});
+  db.question_images.push({id:'r1',question_id:'q1',image_path:'q1/recent.png',placement:'explanation_overview',created_at:'2026-09-10T00:00:00Z'});
+  objects.set('question-media/q1/recent.png',new Blob(['recent pixels'],{type:'image/png'}));window.originalQuestionImages=JSON.stringify(db.question_images);
+ });
+ await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryImageButton').first().click();
+ await p.getByRole('button',{name:'この画像に追加してセットにする',exact:true}).click();
+ await p.getByLabel('セット名',{exact:true}).fill('追加セット');
+ await p.getByLabel('セットに追加する画像',{exact:true}).setInputFiles([{name:'new-a.png',mimeType:'image/png',buffer:Buffer.from('a')},{name:'new-b.png',mimeType:'image/png',buffer:Buffer.from('b')}]);
+ await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===3&&!document.querySelector('.qbLibraryBody > div:last-child').inert);
+ assert.equal(await p.evaluate(()=>db.qb_image_library_sets.length),0);
+ await p.getByRole('button',{name:'セットを保存',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_sets.length===1);
+ const original=await p.evaluate(()=>db.qb_image_library_sets[0].image_ids.slice());assert.equal(original[0],'i1');assert.equal(original.length,3);
+ await p.getByRole('button',{name:'一覧へ戻る',exact:true}).click();await p.locator('.qbLibrarySet').getByRole('button',{name:'一部を選ぶ・セットを編集',exact:true}).click();
+ await p.getByRole('button',{name:'画像をコピペして追加',exact:true}).click();
+ await p.getByRole('textbox',{name:'セットへの画像貼り付け欄',exact:true}).evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['paste'],'paste.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
+ await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===4&&!document.querySelector('.qbLibraryBody > div:last-child').inert);
+ await p.getByRole('button',{name:'最近の画像から追加',exact:true}).click();await p.locator('.qbripItem[data-id="r1"]').click();await p.locator('.qbripUse').click();
+ await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===5&&!document.querySelector('.qbLibraryBody > div:last-child').inert);
+ await p.getByLabel('セット名',{exact:true}).focus();await p.keyboard.press('Meta+s');await p.waitForFunction(()=>db.qb_image_library_sets[0].image_ids.length===5);
+ assert.deepEqual(await p.evaluate(()=>db.qb_image_library_sets[0].image_ids.slice(0,3)),original);
+ assert.equal(await p.evaluate(()=>db.qb_image_library_sets.length),1);
+ assert.equal(await p.evaluate(()=>JSON.stringify(db.question_images)===originalQuestionImages),true);
+ assert.equal(await p.evaluate(()=>calls.filter(c=>c[1]==='qb_library_record_reading').length),0);
+ assert.ok(await p.evaluate(()=>db.qb_image_library_items.slice(2).every(i=>i.metadata.analysis_status==='unprocessed')));
+ await p.getByRole('button',{name:'一覧へ戻る',exact:true}).click();assert.equal(await p.locator('.qbLibrarySet .qbLibrarySlide').count(),5);
+ assert.deepEqual(errors,[]);await p.close();console.log(label+' append upload/paste/recent to existing image and set checks passed');
+}
+(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);await runAppend(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+
