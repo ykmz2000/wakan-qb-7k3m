@@ -1,0 +1,40 @@
+name: Image library verification
+on:
+  pull_request:
+    paths:
+      - 'image-library-*.js'
+      - 'image-library-v1.css'
+      - 'index.html'
+      - 'supabase/image-library-*.sql'
+      - 'tests/image-library*'
+      - '.github/workflows/image-library-tests.yml'
+permissions:
+  contents: read
+concurrency:
+  group: image-library-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare existing editor and browser dependencies
+        run: |
+          mkdir -p /tmp/qb-inline-build
+          cp editor-build/package.json /tmp/qb-inline-build/package.json
+          npm install --prefix /tmp/qb-inline-build --ignore-scripts --package-lock=false --no-audit --no-fund
+          node scripts/build-inline-overview.cjs
+          npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 cropperjs@1.6.2
+      - name: Verify image library and existing image editing
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: |
+          node --check image-library-core-v1.js
+          node --check image-library-store-v1.js
+          node --check image-library-ui-v1.js
+          node --check image-library-integration-v1.js
+          node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs
+          node tests/image-library.browser.cjs
+          node tests/recent-image-scope-preview.browser.cjs
