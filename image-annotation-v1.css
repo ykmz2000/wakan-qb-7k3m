@@ -27,3 +27,7 @@
 .qbDrawCounterSettings{display:flex;flex-wrap:wrap;gap:6px}.qbDrawCounterSettings input{box-sizing:border-box;width:90px;min-height:40px;font:inherit;color:inherit;background:var(--card,#fff);border:1px solid var(--line,#dce3ec);border-radius:8px;padding:7px}
 
 .qbDrawReference{display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0;padding:0}.qbDrawReferenceControls{display:flex;align-items:center;gap:5px;padding:6px;flex-wrap:wrap;flex:none}.qbDrawReferenceControls b{margin-right:auto;font-size:13px}.qbDrawReferenceViewport{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;user-select:none;cursor:grab;background:#e8ebef}.qbDrawReferenceViewport:active{cursor:grabbing}.qbDrawReferenceViewport img{display:block;width:100%;max-width:none;transform-origin:0 0;pointer-events:none;margin:0}
+
+.qbDrawModal>.qbripModal{z-index:2}.qbDrawModal>.qbripModal .qbripPreview{z-index:3}
+.qbDrawModal.qbDrawHasChild>.qbDrawPanel{pointer-events:none}
+.qbDrawPanel .qbDrawSwatch[data-color="#111111"][aria-pressed=true]::after{color:#fff;text-shadow:none}

@@ -85,7 +85,7 @@ async function run(browser,name){
   await p.locator('.qbCropFull').click();await p.locator('[data-rotate="90"]').click();await p.locator('.qbCropFull').click();
   const rotated=await data(p);near(rotated.rotate,90,'rotation retained');near(rotated.width,800,'rotated full width');near(rotated.height,1200,'rotated full height');
   await p.locator('.qbCropSave').click();await p.waitForFunction(()=>window.cropResult&&window.cropResult.width);
-  assert.deepEqual(await p.evaluate(()=>cropResult),{width:800,height:1200,type:'image/jpeg'});assert.equal(await p.locator('.qbCropModal').count(),0);assert.deepEqual(errors,[]);
+  assert.deepEqual(await p.evaluate(()=>cropResult),{width:800,height:1200,type:'image/png'});assert.equal(await p.locator('.qbCropModal').count(),0);assert.deepEqual(errors,[]);
   console.log(name+' PASS mouse resize, ratio presets, rotation, full-image reset and correctly sized saved JPEG');
   await p.close();
 }

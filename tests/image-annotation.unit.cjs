@@ -67,7 +67,22 @@ test('layer order supports one-step and absolute movement while preserving selec
 test('snap move aligns matching edges and centers using screen-pixel tolerance',()=>{
   const items=[{id:'move',type:'image',x:10,y:20,w:100,h:80},{id:'fixed',type:'image',x:210,y:120,w:100,h:80}];
   const x=M.snapMove(items,['move'],198,0,600,400,1,10);assert.equal(x.dx,200);assert.deepEqual(x.guides,[{axis:'x',value:210}]);
-  const center=M.snapMove(items,['move'],0,82,600,400,.5,10);assert.equal(center.dy,100);assert.ok(center.guides.some(g=>g.axis==='y'&&g.value===160));
+  const differentSize=[items[0],{...items[1],y:60,h:200}];
+  const center=M.snapMove(differentSize,['move'],0,82,600,400,.5,10);assert.equal(center.dy,100);assert.ok(center.guides.some(g=>g.axis==='y'&&g.value===160));
+  const outside=M.snapMove(differentSize,['move'],0,82,600,400,2,10);assert.equal(outside.dy,82);
 });
 
 test('counter labels keep lowercase words and explicit integer starts',()=>{assert.equal(M.counterLabel(26,'letter'),'z');assert.equal(M.counterLabel(27,'letter'),'aa');assert.equal(M.counterValue('aa','letter'),27);assert.equal(M.counterValue('3'),3);assert.equal(M.counterValue('A','letter'),null);assert.equal(M.counterValue('0'),null)});
+
+test('native export includes pasted-image density, margins, resized objects and base pixels',()=>{
+ const scene={width:1000,height:600,base:{assetId:'base',x:0,y:0,w:800,h:600},items:[{id:'a',type:'image',assetId:'paste',x:800,y:0,w:200,h:150}]};
+ const size=id=>id==='base'?{width:800,height:600}:{width:1600,height:1200};
+ assert.deepEqual(M.nativeExportPlan(scene,size),{width:8000,height:4800,scale:8});
+ const smaller=M.copy(scene);smaller.items[0].w=100;smaller.items[0].h=75;
+ assert.equal(M.nativeExportPlan(smaller,size).scale,16);
+ assert.deepEqual(M.nativeExportPlan({...scene,items:[]},size),{width:1000,height:600,scale:1});
+ assert.throws(()=>M.nativeExportPlan(scene,()=>null));
+});
+test('ellipse and circle only hit their outline, not their blank interior',()=>{
+ for(const type of ['circle','ellipse']){const i={type,x:100,y:100,w:200,h:100,width:4};assert.equal(M.hit(i,{x:200,y:150},6),false);assert.equal(M.hit(i,{x:200,y:100},6),true);assert.equal(M.hit(i,{x:200,y:85},6),false)}
+});

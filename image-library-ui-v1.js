@@ -112,7 +112,7 @@ async function open({context=null}={}){
   tools.append(asSet.host,btn('画像を追加',()=>uploadInput.click()),pasteButton,recentButton,uploadInput);if(access.admin)tools.append(btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'));
   async function register(values,save){
    if(!values.length||busy||closed)return;setBusy(true);let done=0,registered=[];
-   try{for(const value of values){uploadStatus.textContent=`画像を登録中… ${done}/${values.length}`;registered.push(await save(value));done++}if(asSet.input.checked&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のセット',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
+   try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きな画像を保存中… 通信に時間がかかる場合があります。 ':'画像を登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(asSet.input.checked&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のセット',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
    catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
    if(registered.length)await reviewUploads(registered);

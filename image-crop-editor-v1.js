@@ -114,9 +114,10 @@ async function open(src,{title='画像をトリミング',rotatable=true}={}){
       busy=true;modal.querySelectorAll('button').forEach(b=>b.disabled=true);cropper.disable();status.textContent='画像を作成中…';
       const failed=e=>{busy=false;cropper.enable();modal.querySelectorAll('button').forEach(b=>b.disabled=false);status.textContent='保存できませんでした：'+(e.message||e)};
       try{
-        const canvas=cropper.getCroppedCanvas({maxWidth:4096,maxHeight:4096,imageSmoothingEnabled:true,imageSmoothingQuality:'high'});
+        const data=cropper.getData(true),canvas=cropper.getCroppedCanvas({imageSmoothingEnabled:false});
+        if(!canvas||canvas.width<Math.floor(data.width)||canvas.height<Math.floor(data.height))throw Error('この端末では元解像度のトリミング画像を生成できません。自動縮小は行いません。');
         if(!canvas||!canvas.width||!canvas.height)throw new Error('切り抜く範囲を選択してください。');
-        canvas.toBlob(blob=>{if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/jpeg',.94);
+        canvas.toBlob(blob=>{if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/png');
       }catch(e){failed(e)}
     };
     img.onload=()=>{
