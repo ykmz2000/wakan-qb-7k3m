@@ -55,3 +55,6 @@ test('rectangle hit testing follows all four strokes, with bounded edge toleranc
   assert.equal(M.hit(r,{x:89,y:160},6),false);
   assert.equal(M.hit({...r,type:'image'},{x:220,y:160},6),true);
 });
+
+
+test('counter labels keep lowercase words and explicit integer starts',()=>{assert.equal(M.counterLabel(26,'letter'),'z');assert.equal(M.counterLabel(27,'letter'),'aa');assert.equal(M.counterValue('aa','letter'),27);assert.equal(M.counterValue('3'),3);assert.equal(M.counterValue('A','letter'),null);assert.equal(M.counterValue('0'),null)});
