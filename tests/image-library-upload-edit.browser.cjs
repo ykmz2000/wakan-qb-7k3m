@@ -4,6 +4,8 @@ const {chromium,webkit}=require('playwright'),{boot}=require('./image-library.br
 const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
 async function run(browser,label){
  const {page:p,errors}=await boot(browser);p.setDefaultTimeout(10000);await p.setViewportSize({width:1024,height:900});
+ // WebKit exposes blob requests to routing; the generic HTML fixture must not replace image bytes.
+ await p.route(/^blob:/,r=>r.continue());
  await p.addStyleTag({content:read('image-annotation-v1.css')});
  for(const f of ['image-annotation-model-v1.js','image-annotation-editor-v1.js'])await p.addScriptTag({content:read(f)});
  await p.evaluate(()=>{window.Tesseract={createWorker:async()=>({recognize:()=>new Promise(r=>window.lateOCR=r),terminate:async()=>{}})};window.QBImageCrop={open:async()=>null};localStorage.setItem('qb-image-editor-settings-v1','{}');
