@@ -33,7 +33,7 @@ async function open({context=null}={}){
   const background=[...document.body.children].filter(n=>!['SCRIPT','STYLE','LINK'].includes(n.tagName)).map(n=>[n,n.inert]);background.forEach(([n])=>n.inert=true);document.body.append(overlay);
   const oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';
   const state={query:'',subjects:[],unit:'',role:'',sort:'logical',view:'all',aspect:'',analysis:'',classification:'',used:'',related:false,archived:false,offset:0};
-  const selected=new Map(),jobs=new Map(),added=[];let busy=false,closed=false,generation=0,detailGeneration=0,subjects=[],catalogRows=[],terms=[],saveCurrent=null,dirty=()=>false,searchTimer=0,listScroll=0,hasMore=false;
+  const selected=new Map(),jobs=new Map(),added=[];let busy=false,closed=false,generation=0,detailGeneration=0,subjects=[],catalogRows=[],terms=[],saveCurrent=null,dirty=()=>false,searchTimer=0,listScroll=0,hasMore=false,loading=false,autoPaused=false;
   const listView=el('div'),detailView=el('div');let detailPaste=null;detailView.hidden=true;body.append(listView,detailView);
   function report(target,e){target.textContent=e?.message||String(e)}
   function close(){if(closed||busy)return;if(dirty()&&!confirm('未保存の変更を破棄して閉じますか？'))return;closed=true;generation++;clearTimeout(searchTimer);window.removeEventListener('qb-library-access-changed',endSession);overlay.remove();background.forEach(([n,inert])=>{if(n.isConnected)n.inert=inert});document.documentElement.style.overflow=oldOverflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});try{if(added.length)context?.onSaved?.(added)}catch(e){console.warn('画像は保存済みですが画面の再表示に失敗しました',e)}resolve(added)}
@@ -165,7 +165,7 @@ async function open({context=null}={}){
   const fields=[['role','画像の役割',[['','すべて'],...ROLES.map(x=>[x,x])]],['sort','並び順',[['logical','科目・単元順'],['recent','追加順']]],['view','表示',[['all','画像とセット'],['images','個別画像'],['sets','セット']]],['aspect','内容の観点',[['','すべて'],...ASPECTS.map(x=>[x,x])]],['analysis','解析状況',[['','すべて'],...Object.entries(ANALYSIS)]],['classification','分類状況',[['','すべて'],...Object.entries(CLASSIFICATION)]],['used','使用状況',[['','すべて'],['used','使用履歴あり'],['unused','未使用']]]];
   for(const [key,label,options] of fields){const f=selectField(label,options);filterGrid.append(f.host);f.input.onchange=()=>{state[key]=f.input.value;load(true)}}
   const related=check('関連する内容も検索する',false),archived=check('削除した画像を表示',false);filters.append(related.host,archived.host);related.input.onchange=()=>{state.related=related.input.checked;load(true)};archived.input.onchange=()=>{state.archived=archived.input.checked;selected.clear();load(true)};
-  const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('さらに表示',()=>load(false));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,pasteZone,uploadStatus,filters,status,suggest,grid,more);
+  const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('再読み込み',()=>load(state.offset===0));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,pasteZone,uploadStatus,filters,status,suggest,grid,more);
   const authorCache=new Map();
   async function preloadAuthors(rows){const ids=rows.flatMap(r=>[r.item?.created_by,r.set_data?.created_by,...(r.set_data?.members||[]).map(i=>i.created_by)]).filter(id=>id&&!authorCache.has(id));try{for(const a of await S.authors(sb,ids))authorCache.set(a.id,a)}catch{/* Attribution failure must not hide images. */}}
   function authorLine(row){const a=authorCache.get(row.created_by),line=el('div','qbLibraryAuthor'),name=a?.display_name||'投稿者';const icon=el('span','qbLibraryAuthorIcon',name.slice(0,1));if(a?.avatar_path){const im=el('img');im.alt='';im.src=S.avatarURL(sb,a.avatar_path);im.onerror=()=>im.remove();icon.append(im)}line.append(icon,el('span','',name));return line;}
@@ -179,12 +179,17 @@ async function open({context=null}={}){
    if(!row.archived){const l=el('label','qbLibrarySelect'),i=el('input');i.type='checkbox';i.dataset.selectImage=row.id;i.checked=selected.has(row.id);i.onchange=()=>{if(i.checked)selected.set(row.id,row);else selected.delete(row.id);syncSelection()};l.append(i,el('span','','この画像を選択'));article.append(l)}
    grid.append(article);thumbnail(img,row.object_path,version);
   }
+  function maybeLoadMore(){
+   if(closed||busy||loading||autoPaused||!hasMore||listView.hidden||panel.inert||searchInput.value!==state.query)return;
+   if(body.scrollHeight-body.scrollTop-body.clientHeight<400)load(false);
+  }
+  body.addEventListener('scroll',maybeLoadMore,{passive:true});
   async function load(reset){
-   if(closed)return;clearTimeout(searchTimer);if(reset){state.query=searchInput.value;state.offset=0;generation++;grid.replaceChildren();suggest.replaceChildren();}
-   const version=generation,offset=state.offset;status.textContent='検索中…';more.disabled=true;searchButton.disabled=true;
-   try{const rows=await S.search(sb,{...state});await preloadAuthors(rows);if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=!hasMore;more.textContent='さらに表示';status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件の画像はありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
-   catch(e){if(!closed&&version===generation){report(status,e);more.hidden=false;more.textContent='再読み込み';}}
-   finally{if(!closed&&version===generation){more.disabled=false;searchButton.disabled=false}}
+   if(closed||(!reset&&loading))return;loading=true;autoPaused=false;clearTimeout(searchTimer);if(reset){state.query=searchInput.value;state.offset=0;generation++;grid.replaceChildren();suggest.replaceChildren();}
+   const version=generation,offset=state.offset;status.textContent=reset?'検索中…':'続きを読み込み中…';more.hidden=true;more.disabled=true;searchButton.disabled=true;
+   try{const rows=await S.search(sb,{...state});await preloadAuthors(rows);if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=true;status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件の画像はありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
+   catch(e){if(!closed&&version===generation){report(status,e);autoPaused=true;more.hidden=false;more.textContent='再読み込み';}}
+   finally{if(!closed&&version===generation){loading=false;more.disabled=false;searchButton.disabled=false;requestAnimationFrame(maybeLoadMore)}}
   }
   function enterDetail(title){saveCurrent=null;detailPaste=null;detailGeneration++;listScroll=body.scrollTop;listView.hidden=true;detailView.hidden=false;detailView.replaceChildren();heading.textContent=title;body.scrollTop=0;detailView.append(btn('一覧へ戻る',back,'qbLibraryTextButton'))}
   async function back(){if(busy)return;detailGeneration++;if(dirty()&&!confirm('未保存の変更を破棄して一覧に戻りますか？'))return;dirty=()=>false;saveCurrent=null;detailView.hidden=true;listView.hidden=false;heading.textContent=context?'画像ライブラリから選択':'画像ライブラリ';body.scrollTop=listScroll;searchInput.focus({preventScroll:true});}
