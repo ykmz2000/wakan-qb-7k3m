@@ -14,6 +14,9 @@ async function run(browser,label){
  };
  const review=p.getByRole('dialog',{name:'追加した画像を確認',exact:true});
  await upload(['first.png','second.png']);
+ // Each uploaded image precedes its name and other fields, including after batch navigation.
+ const previewFirst=()=>review.locator('.qbLibraryDetailImage').evaluateAll(images=>images.every(img=>{const form=img.parentElement.querySelector('.qbLibraryForm');return !!(img.compareDocumentPosition(form)&Node.DOCUMENT_POSITION_FOLLOWING)}));
+ assert.equal(await previewFirst(),true);
  await p.waitForFunction(()=>ocrJobs.length===1);
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),4);
  assert.equal(await p.locator('.qbLibraryOverlay > .qbLibraryPanel').first().evaluate(n=>n.inert),true);
@@ -23,6 +26,7 @@ async function run(browser,label){
  await p.waitForFunction(()=>ocrJobs.length===1);
  assert.equal(await review.getByLabel('読み取り本文',{exact:true}).first().inputValue(),'自分で入力');
  await review.getByRole('button',{name:'次の画像',exact:true}).click();
+ assert.equal(await previewFirst(),true);
  await p.evaluate(()=>ocrJobs.shift()({data:{text:'眼球運動と動眼神経'}}));
  await p.waitForFunction(()=>[...document.querySelectorAll('.qbLibraryUploadReview .qbLibraryTranscript')].some(n=>n.value==='眼球運動と動眼神経'));
  assert.equal(await review.getByLabel('解析状況',{exact:true}).nth(1).inputValue(),'needs_review');

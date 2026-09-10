@@ -152,7 +152,7 @@ async function open({context=null}={}){
    function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage');im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,draft.row.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{im.alt='画像を読み込めませんでした'});
-    const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.prepend(form);draft.view.append(draft.ocrStatus);host.append(draft.view);
+    const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(form,draft.ocrStatus);host.append(draft.view);
     const fields=metadataForm(form,m);draft.fields=fields.controls;draft.commit=fields.commit;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
     draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);
     draft.ocrInput.addEventListener('input',()=>draft.ocrTouched=true);draft.analysisInput.addEventListener('change',()=>draft.analysisTouched=true);
