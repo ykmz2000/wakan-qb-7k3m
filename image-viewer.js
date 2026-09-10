@@ -1,8 +1,8 @@
 (()=>{
 'use strict';
-const TARGET='.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img,.qsiImg';
+const TARGET='.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img,.qsiImg,.qbLibraryZoomImage';
 // Match individual rendered/sortable lists, never an entire card or question.
-const GROUP='.qbMediaHostV2,.qbNoteImageGrid,.oeiGrid,.qsiGrid';
+const GROUP='.qbMediaHostV2,.qbNoteImageGrid,.oeiGrid,.qsiGrid,.qbLibraryCarousel';
 let active=null;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 function css(){
@@ -10,7 +10,7 @@ function css(){
   const s=document.createElement('style');s.id='qbImageViewerCss';s.textContent=`
 .qbMediaImg,.qbNoteImageGrid img,.oeiGrid img{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:none!important;object-fit:contain!important;object-position:center!important;margin:8px auto!important;border-radius:10px;border:1px solid #dce3ec;cursor:zoom-in;background:#fff}
 .qbMediaHost,.qbNoteImageGrid,.oeiGrid{overflow:visible!important}
-.qbImageLightbox{position:fixed;inset:0;z-index:9999;box-sizing:border-box;background:rgba(0,0,0,.94);color:#fff;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overscroll-behavior:contain;touch-action:none}
+.qbImageLightbox{position:fixed;inset:0;z-index:10150;box-sizing:border-box;background:rgba(0,0,0,.94);color:#fff;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overscroll-behavior:contain;touch-action:none}
 .qbImageLightboxHead,.qbImageLightboxFoot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .qbImageLightboxTitle{font-size:13px;font-weight:700}
 .qbImageLightbox button{flex-shrink:0;min-width:44px;min-height:44px;border:1px solid #ffffff40;border-radius:12px;background:#ffffff18;color:#fff;font:inherit;cursor:pointer;touch-action:manipulation}
@@ -196,3 +196,4 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
