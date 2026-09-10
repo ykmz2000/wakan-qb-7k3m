@@ -6,10 +6,13 @@ const one=data=>Array.isArray(data)?data[0]:data;
 const unwrap=r=>{if(r.error)throw r.error;return r.data};
 async function available(sb){
  const a=await sb.auth.getUser();if(a.error||!a.data?.user)return false;
- const p=await sb.from('profiles').select('role').eq('id',a.data.user.id).maybeSingle();if(p.error||p.data?.role!=='admin')return false;
  const r=await sb.from('qb_image_library_config').select('enabled').eq('singleton',true).maybeSingle();return !r.error&&r.data?.enabled===true;
 }
 async function authorize(sb){if(!await available(sb))throw Error('画像ライブラリの利用権限または稼働状況を確認できません。')}
+async function access(sb){await authorize(sb);const a=unwrap(await sb.auth.getUser());const userId=a.user.id;const p=unwrap(await sb.from('profiles').select('role').eq('id',userId).maybeSingle());return {userId,admin:p?.role==='admin'}}
+async function requireOwner(sb,row){await authorize(sb);const a=unwrap(await sb.auth.getUser());if(!row.created_by||a.user?.id!==row.created_by)throw Error('編集できるのは投稿者本人だけです。')}
+async function authors(sb,ids){ids=[...new Set(ids.filter(Boolean))];const rows=[];for(let n=0;n<ids.length;n+=100)rows.push(...(unwrap(await sb.rpc('qb_library_authors',{p_ids:ids.slice(n,n+100)}))||[]));return rows}
+function avatarURL(sb,path){return path?sb.storage.from('user-avatars').getPublicUrl(path).data.publicUrl:''}
 async function get(sb,id){const r=await sb.from('qb_image_library_items').select('*').eq('id',id).maybeSingle();const row=unwrap(r);if(!row)throw Error('画像が見つかりません。');return row}
 async function signedURL(sb,path){return unwrap(await sb.storage.from(BUCKET).createSignedUrl(path,1800)).signedUrl}
 function fileInfo(file){if(!file||!file.size||file.size>20*1024*1024)throw Error('画像は20MB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('PNG・JPEG・WebP・GIF・HEIC・HEIFの画像を選んでください。');return {type,ext}}
@@ -32,15 +35,16 @@ async function addRecent(sb,row){
  return add(sb,file);
 }
 async function save(sb,row,patch,options={}){
- C.validate(patch);const r=await sb.rpc('qb_library_save',{p_id:row.id,p_revision:row.revision,p_patch:patch,p_origin:options.origin||'manual',p_reason:options.reason||'情報を編集',p_archived:options.archived??null,p_object_path:options.objectPath||null});return one(unwrap(r));
+ await requireOwner(sb,row);C.validate(patch);const r=await sb.rpc('qb_library_save',{p_id:row.id,p_revision:row.revision,p_patch:patch,p_origin:options.origin||'manual',p_reason:options.reason||'情報を編集',p_archived:options.archived??null,p_object_path:options.objectPath||null});return one(unwrap(r));
 }
-async function replace(sb,row,file){await authorize(sb);const latest=await get(sb,row.id);if(latest.revision!==row.revision)throw Error('別の更新があります。最新の情報を確認してください。');const path=await upload(sb,row.id,file);return save(sb,row,{}, {objectPath:path,reason:'原本を新しい画像に差し替え'})}
+async function replace(sb,row,file){await requireOwner(sb,row);const latest=await get(sb,row.id);if(latest.revision!==row.revision)throw Error('別の更新があります。最新の情報を確認してください。');const path=await upload(sb,row.id,file);return save(sb,row,{}, {objectPath:path,reason:'原本を新しい画像に差し替え'})}
 async function search(sb,state={}){return unwrap(await sb.rpc('qb_library_search_v2',{p_query:state.query||'',p_subjects:state.subjects||[],p_aspect:state.aspect||'',p_analysis:state.analysis||'',p_classification:state.classification||'',p_used:state.used||'',p_related:!!state.related,p_archived:!!state.archived,p_offset:state.offset||0,p_limit:30,p_role:state.role||'',p_unit:state.unit||null,p_sort:state.sort||'logical',p_view:state.view||'all'}))||[]}
 async function catalog(sb,table){let rows=[];for(let n=0;;n+=200){const q=sb.from(table).select('*').order(table==='subjects'?'sort_order':table==='qb_image_library_sets'?'name':'canonical').range(n,n+199),batch=unwrap(await q)||[];rows.push(...batch);if(batch.length<200)return rows}}
 async function history(sb,id,offset=0){return unwrap(await sb.from('qb_image_library_history').select('*').eq('image_id',id).order('revision',{ascending:false}).range(offset,offset+49))||[]}
 async function readings(sb,id){return unwrap(await sb.from('qb_image_library_readings').select('*').eq('image_id',id).order('created_at',{ascending:false}).limit(20))||[]}
 async function usages(sb,id,offset=0){return unwrap(await sb.from('qb_image_library_usages').select('*').eq('image_id',id).order('created_at',{ascending:false}).range(offset,offset+49))||[]}
 async function recordReading(sb,row,envelope){
+ await requireOwner(sb,row);
  if(envelope.image_id!==row.id||envelope.image_version!==row.image_version||envelope.revision!==row.revision)throw Error('読み取り結果の画像ID・画像版・情報版が現在の画像と一致しません。');
  if(!envelope.request_id)throw Error('読み取り結果のrequest_idが必要です。');
  if(!envelope.reading){
@@ -58,11 +62,11 @@ async function termSave(sb,row,canonical,aliases){
 
 async function taxonomy(sb){return unwrap(await sb.rpc('qb_library_catalog_tree',{}))||[]}
 async function structureSave(sb,table,row,patch){
- await authorize(sb);const id=row?.id||crypto.randomUUID();
+ await authorize(sb);if(table==='qb_image_library_sets'&&row)await requireOwner(sb,row);const id=row?.id||crypto.randomUUID();
  let q=sb.from(table);q=row?q.update({...patch,revision:row.revision+1}).eq('id',id).eq('revision',row.revision):q.insert({id,...patch});
  const r=await q.select('*').maybeSingle();const value=unwrap(r);if(!value)throw Error('別の更新があります。入力内容を控えて最新情報を確認してください。');return value;
 }
-async function setGet(sb,id){const set=unwrap(await sb.from('qb_image_library_sets').select('*').eq('id',id).maybeSingle());if(!set)throw Error('セットが見つかりません。');const members=await Promise.all(set.image_ids.map(id=>get(sb,id)));return {...set,members}}
+async function setGet(sb,id){const set=unwrap(await sb.from('qb_image_library_sets').select('*').eq('id',id).maybeSingle());if(!set)throw Error('セットが見つかりません。');const members=unwrap(await sb.from('qb_image_library_items').select('*').in('id',set.image_ids))||[];members.sort((a,b)=>set.image_ids.indexOf(a.id)-set.image_ids.indexOf(b.id));return {...set,members}}
 async function setSave(sb,row,name,imageIds,archived=false){return structureSave(sb,'qb_image_library_sets',row,{name:name.trim(),image_ids:imageIds,archived})}
 async function sets(sb){return catalog(sb,'qb_image_library_sets')}
 async function catalogSave(sb,row,patch){return structureSave(sb,'qb_image_library_catalog',row,patch)}
@@ -89,5 +93,6 @@ async function attach(sb,row,context,job){
  if(r.error){const check=await usageByRequest(sb,job.requestId).catch(()=>null);if(check)return check;throw r.error;}
  return one(r.data);
 }
-root.QBImageLibraryStore={taxonomy,setGet,setSave,sets,catalogSave,download,BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
+root.QBImageLibraryStore={access,requireOwner,authors,avatarURL,taxonomy,setGet,setSave,sets,catalogSave,download,BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
 })(typeof window!=='undefined'?window:globalThis);
+

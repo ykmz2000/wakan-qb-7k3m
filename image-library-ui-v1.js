@@ -1,4 +1,4 @@
-/* Standalone admin library and picker. All AI work is explicitly imported, never scheduled. */
+/* Shared image library and picker. All AI work is explicitly imported, never scheduled. */
 (()=>{
 'use strict';
 const C=window.QBImageLibraryCore,S=window.QBImageLibraryStore;
@@ -15,7 +15,8 @@ function check(text,value){const l=el('label','qbLibraryCheck'),i=el('input');i.
 function detailBlock(label){const d=el('details','qbLibraryDetails');d.append(el('summary','',label));return d}
 function fieldText(value){return Array.isArray(value)?value.join('、'):String(value??'')}
 async function open({context=null}={}){
- if(active){active.focus();return [];}if(opening)return [];const sb=window.qbSupabase;if(!sb)throw Error('接続を確認してください。');opening=true;try{await S.authorize(sb)}finally{opening=false}
+ if(active){active.focus();return [];}if(opening)return [];const sb=window.qbSupabase;if(!sb)throw Error('接続を確認してください。');opening=true;let access;try{access=await S.access(sb)}finally{opening=false}
+ const owns=row=>!!row.created_by&&row.created_by===access.userId;
  return new Promise(resolve=>{
   const origin=document.activeElement,overlay=el('div','qbLibraryOverlay'),panel=el('section','qbLibraryPanel'),head=el('div','qbLibraryHeader'),body=el('div','qbLibraryBody'),foot=el('div','qbLibraryFooter');
   overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label',context?'貼り付ける画像を選択':'画像ライブラリ');overlay.tabIndex=-1;active=overlay;
@@ -26,7 +27,8 @@ async function open({context=null}={}){
   const selected=new Map(),jobs=new Map(),added=[];let busy=false,closed=false,generation=0,detailGeneration=0,subjects=[],catalogRows=[],terms=[],saveCurrent=null,dirty=()=>false,searchTimer=0,listScroll=0,hasMore=false;
   const listView=el('div'),detailView=el('div');detailView.hidden=true;body.append(listView,detailView);
   function report(target,e){target.textContent=e?.message||String(e)}
-  function close(){if(closed||busy)return;if(dirty()&&!confirm('未保存の変更を破棄して閉じますか？'))return;closed=true;generation++;clearTimeout(searchTimer);overlay.remove();background.forEach(([n,inert])=>{if(n.isConnected)n.inert=inert});document.documentElement.style.overflow=oldOverflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});try{if(added.length)context?.onSaved?.(added)}catch(e){console.warn('画像は保存済みですが画面の再表示に失敗しました',e)}resolve(added)}
+  function close(){if(closed||busy)return;if(dirty()&&!confirm('未保存の変更を破棄して閉じますか？'))return;closed=true;generation++;clearTimeout(searchTimer);window.removeEventListener('qb-library-access-changed',endSession);overlay.remove();background.forEach(([n,inert])=>{if(n.isConnected)n.inert=inert});document.documentElement.style.overflow=oldOverflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});try{if(added.length)context?.onSaved?.(added)}catch(e){console.warn('画像は保存済みですが画面の再表示に失敗しました',e)}resolve(added)}
+  function endSession(){busy=false;dirty=()=>false;close()}window.addEventListener('qb-library-access-changed',endSession);
   overlay.addEventListener('keydown',e=>{e.stopPropagation();if(e.target.closest('.qbripModal,.qbDrawModal,.qbCropModal'))return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing&&!busy)saveCurrent?.();return;}if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const nodes=[...overlay.querySelectorAll('button,input,select,textarea,summary,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(!first){e.preventDefault();overlay.focus()}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===overlay)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
   // Isolate shortcuts and paste from the underlying question editor.
   overlay.addEventListener('paste',e=>{
@@ -53,7 +55,7 @@ async function open({context=null}={}){
   const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードで画像を貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへの画像貼り付け欄');
   const asSet=check('複数枚を1セットとして追加',false);
   const pasteButton=btn('画像をコピペ',pasteImages),recentButton=btn('最近の画像',chooseRecent);
-  tools.append(asSet.host,btn('画像を選択',()=>uploadInput.click()),pasteButton,recentButton,btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'),uploadInput);
+  tools.append(asSet.host,btn('画像を選択',()=>uploadInput.click()),pasteButton,recentButton,uploadInput);if(access.admin)tools.append(btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'));
   async function register(values,save){
    if(!values.length||busy||closed)return;setBusy(true);let done=0,registered=[];
    try{for(const value of values){uploadStatus.textContent=`画像を登録中… ${done}/${values.length}`;registered.push(await save(value));done++}if(asSet.input.checked&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のセット',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
@@ -82,10 +84,13 @@ async function open({context=null}={}){
   for(const [key,label,options] of fields){const f=selectField(label,options);filterGrid.append(f.host);f.input.onchange=()=>{state[key]=f.input.value;load(true)}}
   const related=check('関連する内容も検索する',false),archived=check('削除した画像を表示',false);filters.append(related.host,archived.host);related.input.onchange=()=>{state.related=related.input.checked;load(true)};archived.input.onchange=()=>{state.archived=archived.input.checked;selected.clear();load(true)};
   const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('さらに表示',()=>load(false));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,pasteZone,uploadStatus,filters,status,suggest,grid,more);
+  const authorCache=new Map();
+  async function preloadAuthors(rows){const ids=rows.flatMap(r=>[r.item?.created_by,r.set_data?.created_by,...(r.set_data?.members||[]).map(i=>i.created_by)]).filter(id=>id&&!authorCache.has(id));try{for(const a of await S.authors(sb,ids))authorCache.set(a.id,a)}catch{/* Attribution failure must not hide images. */}}
+  function authorLine(row){const a=authorCache.get(row.created_by),line=el('div','qbLibraryAuthor'),name=a?.display_name||'投稿者';const icon=el('span','qbLibraryAuthorIcon',name.slice(0,1));if(a?.avatar_path){const im=el('img');im.alt='';im.src=S.avatarURL(sb,a.avatar_path);im.onerror=()=>im.remove();icon.append(im)}line.append(icon,el('span','',name));return line;}
   async function thumbnail(img,path,version){try{const url=await S.signedURL(sb,path);if(!closed&&version===generation&&img.isConnected)img.src=url}catch{if(img.isConnected)img.alt='画像を読み込めませんでした'}}
   function subjectNames(ids){return (ids||[]).map(id=>subjects.find(s=>s.id===id)?.name||id).join('、')}
   function renderResult(result,version){
-   if(result.set_data){renderSet(result,version);return;}const row=result.item,m=row.metadata||{},article=el('article','qbLibraryItem'),imageButton=btn('',()=>showDetail(row),'qbLibraryImageButton'),img=el('img');img.loading='lazy';img.alt=m.name||'名称未設定';imageButton.append(img,el('div','qbLibraryName',m.name||'名称未設定'));article.append(imageButton);
+   if(result.set_data){renderSet(result,version);return;}const row=result.item,m=row.metadata||{},article=el('article','qbLibraryItem'),imageButton=btn('',()=>showDetail(row),'qbLibraryImageButton'),img=el('img');img.loading='lazy';img.alt=m.name||'名称未設定';imageButton.append(img,el('div','qbLibraryName',m.name||'名称未設定'));article.append(authorLine(row),imageButton);
    if(m.unit_ids?.length)article.append(el('div','qbLibraryMeta','単元：'+m.unit_ids.map(id=>catalogRows.find(c=>c.id===id)?.path||id).join('、')));if(m.roles?.length)article.append(el('div','qbLibraryMeta','役割：'+fieldText(m.roles)));
    article.append(el('div','qbLibraryMeta','科目：'+(subjectNames(m.subject_ids)||'不明')),el('div','qbLibraryMeta','中心：'+(fieldText(m.topics)||'不明')),el('div','qbLibraryMeta','内容：'+(fieldText(m.aspects)||'不明')));
    if(result.match_source){const s=el('div','qbLibrarySnippet');s.append(el('span','qbLibraryMeta',(C.LABELS[result.match_source]||result.match_source)+'に一致：'));for(const part of C.snippet(result.match_text,state.query,terms))s.append(el(part.hit?'mark':'span','',part.text));if(result.match_source==='ocr_text'&&m.analysis_status==='needs_review')s.append(el('div','qbLibraryMeta','読み取りに要確認の箇所があります'));article.append(s)}
@@ -95,7 +100,7 @@ async function open({context=null}={}){
   async function load(reset){
    if(closed)return;clearTimeout(searchTimer);if(reset){state.query=searchInput.value;state.offset=0;generation++;grid.replaceChildren();suggest.replaceChildren();}
    const version=generation,offset=state.offset;status.textContent='検索中…';more.disabled=true;searchButton.disabled=true;
-   try{const rows=await S.search(sb,{...state});if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=!hasMore;more.textContent='さらに表示';status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件の画像はありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
+   try{const rows=await S.search(sb,{...state});await preloadAuthors(rows);if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=!hasMore;more.textContent='さらに表示';status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件の画像はありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
    catch(e){if(!closed&&version===generation){report(status,e);more.hidden=false;more.textContent='再読み込み';}}
    finally{if(!closed&&version===generation){more.disabled=false;searchButton.disabled=false}}
   }
@@ -106,7 +111,13 @@ async function open({context=null}={}){
    try{row=await S.get(sb,initial.id);if(closed||detailVersion!==detailGeneration)return;await drawDetail(row,note)}catch(e){report(note,e)}
   }
   async function drawDetail(initial,note){
-   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';detailView.append(img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
+   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';detailView.append(authorLine(row),img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
+   if(!owns(row)){
+    dirty=()=>false;saveCurrent=null;note.textContent='投稿者のみ編集できます。';
+    detailView.append(btn('画像を拡大',()=>img.classList.toggle('qbLibraryFullImage')));
+    if(!row.archived){const c=check('この画像を選択',selected.has(row.id));c.input.onchange=()=>{if(c.input.checked)selected.set(row.id,row);else selected.delete(row.id);syncSelection()};detailView.append(c.host)}
+    const info=el('dl','qbLibraryReadOnly');for(const key of C.FIELDS){const value=key==='subject_ids'?subjectNames(m[key]):key==='unit_ids'?(m[key]||[]).map(id=>catalogRows.find(c=>c.id===id)?.path||id).join('、'):key==='analysis_status'?(ANALYSIS[m[key]]||'未解析'):key==='classification_status'?(CLASSIFICATION[m[key]]||'不明'):fieldText(m[key]);info.append(el('dt','',C.LABELS[key]),el('dd','',value||'未登録'))}detailView.append(info);return;
+   }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
    top.append(btn('トリミング',()=>editImage('crop')),btn('書き込み',()=>editImage('annotation')),btn('元画像に戻す',()=>restore({},row.original_path)),btn('画像を拡大',e=>{img.classList.toggle('qbLibraryFullImage');e.currentTarget.textContent=img.classList.contains('qbLibraryFullImage')?'画像を縮小':'画像を拡大'}),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'この画像を選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'この画像を選択';syncSelection()},'qbLibraryPrimary'));
@@ -174,14 +185,17 @@ async function open({context=null}={}){
   }
   function renderSet(result,version){
    const set=result.set_data,members=(set.members||[]).filter(r=>!r.archived);if(!members.length)return;
-   const article=el('article','qbLibraryItem qbLibrarySet');article.append(carousel(members,()=>showSetEditor(set),version),btn(set.name,()=>showSetEditor(set),'qbLibraryTextButton'),el('div','qbLibraryMeta',`${members.length}枚のセット`));
+   const article=el('article','qbLibraryItem qbLibrarySet');article.append(authorLine(set),carousel(members,()=>showSetEditor(set),version),btn(set.name,()=>showSetEditor(set),'qbLibraryTextButton'),el('div','qbLibraryMeta',`${members.length}枚のセット`));
    if(result.match_source)article.append(el('div','qbLibraryMeta',`${C.LABELS[result.match_source]||result.match_source}に一致：${result.match_text.slice(0,150)}`));
-   const c=check('全部を選択',members.every(r=>selected.has(r.id)));c.input.dataset.selectSet=JSON.stringify(members.map(r=>r.id));c.input.onchange=()=>{for(const r of members){selected.delete(r.id);if(c.input.checked)selected.set(r.id,r)}syncSelection()};article.append(c.host,btn('一部を選ぶ・セットを編集',()=>showSetEditor(set),'qbLibraryTextButton'));grid.append(article);
+   const c=check('全部を選択',members.every(r=>selected.has(r.id)));c.input.dataset.selectSet=JSON.stringify(members.map(r=>r.id));c.input.onchange=()=>{for(const r of members){selected.delete(r.id);if(c.input.checked)selected.set(r.id,r)}syncSelection()};article.append(c.host,btn(owns(set)?'一部を選ぶ・セットを編集':'一部を選ぶ',()=>showSetEditor(set),'qbLibraryTextButton'));grid.append(article);
   }
   async function showSetEditor(initial,initialMembers=[]){
    if(busy)return;if(dirty()&&!confirm('未保存の変更を破棄しますか？'))return;enterDetail(initial?'画像セット':'画像セットを作成');dirty=()=>false;
    const gen=detailGeneration,note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row=initial,members=initialMembers.slice();
    try{if(row){row=await S.setGet(sb,row.id);members=row.members}if(closed||gen!==detailGeneration)return}catch(e){report(note,e);return}
+   if(row&&!owns(row)){
+    note.textContent=row.name;detailView.append(authorLine(row));for(const r of members.filter(r=>!r.archived)){const line=el('div','qbLibrarySetMember'),im=el('img');im.alt=r.metadata.name||'画像';S.signedURL(sb,r.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{});const c=check(r.metadata.name||'画像',selected.has(r.id));c.input.onchange=()=>{if(c.input.checked)selected.set(r.id,r);else selected.delete(r.id);syncSelection()};line.append(im,c.host,btn('詳細を見る',()=>showDetail(r)));detailView.append(line)}return;
+   }
    const name=inputField('セット名',row?.name||((members[0]?.metadata.name||'画像')+'のセット'));detailView.append(name.host);const host=el('div','qbLibrarySetMembers');detailView.append(host);
    let baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);dirty=()=>baseline!==JSON.stringify([name.input.value,members.map(r=>r.id)]);
    function drawMembers(){host.replaceChildren();members.forEach((r,index)=>{
@@ -193,7 +207,7 @@ async function open({context=null}={}){
    const actions=el('div','qbLibraryTools');actions.append(btn('全部を選択',()=>{members.forEach(r=>selected.delete(r.id));members.filter(r=>!r.archived).forEach(r=>selected.set(r.id,r));drawMembers();syncSelection()}),btn('選択を解除',()=>{members.forEach(r=>selected.delete(r.id));drawMembers();syncSelection()}),btn('セットを保存',saveSet,'qbLibraryPrimary'));detailView.append(actions);saveCurrent=saveSet;
    async function saveSet(){if(busy)return;if(!name.input.value.trim()||!members.length){note.textContent='セット名と1枚以上の画像が必要です。';return}setBusy(true);try{row=await S.setSave(sb,row,name.input.value,members.map(r=>r.id));baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);const picked=members.filter(r=>selected.has(r.id));members.forEach(r=>selected.delete(r.id));picked.forEach(r=>selected.set(r.id,r));syncSelection();note.textContent='セットを保存しました。';await load(true)}catch(e){report(note,e)}finally{setBusy(false)}}
    if(row)actions.append(btn('セットを解除',async()=>{if(busy||!confirm('セットを解除しますか？各画像はライブラリに残ります。'))return;setBusy(true);try{await S.setSave(sb,row,row.name,row.image_ids,true);dirty=()=>false;await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}));
-   if(!initial){try{const existing=(await S.sets(sb)).filter(r=>!r.archived);if(closed||gen!==detailGeneration)return;const f=selectField('既存のセットに追加',[['','セットを選択'],...existing.map(r=>[r.id,r.name])]);detailView.append(f.host,btn('このセットに追加',async()=>{if(busy||!f.input.value)return;setBusy(true);try{const target=await S.setGet(sb,f.input.value);const ids=[...new Set([...target.image_ids,...members.map(r=>r.id)])];await S.setSave(sb,target,target.name,ids);dirty=()=>false;selected.clear();await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}))}catch(e){report(note,e)}}
+   if(!initial){try{const existing=(await S.sets(sb)).filter(r=>!r.archived&&owns(r));if(closed||gen!==detailGeneration)return;const f=selectField('既存のセットに追加',[['','セットを選択'],...existing.map(r=>[r.id,r.name])]);detailView.append(f.host,btn('このセットに追加',async()=>{if(busy||!f.input.value)return;setBusy(true);try{const target=await S.setGet(sb,f.input.value);const ids=[...new Set([...target.image_ids,...members.map(r=>r.id)])];await S.setSave(sb,target,target.name,ids);dirty=()=>false;selected.clear();await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}))}catch(e){report(note,e)}}
   }
   async function showCatalog(){
    if(busy)return;enterDetail('科目・単元の管理');dirty=()=>false;
@@ -215,3 +229,4 @@ async function open({context=null}={}){
 function placementName(p){return {question:'問題文',choice:'選択肢',explanation_overview:'問題文のポイント',choice_explanation:'選択肢解説',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification:'医学的検証'}[p]||p}
 window.QBImageLibrary={open,placementName};
 })();
+
