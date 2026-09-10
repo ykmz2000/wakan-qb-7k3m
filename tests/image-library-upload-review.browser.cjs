@@ -47,4 +47,19 @@ async function run(browser,label){
  assert.equal(await p.evaluate(()=>db.question_images.length),0);
  assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS upload review, batch navigation, draft OCR, manual preservation, Mod-S, early confirm, offline and cancellation');
 }
-(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+async function realOCR(browser){
+ const {page:p}=await boot(browser);
+ await p.unroute('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+ await p.route('https://cdn.jsdelivr.net/**',r=>r.continue());
+ await p.route('https://tessdata.projectnaptha.com/**',r=>r.continue());
+ const png=await p.evaluate(()=>{const c=document.createElement('canvas');c.width=1200;c.height=300;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,1200,300);x.fillStyle='black';x.font='70px sans-serif';x.fillText('EYE MOVEMENT',70,160);return c.toDataURL('image/png').split(',')[1]});
+ await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
+ await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles({name:'ocr-smoke.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
+ await p.waitForFunction(()=>document.querySelector('.qbLibraryUploadReview')?.textContent.includes('簡易OCRの仮読み取りです。')||document.querySelector('.qbLibraryUploadReview')?.textContent.includes('OCRを利用できませんでした。')||document.querySelector('.qbLibraryUploadReview')?.textContent.includes('OCRを終了しました。'),{},{timeout:75000});
+ const review=p.getByRole('dialog',{name:'追加した画像を確認',exact:true});
+ assert.match(await review.getByLabel('読み取り本文',{exact:true}).inputValue(),/EYE\s+MOVEMENT/i,await review.textContent());
+ await review.getByRole('button',{name:'確定',exact:true}).click();await review.waitFor({state:'detached'});
+ assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'needs_review');
+ await p.close();console.log('Chromium PASS real pinned browser OCR worker with Japanese and English models');
+}
+(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);if(name==='Chromium')await realOCR(b)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
