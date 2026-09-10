@@ -23,13 +23,14 @@ async function boot(browser){
   const pixel=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
   for(const r of db.qb_image_library_items)objects.set('qb-image-library/'+r.object_path,new Blob([pixel],{type:'image/png'}));
   class Query{
-   constructor(t){this.t=t;this.filters=[];this.mode='select';this.bounds=[0,9999]}
+   constructor(t){this.t=t;this.filters=[];this.excludes=[];this.mode='select';this.bounds=[0,9999]}
+   not(k,op,v){this.excludes.push([k,v]);return this}
    select(){return this}eq(k,v){this.filters.push([k,v]);return this}order(){return this}range(a,b){this.bounds=[a,b];return this}limit(n){this.bounds=[0,n-1];return this}
    insert(p){this.mode='insert';this.payload=p;return this}update(p){this.mode='update';this.payload=p;return this}
    single(){this.one=true;return this.run()}maybeSingle(){this.one=true;return this.run()}then(a,b){return this.run().then(a,b)}
    async run(){
     calls.push([this.mode,this.t]);if(this.t==='profiles')return {data:{role:testRole}};
-    let rows=db[this.t]||[],matching=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v));
+    let rows=db[this.t]||[],matching=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v)&&this.excludes.every(([k,v])=>r[k]!==v));
     if(this.mode==='insert'){const r={...this.payload};if(this.t==='qb_image_library_items')Object.assign(r,{revision:1,image_version:1,manual_fields:[],ai_suggestions:{},archived:false,created_at:new Date().toISOString()});rows.push(r);matching=[r]}
     if(this.mode==='update')matching.forEach(r=>Object.assign(r,this.payload));
     matching=matching.slice(this.bounds[0],this.bounds[1]+1);return{data:clone(this.one?(matching[0]||null):matching),error:null};
@@ -37,6 +38,7 @@ async function boot(browser){
   }
   const err=message=>({error:{message,code:'40001'}});
   window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'admin'}}}),onAuthStateChange:f=>{window.authChanged=f}},from:t=>new Query(t),storage:{from:bucket=>({
+   getPublicUrl:p=>({data:{publicUrl:URL.createObjectURL(objects.get(bucket+'/'+p)||new Blob([pixel],{type:'image/png'}))}}),
    createSignedUrl:async p=>({data:{signedUrl:URL.createObjectURL(objects.get(bucket+'/'+p)||new Blob([pixel],{type:'image/png'}))}}),
    upload:async(p,b)=>{calls.push(['upload',bucket,p]);if(objects.has(bucket+'/'+p))return err('already exists');objects.set(bucket+'/'+p,b);if(fault==='upload-response'){fault='';return err('lost upload response')}return{data:{path:p}}},
    download:async p=>{calls.push(['download',bucket,p]);if(downloadHook){const h=downloadHook;downloadHook=null;h()}return objects.has(bucket+'/'+p)?{data:objects.get(bucket+'/'+p)}:err('missing')},
@@ -116,4 +118,5 @@ async function run(browser,name){
  await p.evaluate(()=>{testRole='user';authChanged()});await p.locator('.qbLibraryEntry').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryAction').count(),0);assert.equal(await p.locator('#oldUpload').count(),1);pass('non-admin entry hidden and old controls retained');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' image-library browser checks passed');
 }
-(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+module.exports={boot};
+if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -77,7 +77,7 @@ async function bindPublic(c,Q){
     for(const item of items){
       if(item.querySelector('.qbsortHandle'))continue;
       const bar=item.querySelector('.qbImageWriteActions');if(!bar)continue;
-      const b=document.createElement('button');b.type='button';b.className='qbsortHandle';b.textContent='☰ 並べ替え';bar.prepend(b);
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle';b.textContent='並べ替え';bar.prepend(b);
     }
     const first=items[0];
     await bindSortable(grid,'.qbPublicImageWrap',x=>x.dataset.row,(ids,status)=>persist('question_images',ids,status,{questionId:qid(Q),type:'official-image-order',placement:first.dataset.placement,choiceId:first.dataset.choice||null}));
@@ -110,7 +110,7 @@ async function bindOfficialEditors(c,Q){
     grid.querySelectorAll('.oeiItem').forEach(item=>{
       if(item.querySelector('.qbsortHandle'))return;
       const actions=item.querySelector('.oeiItemActions');if(!actions)return;
-      const b=document.createElement('button');b.type='button';b.className='oeiMini qbsortHandle';b.textContent='☰ 並べ替え';actions.prepend(b);
+      const b=document.createElement('button');b.type='button';b.className='oeiMini qbsortHandle';b.textContent='並べ替え';actions.prepend(b);
     });
     bindSortable(grid,'.oeiItem',x=>x.dataset.id,(ids,status)=>persist('question_images',ids,status,{questionId:qid(Q),type:'official-image-order',placement:m.placement,choiceId:m.choiceId||null})).catch(console.error);
   });
@@ -120,7 +120,7 @@ async function bindQuestionStem(c,Q){
   document.querySelectorAll('.qsiGrid').forEach(grid=>{
     grid.querySelectorAll('.qsiImgWrap').forEach(item=>{
       if(item.querySelector('.qbsortHandle'))return;
-      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortStemHandle';b.textContent='☰';b.setAttribute('aria-label','画像を並べ替え');item.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortStemHandle';b.textContent='並べ替え';b.setAttribute('aria-label','画像を並べ替え');item.appendChild(b);
     });
     bindSortable(grid,'.qsiImgWrap',x=>x.dataset.row,(ids,status)=>persist('question_images',ids,status,{questionId:qid(Q),type:'question-image-order',placement:'question',choiceId:null})).catch(console.error);
   });
@@ -153,7 +153,7 @@ async function bindPersonal(c,Q){
       let w=img.closest('.qbNoteImageWrap');
       if(!w){w=document.createElement('div');img.replaceWith(w);w.appendChild(img)}
       w.classList.add('qbsortNoteItem');w.dataset.id=w.dataset.row||row.id;
-      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortNoteHandle';b.textContent='☰';b.setAttribute('aria-label','画像を並べ替え');w.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortNoteHandle';b.textContent='並べ替え';b.setAttribute('aria-label','画像を並べ替え');w.appendChild(b);
     }
     grid.dataset.qbNoteSortPrepared='1';
     await bindSortable(grid,'.qbsortNoteItem',x=>x.dataset.id,(ids,status)=>persist('user_note_images',ids,status,{questionId:qid(Q),type:'personal-note-image-order'}));

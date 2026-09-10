@@ -53,11 +53,11 @@ function css(){
   document.head.appendChild(s)
 }
 function enhanceStem(){
-  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='✂︎ トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
-  document.querySelectorAll('.qsiEditor,.qsiInlineEditor').forEach(box=>{const actions=box.querySelector('.qsiActions'),input=box.querySelector('input[type=file]');if(!actions||!input||actions.querySelector('.qsiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='qsiRecentBtn';b.textContent='🕘 最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.qsiStatus'),b)})
+  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
+  document.querySelectorAll('.qsiEditor,.qsiInlineEditor').forEach(box=>{const actions=box.querySelector('.qsiActions'),input=box.querySelector('input[type=file]');if(!actions||!input||actions.querySelector('.qsiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='qsiRecentBtn';b.textContent='最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.qsiStatus'),b)})
 }
 function enhanceOfficial(){
-  document.querySelectorAll('.oeiBox').forEach(box=>{const actions=box.querySelector('.oeiActions'),input=box.querySelector('.oeiFile');if(!actions||!input||actions.querySelector('.oeiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='oeiBtn oeiRecentBtn';b.textContent='🕘 最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.oeiStatus'),b)})
+  document.querySelectorAll('.oeiBox').forEach(box=>{const actions=box.querySelector('.oeiActions'),input=box.querySelector('.oeiFile');if(!actions||!input||actions.querySelector('.oeiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='oeiBtn oeiRecentBtn';b.textContent='最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.oeiStatus'),b)})
 }
 function scan(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;css();enhanceStem();enhanceOfficial()})}
 function relevant(node){if(!(node instanceof Element))return false;return node.matches?.('.qsiHost,.qsiImgWrap,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')||!!node.querySelector?.('.qsiHost,.qsiImgWrap,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')}
@@ -67,4 +67,3 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-

@@ -87,13 +87,13 @@ async function currentScope(sb,q){
   const r=await sb.from('questions').select('subject_id,unit_id').eq('id',id).maybeSingle();
   if(r.error)throw r.error;return {subjectId:r.data?.subject_id||'',unitId:r.data?.unit_id||''};
 }
-async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードした画像'}={}){
+async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードした画像',parent=document.body,context=currentQuestion()}={}){
   if(!sb)throw new Error('Supabaseを取得できません');css();
-  const context=currentQuestion(),pageSize=Math.max(10,Math.min(60,Number(limit)||DEFAULT_PAGE_SIZE));
+  const pageSize=Math.max(10,Math.min(60,Number(limit)||DEFAULT_PAGE_SIZE));
   return new Promise(resolve=>{
     const origin=document.activeElement,d=document.createElement('div');d.className='qbripModal';
     d.innerHTML=`<div class="qbripPanel" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><div class="qbripHead"><b>${esc(title)}</b><button type="button" class="qbripClose" aria-label="画像一覧を閉じる">×</button></div><div class="qbripSub">短くタップして選択、長押しで拡大できます。選択した順に追加します。長押しでは選択順は変わりません。</div><div class="qbripFilters"><label>科目<select class="qbripSubject" disabled aria-label="科目"><option value="">全科目</option></select></label><label>単元<select class="qbripUnit" disabled aria-label="単元"><option value="">すべて</option></select></label></div><div class="qbripFilterStatus" role="status">科目・単元を読み込み中…</div><button type="button" class="qbripFilterRetry hidden">分類を再読み込み</button><div class="qbripGrid"></div><div class="qbripEmpty hidden">この条件の画像はありません。</div><button type="button" class="qbripLoader" data-state="loading" disabled aria-label="さらに画像を読み込む"></button><div class="qbripFoot"><button type="button" class="qbripCancel">キャンセル</button><button type="button" class="qbripUse" disabled>選択した画像を追加</button></div></div>`;
-    document.body.appendChild(d);
+    parent.appendChild(d);
     const oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';
     const panel=d.querySelector('.qbripPanel'),grid=d.querySelector('.qbripGrid'),loader=d.querySelector('.qbripLoader'),empty=d.querySelector('.qbripEmpty'),use=d.querySelector('.qbripUse');
     const subject=d.querySelector('.qbripSubject'),unit=d.querySelector('.qbripUnit'),filterStatus=d.querySelector('.qbripFilterStatus'),filterRetry=d.querySelector('.qbripFilterRetry');

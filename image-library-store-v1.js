@@ -21,6 +21,16 @@ async function add(sb,file){
  const r=await sb.from('qb_image_library_items').insert(payload).select('*').single();
  if(r.error){const check=await get(sb,id).catch(()=>null);if(check?.object_path===path)return check;throw Error('登録結果を確認できません。再確認用の画像ID: '+id+' / '+r.error.message)}return r.data;
 }
+async function addRecent(sb,row){
+ await authorize(sb);
+ const source=unwrap(await sb.from('question_images').select('id,image_path,annotation_base_image_path,annotation_result_image_path').eq('id',row.id).maybeSingle());
+ const path=row.image_path,before=row.image_variant==='before-annotation';
+ if(!source||!path||(before?(source.annotation_base_image_path!==path||source.annotation_result_image_path!==source.image_path):source.image_path!==path))throw Error('元画像が更新されています。最近の画像から選び直してください。');
+ const blob=unwrap(await sb.storage.from(DESTINATION).download(path));
+ const ext=path.split('.').pop().toLowerCase(),type=Object.keys(TYPES).find(t=>TYPES[t]===ext)||(ext==='jpeg'?'image/jpeg':'');
+ const file=new File([blob],(before?'書き込み前の画像':'最近の画像')+'.'+(TYPES[blob.type]||ext),{type:TYPES[blob.type]?blob.type:type});
+ return add(sb,file);
+}
 async function save(sb,row,patch,options={}){
  C.validate(patch);const r=await sb.rpc('qb_library_save',{p_id:row.id,p_revision:row.revision,p_patch:patch,p_origin:options.origin||'manual',p_reason:options.reason||'情報を編集',p_archived:options.archived??null,p_object_path:options.objectPath||null});return one(unwrap(r));
 }
@@ -66,5 +76,5 @@ async function attach(sb,row,context,job){
  if(r.error){const check=await usageByRequest(sb,job.requestId).catch(()=>null);if(check)return check;throw r.error;}
  return one(r.data);
 }
-root.QBImageLibraryStore={BUCKET,available,authorize,get,signedURL,add,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
+root.QBImageLibraryStore={BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
 })(typeof window!=='undefined'?window:globalThis);
