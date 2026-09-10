@@ -31,6 +31,26 @@ async function pixels(p,points){return p.evaluate(async points=>{
 async function core(browser,name){
   const p=await browser.newPage({viewport:{width:1024,height:900},hasTouch:true});p.setDefaultTimeout(15000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   await p.route('**/*',r=>r.request().url()==='https://qb-draw.test/'?r.fulfill({contentType:'text/html',body:'<!doctype html><style>*{box-sizing:border-box}body{margin:0}</style><button>前の画面</button>'}):r.request().url().startsWith('blob:')?r.continue():r.abort());await p.goto('https://qb-draw.test/');await install(p);
+  // A 12MP original must not be downsampled when margins take output past 12MP.
+  await p.evaluate(async()=>{
+    const c=document.createElement('canvas');c.width=4000;c.height=3000;const x=c.getContext('2d');
+    x.fillStyle='white';x.fillRect(0,0,c.width,c.height);x.fillStyle='black';x.fillRect(100,100,1,100);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));c.width=c.height=1;
+    window.drawResult=undefined;QBImageEditor.open(blob).then(b=>window.drawResult=b);
+  });
+  await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
+  await p.getByRole('button',{name:'右に余白',exact:true}).click();
+  await p.getByRole('button',{name:'下に余白',exact:true}).click();
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const full=await pixels(p,[[99,150],[100,150],[101,150],[4500,3500]]);
+  assert.deepEqual([full.width,full.height,full.type],[5000,4250,'image/png']);
+  assert.deepEqual(full.colors,[[255,255,255,255],[0,0,0,255],[255,255,255,255],[255,255,255,255]]);
+  // Reopening an expanded result must also preserve the saved dimensions and fine detail.
+  await p.evaluate(()=>{const blob=drawResult;window.drawResult=undefined;QBImageEditor.open(blob).then(b=>window.drawResult=b)});
+  await p.waitForFunction(()=>document.querySelector('.qbDrawSave')?.disabled===false);
+  await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
+  const again=await pixels(p,[[100,150]]);assert.deepEqual([again.width,again.height],[5000,4250]);assert.deepEqual(again.colors[0],[0,0,0,255]);
+  console.log(name+' PASS full-resolution margin export beyond 12MP, one-pixel detail and lossless re-edit');
   await launch(p);assert.equal(await p.locator('.qbDrawSwatch').count(),7);let map=await mapping(p);
   await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,100],[340,220]]);
   await p.locator('[data-tool=lasso]').click();await drag(p,map,[[100,160],[180,200]]);
