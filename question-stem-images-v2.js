@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 let timer=null,adminCache=null,lastId=null,renderToken=0,forceRefresh=false;
-const BUCKET='question-media',PLACEMENT='question',MAX_BYTES=12*1024*1024,SOURCE='question-stem-images-v2';
+const BUCKET='question-media',PLACEMENT='question',MAX_BYTES=100*1024*1024,SOURCE='question-stem-images-v2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function currentQ(){try{return window.pq?.()||null}catch{return null}}
 const qid=q=>q?.id||q?.dbId||null;
@@ -9,7 +9,7 @@ async function isAdmin(){if(adminCache!==null)return adminCache;const sb=window.
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
 function emit(id,type){window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:id,type,source:SOURCE}}))}
 function imageRequired(meta,q){const note=String(meta?.source_note||'');if(note.includes('[IMAGE_REQUIRED]'))return true;const s=String(q?.stem||'');return /(?:以下|次|上|右|左)?(?:の)?(?:画像|写真|図\d*|模式図|標本|MRI|CT|X線|レントゲン)を?(?:提示|示す|示した|以下に示す)/.test(s)}
-function fileInfo(file){if(!file)throw new Error('画像を取得できません');if(file.size>MAX_BYTES)throw new Error('画像は12MB以下にしてください');if(!String(file.type||'').startsWith('image/'))throw new Error('画像ファイルを選択してください');const ext=((file.name||'').split('.').pop()||file.type.split('/')[1]||'png').toLowerCase().replace('jpeg','jpg');return{file,ext}}
+function fileInfo(file){if(!file)throw new Error('画像を取得できません');if(file.size>MAX_BYTES)throw new Error('画像は100MB以下にしてください');if(!String(file.type||'').startsWith('image/'))throw new Error('画像ファイルを選択してください');const ext=((file.name||'').split('.').pop()||file.type.split('/')[1]||'png').toLowerCase().replace('jpeg','jpg');return{file,ext}}
 function pastedFiles(e){return[...(e.clipboardData?.items||[])].filter(x=>x.kind==='file'&&String(x.type||'').startsWith('image/')).map(x=>x.getAsFile()).filter(Boolean)}
 async function clipboardFiles(){if(!navigator.clipboard?.read)return[];const out=[];for(const item of await navigator.clipboard.read())for(const type of item.types||[]){if(!type.startsWith('image/'))continue;const blob=await item.getType(type),ext=(type.split('/')[1]||'png').replace('jpeg','jpg');out.push(new File([blob],`pasted-${Date.now()}.${ext}`,{type}))}return out}
 async function rows(sb,id){const r=await sb.from('question_images').select('id,image_path,sort_order,original_image_path').eq('question_id',id).eq('placement',PLACEMENT).is('choice_id',null).order('sort_order').order('created_at');if(r.error)throw r.error;return r.data||[]}
