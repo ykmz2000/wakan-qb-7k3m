@@ -11,6 +11,10 @@ function css(){
 .qbMediaImg,.qbNoteImageGrid img,.oeiGrid img{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:none!important;object-fit:contain!important;object-position:center!important;margin:8px auto!important;border-radius:10px;border:1px solid #dce3ec;cursor:zoom-in;background:#fff}
 .qbMediaHost,.qbNoteImageGrid,.oeiGrid{overflow:visible!important}
 #ans .qbMediaImg{max-height:240px!important;object-position:left center!important;margin:8px 0!important}
+#ans .qbMediaHostV2:has(>.qbPublicImageWrap){display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:10px!important}
+#ans .qbMediaHostV2>.qbPublicImageWrap{box-sizing:border-box;flex:0 1 320px;max-width:100%;min-width:0;margin:0!important}
+#ans .qbMediaHostV2>.qbPublicImageWrap>.qbMediaImg{max-width:100%!important;margin:0!important}
+#ans .qbMediaHostV2>.qbPublicImageWrap>.qbImageWriteActions{width:100%}
 .qbImageLightbox{position:fixed;inset:0;z-index:10150;box-sizing:border-box;background:rgba(0,0,0,.94);color:#fff;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overscroll-behavior:contain;touch-action:none}
 .qbImageLightboxHead,.qbImageLightboxFoot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .qbImageLightboxTitle{font-size:13px;font-weight:700}
@@ -197,4 +201,3 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-
