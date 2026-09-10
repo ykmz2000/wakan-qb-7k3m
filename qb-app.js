@@ -8,6 +8,18 @@ const DETAIL_SELECT='id,canonical_key,stem,instruction,answer_mode,study_order,e
 const esc=(s='')=>String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot',"'":'&#39;'}[c]));
 const stateOf=id=>qstate[id]||{};
 function normalizeOccurrences(xs){return [...(xs||[])].sort((a,b)=>(b.academic_year||0)-(a.academic_year||0))}
+
+function occurrenceBadges(q){
+  const groups=new Map();
+  for(const o of normalizeOccurrences(q.occ||q.question_occurrences)){
+    const year=String(o.academic_year||'年度不明'),type=String(o.exam_type||'本試・追再試不明');
+    if(!groups.has(year))groups.set(year,new Set());
+    groups.get(year).add(type);
+  }
+  if(!groups.size)groups.set('年度不明',new Set(['本試・追再試不明']));
+  return [...groups].map(([year,types])=>`<span class="badge" style="white-space:normal;overflow-wrap:anywhere;max-width:100%">${esc(year)} ${esc([...types].sort((a,b)=>(a==='本試'?-1:b==='本試'?1:a.localeCompare(b,'ja'))).join('・'))}</span>`).join('');
+}
+
 function normalizeListQuestion(x){return {...x,occ:normalizeOccurrences(x.question_occurrences),choices:[],ans:[],subtopic:'その他',_detailLoaded:false}}
 function normalizeDetailQuestion(x){const occ=normalizeOccurrences(x.question_occurrences),ch=[...(x.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));return {...x,occ,choices:ch,ans:ch.map((c,i)=>c.is_correct?i:null).filter(i=>i!==null),subtopic:x.subtopics?.name||'その他',_detailLoaded:true}}
 function emit(){window.dispatchEvent(new CustomEvent('qb-screen-change',{detail:{screen}}))}
@@ -103,7 +115,7 @@ function renderPractice(){
   // Reference choices in ordering/short-answer questions must not enable MCQ grading.
   const isText=q.answer_mode==='fill_blank'||!q.choices.length,official=o.official_answer;
   const referenceChoices=isText&&q.choices.length?`<div class="choices fbReferenceChoices" role="list" aria-label="参照用の選択肢">${q.choices.map(c=>`<div class="choice fbReferenceChoice" role="listitem" style="white-space:pre-wrap">${esc(c.choice_key)}. ${esc(c.choice_text)}</div>`).join('')}</div>`:'';
-  V.innerHTML=`<div class="card"><div class="row"><div><span class="badge">${esc(o.academic_year||'年度不明')}</span><span class="badge gray">${esc(o.exam_type||'本試・追再試不明')}</span></div><div class="meta">${pi+1}/${practice.length}</div></div><div class="qtext" style="font-size:18px;font-weight:800;margin-top:12px">${esc(q.stem)}</div>${q.instruction?`<div class="meta">${esc(q.instruction)}</div>`:''}${referenceChoices}${isText?`<div class="card" style="margin-top:12px"><div class="meta">記述・穴埋め問題</div><button id="showTextAnswer" class="secondary">解答を見る</button></div>`:`<div class="choices">${q.choices.map((c,i)=>`<button class="choice ${sel.has(i)?'sel':''}" data-c="${i}" ${submitted?'disabled':''}>${esc(c.choice_key)}. ${esc(c.choice_text)}</button>`).join('')}</div><div style="margin-top:12px"><button id="answer" class="primary" ${submitted||!sel.size?'disabled':''}>${submitted?'もう一度解く':'解答する'}</button><button id="review" class="secondary" style="margin-top:8px" ${submitted?'disabled':''}>解答せずに解説を見る</button></div>`}<div id="ans"></div><div class="nav"><button id="prev" class="btn" ${pi===0?'disabled':''}>← 前へ</button><button id="next" class="btn">${pi===practice.length-1?'終了':'次へ →'}</button></div></div>`;
+  V.innerHTML=`<div class="card"><div class="row"><div class="qbOccurrenceHistory" aria-label="出題履歴" style="display:flex;flex-wrap:wrap;gap:4px;min-width:0;flex:1">${occurrenceBadges(q)}</div><div class="meta">${pi+1}/${practice.length}</div></div><div class="qtext" style="font-size:18px;font-weight:800;margin-top:12px">${esc(q.stem)}</div>${q.instruction?`<div class="meta">${esc(q.instruction)}</div>`:''}${referenceChoices}${isText?`<div class="card" style="margin-top:12px"><div class="meta">記述・穴埋め問題</div><button id="showTextAnswer" class="secondary">解答を見る</button></div>`:`<div class="choices">${q.choices.map((c,i)=>`<button class="choice ${sel.has(i)?'sel':''}" data-c="${i}" ${submitted?'disabled':''}>${esc(c.choice_key)}. ${esc(c.choice_text)}</button>`).join('')}</div><div style="margin-top:12px"><button id="answer" class="primary" ${submitted||!sel.size?'disabled':''}>${submitted?'もう一度解く':'解答する'}</button><button id="review" class="secondary" style="margin-top:8px" ${submitted?'disabled':''}>解答せずに解説を見る</button></div>`}<div id="ans"></div><div class="nav"><button id="prev" class="btn" ${pi===0?'disabled':''}>← 前へ</button><button id="next" class="btn">${pi===practice.length-1?'終了':'次へ →'}</button></div></div>`;
   if(isText){document.getElementById('showTextAnswer').onclick=()=>{reviewOnly=true;submitted=true;window.QBAnswerHistory?.review(q,user.id);drawTextAnswer(q,official);syncPracticeUi();afterAnswerShown()}}else{
     V.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{if(submitted)return;const i=Number(b.dataset.c);if(q.answer_mode==='single'){sel=new Set([i]);V.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('sel',Number(x.dataset.c)===i))}else{sel.has(i)?sel.delete(i):sel.add(i);b.classList.toggle('sel',sel.has(i))}const a=document.getElementById('answer');if(a)a.disabled=!sel.size;window.dispatchEvent(new CustomEvent('qb-selection-change',{detail:{questionId:q.id,selected:[...sel]}}))});
     document.getElementById('answer').onclick=()=>submitted?retryCurrent():submitAnswer(q);
