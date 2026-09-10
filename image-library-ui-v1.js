@@ -151,12 +151,37 @@ async function open({context=null}={}){
    const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,ocrTimer=null,ocrStopped=false;
    function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
-    const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage');im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,draft.row.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{im.alt='画像を読み込めませんでした'});
-    const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(form,draft.ocrStatus);host.append(draft.view);
+    const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage'),initialPath=draft.row.object_path;im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,initialPath).then(url=>{if(im.isConnected&&draft.row.object_path===initialPath)im.src=url}).catch(()=>{if(draft.row.object_path===initialPath)im.alt='画像を読み込めませんでした'});
+    const imageActions=el('div','qbLibraryTools');if(owns(draft.row))imageActions.append(btn('トリミング',()=>editUploaded(draft,im,'crop')),btn('書き込み',()=>editUploaded(draft,im,'annotation')));
+    const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(imageActions,form,draft.ocrStatus);host.append(draft.view);
     const fields=metadataForm(form,m);draft.fields=fields.controls;draft.commit=fields.commit;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
     draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);
     draft.ocrInput.addEventListener('input',()=>draft.ocrTouched=true);draft.analysisInput.addEventListener('change',()=>draft.analysisTouched=true);
     draft.collect=()=>Object.fromEntries(Object.entries(draft.fields).map(([k,get])=>[k,get()]));draft.baseline=draft.collect();
+   }
+   async function editUploaded(draft,img,kind){
+    if(saving||finished||!owns(draft.row))return;
+    saving=true;stopOCR();modal.inert=true;let url;
+    note.textContent='画像編集を準備中…';
+    const replace=async output=>{
+     draft.row=await S.replace(sb,draft.row,output);
+     if(selected.has(draft.row.id))selected.set(draft.row.id,draft.row);jobs.delete(draft.row.id);
+     // Keep metadata inputs and manually entered OCR; discard only stale automatic readings.
+     if(!draft.ocrTouched){draft.ocrInput.value='';draft.ocrApplied=false;if(!draft.analysisTouched)draft.analysisInput.value='unprocessed'}
+     draft.ocrStatus.textContent='画像を編集しました。入力中の情報は保持しています。';
+     try{img.src=await S.signedURL(sb,draft.row.object_path)}catch{img.removeAttribute('src');img.alt='編集済み画像を再表示できませんでした。画像は保存されています。'}
+     note.textContent='画像を保存しました。情報を確認して確定してください。';
+    };
+    try{
+     const blob=await S.download(sb,draft.row);
+     if(kind==='crop'){
+      if(!window.QBImageCrop)throw Error('画像編集を読み込めません。再読み込みしてください。');
+      url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'追加した画像をトリミング'});if(output)await replace(output);else note.textContent='画像の編集をキャンセルしました。';
+     }else{
+      if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');
+      const output=await QBImageEditor.open(blob,{title:'追加した画像に書き込む',onSave:replace});if(!output)note.textContent='画像の編集をキャンセルしました。';
+     }
+    }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);saving=false;modal.inert=false;if(!finished)draft.view.querySelector('.qbLibraryTools button')?.focus({preventScroll:true})}
    }
    function display(){drafts.forEach((d,i)=>d.view.hidden=i!==index);position.textContent=`${index+1} / ${drafts.length}枚`;previous.disabled=saving||index===0;next.disabled=saving||index===drafts.length-1;content.scrollTop=0;}
    const previous=btn('前の画像',()=>{if(index>0){index--;display()}}),next=btn('次の画像',()=>{if(index<drafts.length-1){index++;display()}});navigation.append(previous,position,next);navigation.hidden=drafts.length===1;
