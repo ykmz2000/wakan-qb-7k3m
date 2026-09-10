@@ -65,7 +65,28 @@ async function answer(p,keys=[0]){for(const key of keys)await p.locator(`[data-c
 async function run(browser,name){
   // Answer feedback uses the current attempt only, never previous saved answers.
   {
-   const {p,errors}=await boot(browser);
+   let setup=await boot(browser);
+   const seed=await setup.p.evaluate(()=>testDB);await setup.p.close();
+   seed.questions[0].question_occurrences=[
+     {academic_year:2023,exam_type:'再試'},
+     {academic_year:2025,exam_type:'本試'},
+     {academic_year:2023,exam_type:'本試'},
+     {academic_year:2024,exam_type:'再試'},
+     {academic_year:2024,exam_type:'本試'},
+     {academic_year:2023,exam_type:'本試'}
+   ];
+   seed.questions[1].question_occurrences=[];
+   const {p,errors}=await boot(browser,seed);
+   assert.deepEqual(await p.locator('.qbOccurrenceHistory .badge').allTextContents(),['2025 本試','2024 本試・再試','2023 本試・再試']);
+   for(const width of [320,390,1024]){
+     await p.setViewportSize({width,height:844});
+     assert.equal(await p.locator('.qbOccurrenceHistory').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
+   }
+   await p.locator('#next').click();
+   assert.equal(await p.locator('.qbOccurrenceHistory').textContent(),'年度不明 本試・追再試不明');
+   await p.locator('#prev').click();
+   assert.equal(await p.locator('.qbOccurrenceHistory .badge').count(),3);
+   console.log(name+' PASS all occurrence years/types, grouping, deduplication, unknown source, navigation and responsive wrapping');
    const states=()=>p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({good:b.classList.contains('good'),bad:b.classList.contains('bad'),label:b.dataset.qbChoiceFeedback||''})));
    assert.deepEqual(await states(),[{good:false,bad:false,label:''},{good:false,bad:false,label:''}]);
    await answer(p,[1]);assert.deepEqual(await states(),[{good:true,bad:false,label:'正解'},{good:false,bad:true,label:'× 自分の回答・不正解'}]);
