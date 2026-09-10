@@ -112,3 +112,5 @@ body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.
 body .qbLibraryPanel button.qbLibraryPrimary{color:#fff!important;-webkit-text-fill-color:#fff}
 body .qbLibraryPanel button.qbLibraryEditButton{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:72px;min-height:44px;width:auto;height:auto;font-size:16px;line-height:1.5;white-space:nowrap;background:var(--card);color:var(--accent)!important;-webkit-text-fill-color:var(--accent)}
 .qbLibraryZoomImage{cursor:zoom-in}.qbLibraryZoomImage:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+.qbLibraryUpdated{display:block;font-size:12px;color:var(--muted,#687280);margin:4px 0 12px}

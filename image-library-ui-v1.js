@@ -227,6 +227,7 @@ async function open({context=null}={}){
   const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('再読み込み',()=>load(state.offset===0));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,pasteZone,uploadStatus,filters,status,suggest,grid,more);
   const authorCache=new Map();
   async function preloadAuthors(rows){const ids=rows.flatMap(r=>[r.item?.created_by,r.set_data?.created_by,...(r.set_data?.members||[]).map(i=>i.created_by)]).filter(id=>id&&!authorCache.has(id));try{for(const a of await S.authors(sb,ids))authorCache.set(a.id,a)}catch{/* Attribution failure must not hide images. */}}
+  function updatedLine(row){const time=el('time','qbLibraryUpdated');const date=row.updated_at?new Date(row.updated_at):null;if(date&&Number.isFinite(date.getTime())){time.dateTime=date.toISOString();time.textContent='最終更新：'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date)+'（日本時間）'}else time.textContent='最終更新：記録なし';return time;}
   function authorLine(row){const a=authorCache.get(row.created_by),line=el('div','qbLibraryAuthor'),name=a?.display_name||'投稿者';const icon=el('span','qbLibraryAuthorIcon',name.slice(0,1));if(a?.avatar_path){const im=el('img');im.alt='';im.src=S.avatarURL(sb,a.avatar_path);im.onerror=()=>im.remove();icon.append(im)}line.append(icon,el('span','',name));return line;}
   async function thumbnail(img,path,version){try{const url=await S.signedURL(sb,path);if(!closed&&version===generation&&img.isConnected)img.src=url}catch{if(img.isConnected)img.alt='画像を読み込めませんでした'}}
   function subjectNames(ids){return (ids||[]).map(id=>subjects.find(s=>s.id===id)?.name||id).join('、')}
@@ -254,7 +255,7 @@ async function open({context=null}={}){
    try{row=await S.get(sb,initial.id);if(closed||detailVersion!==detailGeneration)return;await drawDetail(row,note,editing)}catch(e){report(note,e)}
   }
   async function drawDetail(initial,note,editing){
-   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';zoomable(img);detailView.append(authorLine(row),img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
+   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';zoomable(img);const updated=updatedLine(row);detailView.append(authorLine(row),updated,img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
    if(!editing||!owns(row)){
     dirty=()=>false;saveCurrent=null;note.textContent='';
     const actions=el('div','qbLibraryTools');if(owns(row))actions.append(btn('編集',()=>showDetail(row,true),'qbLibraryEditButton'));
@@ -271,7 +272,7 @@ async function open({context=null}={}){
    const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();if(!imeActive(document.activeElement))saveForm()};
    async function showLatest(){try{const latest=await S.get(sb,row.id);const d=detailBlock('現在保存されている情報（入力内容は保持しています）');d.open=true;const p=el('pre');p.textContent=JSON.stringify(latest.metadata,null,2);d.append(p);detailView.append(d);note.textContent='入力内容を確認・控えたうえで詳細を開き直してください。強制上書きは行いません。'}catch(e){report(note,e)}}
    saveCurrent=saveForm;
-   async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';void load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
+   async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);const latestTime=updatedLine(row);updated.textContent=latestTime.textContent;updated.dateTime=latestTime.dateTime;baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';void load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
    async function editImage(kind){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);
@@ -332,7 +333,7 @@ async function open({context=null}={}){
    const gen=detailGeneration,note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row=initial,members=initialMembers.slice();
    try{if(row){row=await S.setGet(sb,row.id);members=row.members}if(closed||gen!==detailGeneration)return}catch(e){report(note,e);return}
    if(row&&(!editing||!owns(row))){
-    note.textContent='';detailView.append(authorLine(row),el('h2','',row.name),carousel(members,()=>{},generation,true));if(owns(row))detailView.append(btn('編集',()=>showSetEditor(row,[],true),'qbLibraryEditButton'));if(selectionMode)memberChoices(detailView,members.filter(r=>!r.archived));return;
+    note.textContent='';detailView.append(authorLine(row),updatedLine(row),el('h2','',row.name),carousel(members,()=>{},generation,true));if(owns(row))detailView.append(btn('編集',()=>showSetEditor(row,[],true),'qbLibraryEditButton'));if(selectionMode)memberChoices(detailView,members.filter(r=>!r.archived));return;
    }
    const name=inputField('セット名',row?.name||((members[0]?.metadata.name||'画像')+'のセット'));detailView.append(name.host);const host=el('div','qbLibrarySetMembers');detailView.append(host);
    let baseline=row?JSON.stringify([name.input.value,members.map(r=>r.id)]):null;dirty=()=>baseline!==JSON.stringify([name.input.value,members.map(r=>r.id)]);

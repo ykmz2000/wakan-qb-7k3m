@@ -25,6 +25,9 @@ class History{
   redo(){if(!this.future.length)return copy(this.current);this.past.push(this.current);this.current=this.future.pop();return copy(this.current)}
 }
 function stabilize(previous,point,strength,zoom=1){const radius=Math.max(0,Math.min(100,Number(strength)||0))*.08/Math.max(.02,zoom);if(!radius)return{...point};const distance=Math.hypot(point.x-previous.x,point.y-previous.y),alpha=1-Math.exp(-distance/radius);return{...point,x:previous.x+(point.x-previous.x)*alpha,y:previous.y+(point.y-previous.y)*alpha}}
-const api={colors,copy,rect,lineEnd,shapeRect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
+function counterLabel(value,mode='number'){if(mode!=='letter')return String(value);let n=value,label='';while(n>0){n--;label=String.fromCharCode(97+n%26)+label;n=Math.floor(n/26)}return label}
+function counterValue(text,mode='number'){const t=String(text).trim();if(mode==='letter'){if(!/^[a-z]{1,4}$/.test(t))return null;return [...t].reduce((n,c)=>n*26+c.charCodeAt(0)-96,0)}return /^[1-9]\d{0,5}$/.test(t)?Number(t):null}
+const api={counterLabel,counterValue,colors,copy,rect,lineEnd,shapeRect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.QBImageModel=api;
 })();
+
