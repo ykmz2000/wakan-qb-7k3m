@@ -4,6 +4,10 @@ const {chromium,webkit}=require('playwright'),{boot}=require('./image-library.br
 const read=f=>fs.readFileSync(path.resolve(__dirname,'..',f),'utf8');
 async function run(browser,label){
  const {page:p,errors}=await boot(browser);p.setDefaultTimeout(15000);await p.setViewportSize({width:1024,height:900});
+ const waitItems=async count=>{try{await p.waitForFunction(n=>sceneHistory.current.items.length===n,count)}catch(e){
+  console.error(label+' source-import diagnostics',JSON.stringify(await p.evaluate(()=>({status:document.querySelector('.qbDrawStatus')?.textContent,items:sceneHistory.current.items,calls:calls.slice(-30),active:document.activeElement?.outerHTML,modals:[...document.querySelectorAll('.qbDrawModal,.qbDrawPanel,.qbeSourceModal,.qbLibraryOverlay')].map(n=>({class:n.className,inert:n.inert})),sources:[...objects].map(([p,b])=>({path:p,size:b.size,type:b.type}))}))),errors);
+  fs.mkdirSync(path.resolve(__dirname,'../test-results/ui'),{recursive:true});await p.screenshot({path:path.resolve(__dirname,`../test-results/ui/${label}-source-import-failure.png`)});throw e;
+ }};
  await p.addStyleTag({content:read('image-annotation-v1.css')});
  for(const file of ['image-annotation-model-v1.js','image-editor-source-picker-v1.js','recent-image-picker-v1.js'])await p.addScriptTag({content:read(file)});
  await p.evaluate(()=>{const H=QBImageModel.History;QBImageModel.History=class extends H{constructor(s){super(s);if(s.items)window.sceneHistory=this}}});
@@ -28,16 +32,16 @@ async function run(browser,label){
  assert.equal(await p.locator('.qbDrawPanel').evaluate(n=>n.inert),true);
  await p.locator('.qbeLibraryItem').nth(1).click();await p.locator('.qbeLibraryItem').nth(0).click();
  assert.deepEqual(await p.locator('.qbeLibraryOrder').allTextContents(),['2','1']);await p.locator('.qbeUse').click();
- await p.waitForFunction(()=>sceneHistory.current.items.length===2);assert.equal(await p.locator('[data-tool=image]').getAttribute('aria-pressed'),'true');
+ await waitItems(2);assert.equal(await p.locator('[data-tool=image]').getAttribute('aria-pressed'),'true');
  await p.keyboard.press('Meta+z');assert.equal(await p.evaluate(()=>sceneHistory.current.items.length),0);await p.keyboard.press('Meta+Shift+z');assert.equal(await p.evaluate(()=>sceneHistory.current.items.length),2);
  await menu('最近の画像から');await p.locator('.qbripItem').nth(1).waitFor();
  assert.equal(await p.locator('.qbripModal').evaluate(n=>!!n.parentElement.closest('.qbDrawModal')),true);
  assert.equal(await p.locator('.qbripUse').evaluate(n=>{const r=n.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.qbripModal')}),true);
- await p.locator('.qbripItem').nth(1).click();await p.locator('.qbripUse').click();await p.waitForFunction(()=>sceneHistory.current.items.length===3);
+ await p.locator('.qbripItem').nth(1).click();await p.locator('.qbripUse').click();await waitItems(3);
  assert.ok(await p.evaluate(()=>calls.some(c=>c[0]==='download'&&c[2]==='q1/before.png')));
  await menu('この問題を画像化');await p.waitForFunction(()=>sceneHistory.current.items.length===4,null,{timeout:60000});
  await p.locator('[data-tool=image]').click();const chooser=p.waitForEvent('filechooser');await p.locator('[data-source=device]').click();const dialog=await chooser;
- const png=await p.evaluate(()=>sourceURL.split(',')[1]);await dialog.setFiles({name:'device.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await p.waitForFunction(()=>sceneHistory.current.items.length===5);
+ const png=await p.evaluate(()=>sourceURL.split(',')[1]);await dialog.setFiles({name:'device.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await waitItems(5);
  const draft=await p.evaluate(()=>JSON.stringify(sceneHistory.current));await p.locator('[data-tool=image]').click();await p.locator('.qbeSourceClose').click();assert.equal(await p.evaluate(()=>JSON.stringify(sceneHistory.current)),draft);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)),await p.evaluate(()=>beforeDB));assert.deepEqual(await p.evaluate(()=>[...objects.keys()]),await p.evaluate(()=>beforeKeys));
  assert.equal(await p.evaluate(()=>calls.some(c=>c[0]==='upload'||c[0]==='insert'||c[0]==='update'||c[1]==='qb_library_attach')),false);
