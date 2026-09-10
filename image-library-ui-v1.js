@@ -35,13 +35,17 @@ async function open({context=null}={}){
   const state={query:'',subjects:[],unit:'',role:'',sort:'recent',view:'all',aspect:'',analysis:'',classification:'',used:'',related:false,archived:false,offset:0};
   const selected=new Map(),jobs=new Map(),added=[];let busy=false,closed=false,generation=0,detailGeneration=0,subjects=[],catalogRows=[],terms=[],saveCurrent=null,dirty=()=>false,searchTimer=0,listScroll=0,hasMore=false,loading=false,autoPaused=false,selectionMode=!!context;
   const listView=el('div'),detailView=el('div');let detailPaste=null;detailView.hidden=true;body.append(listView,detailView);
+  const composingFields=new WeakSet(),compositionEnded=new WeakMap();
+  const imeActive=(target,e)=>!!(e?.isComposing||e?.keyCode===229||composingFields.has(target)||performance.now()-(compositionEnded.get(target)??-Infinity)<50);
+  overlay.addEventListener('compositionstart',e=>{if(!e.target.matches?.('input,textarea'))return;composingFields.add(e.target);clearTimeout(searchTimer)},true);
+  overlay.addEventListener('compositionend',e=>{if(!e.target.matches?.('input,textarea'))return;composingFields.delete(e.target);compositionEnded.set(e.target,performance.now());setTimeout(()=>{if(e.target.classList.contains('qbLibraryAutoGrow'))growField(e.target)},60);if(e.target===searchInput)scheduleSearch()},true);
   const fieldWidths=new WeakMap(),fieldResize=new ResizeObserver(entries=>{for(const {target,contentRect} of entries){if(fieldWidths.get(target)!==contentRect.width){fieldWidths.set(target,contentRect.width);requestAnimationFrame(()=>growField(target))}}});
-  function growField(field){if(!field.isConnected||!field.getClientRects().length)return;field.style.height='auto';field.style.height=Math.max(44,field.scrollHeight+2)+'px';}
+  function growField(field){if(!field.isConnected||!field.getClientRects().length||imeActive(field))return;field.style.height='auto';field.style.height=Math.max(44,field.scrollHeight+2)+'px';}
   function autoGrow(field){field.classList.add('qbLibraryAutoGrow');field.rows=1;field.addEventListener('input',()=>growField(field));fieldResize.observe(field);requestAnimationFrame(()=>growField(field))}
   function report(target,e){target.textContent=e?.message||String(e)}
   function close(){if(closed||busy)return;if(dirty()&&!confirm('未保存の変更を破棄して閉じますか？'))return;closed=true;fieldResize.disconnect();generation++;clearTimeout(searchTimer);window.removeEventListener('qb-library-access-changed',endSession);overlay.remove();background.forEach(([n,inert])=>{if(n.isConnected)n.inert=inert});document.documentElement.style.overflow=oldOverflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});try{if(added.length)context?.onSaved?.(added)}catch(e){console.warn('画像は保存済みですが画面の再表示に失敗しました',e)}resolve(added)}
   function endSession(){busy=false;dirty=()=>false;close()}window.addEventListener('qb-library-access-changed',endSession);
-  overlay.addEventListener('keydown',e=>{e.stopPropagation();if(e.target.closest('.qbripModal,.qbDrawModal,.qbCropModal'))return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing&&!busy)saveCurrent?.();return;}if(e.key==='Escape'){e.preventDefault();listView.hidden?back():close()}if(e.key==='Tab'){const nodes=[...overlay.querySelectorAll('button,input,select,textarea,summary,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(!first){e.preventDefault();overlay.focus()}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===overlay)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
+  overlay.addEventListener('keydown',e=>{e.stopPropagation();if(e.target.closest('.qbripModal,.qbDrawModal,.qbCropModal')||imeActive(e.target,e))return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing&&!busy)saveCurrent?.();return;}if(e.key==='Escape'){e.preventDefault();listView.hidden?back():close()}if(e.key==='Tab'){const nodes=[...overlay.querySelectorAll('button,input,select,textarea,summary,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(!first){e.preventDefault();overlay.focus()}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===overlay)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
   // Isolate shortcuts and paste from the underlying question editor.
   overlay.addEventListener('paste',e=>{
    e.stopPropagation();
@@ -99,7 +103,7 @@ async function open({context=null}={}){
     setBusy(false);dirty=()=>false;close();
    }catch(e){footStatus.textContent=(added.length?`${added.length}枚は貼り付け済みです。残り：`:'')+(e.message||e)+' 同じ画面から再試行できます。';setBusy(false);syncSelection()}
   }
-  const searchForm=el('form','qbLibrarySearch'),searchInput=el('input');searchInput.type='search';searchInput.placeholder='画像名・テーマ・画像内の本文を検索';searchInput.setAttribute('aria-label','画像を検索');const searchButton=btn('検索',()=>load(true));searchForm.append(searchInput,searchButton);searchForm.onsubmit=e=>{e.preventDefault();load(true)};searchInput.oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>load(true),300)};
+  const searchForm=el('form','qbLibrarySearch'),searchInput=el('input');searchInput.type='search';searchInput.placeholder='画像名・テーマ・画像内の本文を検索';searchInput.setAttribute('aria-label','画像を検索');const searchButton=btn('検索',()=>load(true));searchForm.append(searchInput,searchButton);searchForm.onsubmit=e=>{e.preventDefault();if(!imeActive(searchInput))load(true)};function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(!composingFields.has(searchInput))load(true)},300)}searchInput.oninput=e=>{clearTimeout(searchTimer);if(!composingFields.has(searchInput)&&!e.isComposing)scheduleSearch()};
   const tools=el('div','qbLibraryTools'),uploadInput=el('input');uploadInput.type='file';uploadInput.accept='image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif';uploadInput.multiple=true;uploadInput.hidden=true;
   const uploadStatus=el('div','qbLibraryStatus');uploadStatus.setAttribute('role','status');
   const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードで画像を貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへの画像貼り付け欄');
@@ -116,14 +120,13 @@ async function open({context=null}={}){
   function keywordField(values){
    const host=el('div','qbLibraryField qbLibraryWide'),label=el('span','','キーワード'),wrap=el('div','qbLibraryTagEditor'),list=el('div','qbLibraryTags'),input=el('textarea');
    label.id='qb-keywords-'+crypto.randomUUID();input.setAttribute('aria-labelledby',label.id);input.placeholder='入力してEnterで追加';input.setAttribute('enterkeyhint','done');host.append(label,wrap);wrap.append(list,input);autoGrow(input);
-   let tags=C.list(values),editing=null,composing=false,compositionEnd=0;
+   let tags=C.list(values),editing=null;
    const parts=()=>input.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
    function value(){const next=tags.filter((_,i)=>i!==editing);if(editing===null)next.push(...parts());else next.splice(Math.min(editing,next.length),0,...parts());const seen=new Set();return next.filter(t=>{const n=C.normalize(t);if(seen.has(n))return false;seen.add(n);return true})}
-   function commit(){if(composing)return;tags=value();editing=null;input.value='';draw();growField(input)}
+   function commit(){if(composingFields.has(input))return;tags=value();editing=null;input.value='';draw();growField(input)}
    function draw(){list.replaceChildren();tags.forEach((tag,index)=>{const chip=el('span','qbLibraryTag'+(editing===index?' is-editing':'')),edit=btn(tag,()=>{commit();editing=tags.indexOf(tag);if(editing<0)editing=null;input.value=tag;draw();growField(input);input.focus();input.select()},'qbLibraryTagText'),remove=btn('×',()=>{tags.splice(index,1);if(editing===index){editing=null;input.value=''}else if(editing!==null&&editing>index)editing--;draw();growField(input);input.focus()},'qbLibraryTagRemove');edit.setAttribute('aria-label',tag+'を編集');remove.setAttribute('aria-label',tag+'を削除');chip.append(edit,remove);list.append(chip)})}
-   input.addEventListener('compositionstart',()=>composing=true);input.addEventListener('compositionend',()=>{composing=false;compositionEnd=performance.now()});
-   input.addEventListener('keydown',e=>{if(e.key==='Enter'){if(composing||e.isComposing||e.keyCode===229||performance.now()-compositionEnd<40)return;e.preventDefault();e.stopPropagation();commit()}});
-   input.addEventListener('beforeinput',e=>{if(e.inputType==='insertParagraph'&&!composing&&!e.isComposing&&performance.now()-compositionEnd>=40){e.preventDefault();commit()}});
+   input.addEventListener('keydown',e=>{if(e.key==='Enter'){if(imeActive(input,e))return;e.preventDefault();e.stopPropagation();commit()}});
+   input.addEventListener('beforeinput',e=>{if(e.inputType==='insertParagraph'&&!imeActive(input,e)){e.preventDefault();commit()}});
    draw();return{host,input,value,commit};
   }
   function metadataForm(form,m){
@@ -170,7 +173,7 @@ async function open({context=null}={}){
      finally{saving=false;if(!finished){content.inert=false;confirmButton.disabled=false;confirmButton.textContent='確定';confirmButton.removeAttribute('aria-busy');reviewBack.disabled=false;confirmButton.focus({preventScroll:true})}}
     }
     modal.addEventListener('keydown',e=>{
-     e.stopPropagation();if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing)confirmReview();return}
+     e.stopPropagation();if(imeActive(e.target,e))return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing)confirmReview();return}
      if(e.key==='Escape'){e.preventDefault();if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('編集内容を破棄して閉じますか？アップロードした画像は残ります。')))finish();return}
      if(e.key==='Tab'){const nodes=[...box.querySelectorAll('button,input,select,textarea,summary')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===modal)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
     });modal.addEventListener('paste',e=>e.stopPropagation());display();confirmButton.focus();
@@ -265,7 +268,7 @@ async function open({context=null}={}){
    const form=el('form','qbLibraryForm'),controls={};detailView.insertBefore(form,img);
    const fields=metadataForm(form,m);Object.assign(controls,fields.controls);const advanced=fields.advanced;
    const collect=()=>Object.fromEntries(Object.entries(controls).map(([k,get])=>[k,get()]));let baseline=collect();dirty=()=>Object.keys(C.changed(baseline,collect())).length>0;
-   const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();saveForm()};
+   const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();if(!imeActive(document.activeElement))saveForm()};
    async function showLatest(){try{const latest=await S.get(sb,row.id);const d=detailBlock('現在保存されている情報（入力内容は保持しています）');d.open=true;const p=el('pre');p.textContent=JSON.stringify(latest.metadata,null,2);d.append(p);detailView.append(d);note.textContent='入力内容を確認・控えたうえで詳細を開き直してください。強制上書きは行いません。'}catch(e){report(note,e)}}
    saveCurrent=saveForm;
    async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';await load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
