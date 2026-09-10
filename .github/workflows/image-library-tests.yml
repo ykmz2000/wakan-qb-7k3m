@@ -5,13 +5,19 @@ on:
       - 'image-library-*.js'
       - 'image-library-v1.css'
       - 'image-viewer.js'
+      - 'image-editor-source-picker-v1.js'
       - 'theme-coverage-v2.js'
       - 'index.html'
       - 'save-shortcut-input-guard-v1.js'
       - 'supabase/image-library-*.sql'
       - 'tests/image-library*'
       - 'tests/image-annotation-undo.browser.cjs'
+      - 'tests/image-editor-ux.browser.cjs'
+      - 'image-annotation-model-v1.js'
       - 'image-annotation-editor-v1.js'
+      - 'image-edit-storage-v1.js'
+      - 'official-edit-images.js'
+      - 'question-stem-images-v2.js'
       - '.github/workflows/image-library-tests.yml'
 permissions:
   contents: read
@@ -40,9 +46,15 @@ jobs:
           node --check image-library-store-v1.js
           node --check image-library-ui-v1.js
           node --check image-library-integration-v1.js
+          node --check image-editor-source-picker-v1.js
+          node --check image-annotation-model-v1.js
+          node --check image-annotation-editor-v1.js
+          node --check image-edit-storage-v1.js
+          node --check official-edit-images.js
+          node --check question-stem-images-v2.js
           node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs
           test_status=0
-          for test_file in tests/image-gallery.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
+          for test_file in tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
             node "$test_file" || test_status=1
           done
           exit "$test_status"
