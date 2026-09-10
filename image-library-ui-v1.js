@@ -1,4 +1,4 @@
-/* Shared image library and picker. All AI work is explicitly imported, never scheduled. */
+/* Shared image library and picker. Upload OCR is tentative; AI classification remains explicit. */
 (()=>{
 'use strict';
 const C=window.QBImageLibraryCore,S=window.QBImageLibraryStore;
@@ -6,7 +6,16 @@ const ASPECTS=['構造','正常機能','病態','症状・所見','検査','診�
 const ROLES=['総まとめ','個別解説','比較','疾患との関連','概念図','語呂合わせ'];
 const ANALYSIS={unprocessed:'未解析',processed:'解析済み',needs_review:'要確認'};
 const CLASSIFICATION={unknown:'不明',partial:'一部分類',classified:'分類済み'};
-let active=null,opening=false;
+let active=null,opening=false,ocrScript=null;
+function loadUploadOCR(){
+ if(window.Tesseract?.createWorker)return Promise.resolve(window.Tesseract);
+ if(!ocrScript)ocrScript=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');let settled=false;
+  const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();ocrScript=null;reject(error)}else resolve(window.Tesseract)};
+  const timer=setTimeout(()=>finish(Error('OCRの準備に時間がかかっています。')),15000);
+  script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';script.onload=()=>finish(window.Tesseract?.createWorker?null:Error('OCRを準備できませんでした。'));script.onerror=()=>finish(Error('OCRを読み込めませんでした。'));document.head.append(script);
+ });return ocrScript;
+}
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=String(text);return n}
 function btn(text,fn,cls=''){const b=el('button',cls,text);b.type='button';if(fn)b.onclick=fn;return b}
 function inputField(label,value='',multiline=false){const l=el('label','qbLibraryField'),span=el('span','',label),i=el(multiline?'textarea':'input');i.value=value;l.append(span,i);return {host:l,input:i}}
@@ -63,6 +72,77 @@ async function open({context=null}={}){
    try{for(const value of values){uploadStatus.textContent=`画像を登録中… ${done}/${values.length}`;registered.push(await save(value));done++}if(asSet.input.checked&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のセット',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
    catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
+   if(registered.length)await reviewUploads(registered);
+  }
+  async function reviewUploads(rows){
+   if(closed||!rows.length)return;
+   const modal=el('div','qbLibraryOverlay qbLibraryUploadReview'),box=el('section','qbLibraryPanel'),header=el('div','qbLibraryHeader'),content=el('div','qbLibraryBody'),footer=el('div','qbLibraryFooter');
+   modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','追加した画像を確認');modal.tabIndex=-1;
+   header.append(el('strong','','追加した画像を確認'));box.append(header,content,footer);modal.append(box);overlay.append(modal);panel.inert=true;
+   const intro=el('div','qbLibraryStatus','画像は登録済みです。必要な情報だけ編集し、そのままでも「確定」できます。');content.append(intro);
+   const navigation=el('div','qbLibraryTools'),position=el('span'),host=el('div');content.append(navigation,host);
+   const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,ocrTimer=null,ocrStopped=false;
+   function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
+   for(const draft of drafts){
+    const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage');im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,draft.row.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{im.alt='画像を読み込めませんでした'});
+    const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(draft.ocrStatus,form);host.append(draft.view);
+    for(const key of ['name','topics','keywords','aspects','roles','aliases','related_keywords','notes','visual_summary','ocr_text']){
+     const f=inputField(C.LABELS[key],fieldText(m[key]),['notes','visual_summary','ocr_text'].includes(key));if(f.input.tagName==='TEXTAREA')f.host.classList.add('qbLibraryWide');
+     if(key==='roles')f.input.placeholder=ROLES.join('、');if(key==='aspects')f.input.placeholder=ASPECTS.join('、');
+     if(key==='ocr_text'){draft.ocrInput=f.input;draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);f.input.addEventListener('input',()=>draft.ocrTouched=true)}
+     draft.fields[key]=()=>C.ARRAY_FIELDS.includes(key)?C.list(f.input.value):f.input.value;form.append(f.host);
+    }
+    for(const [key,label,options] of [['subject_ids','関連科目',subjects],['unit_ids','単元',catalogRows.filter(c=>c.kind==='unit')]]){
+     const group=detailBlock(label+'（複数選択可）'),checks=el('div','qbLibraryChecks'),inputs=[];group.append(checks);searchChecks(group,checks,label+'候補を検索');
+     for(const option of options){const c=check(option.path||option.name,(m[key]||[]).includes(option.id));inputs.push([option.id,c.input]);checks.append(c.host)}draft.fields[key]=()=>inputs.filter(([,i])=>i.checked).map(([id])=>id);form.append(group);
+    }
+    for(const [key,label,options] of [['analysis_status','解析状況',Object.entries(ANALYSIS)],['classification_status','分類状況',Object.entries(CLASSIFICATION)]]){const f=selectField(label,options,m[key]||(key==='analysis_status'?'unprocessed':'unknown'));draft.fields[key]=()=>f.input.value;if(key==='analysis_status'){draft.analysisInput=f.input;f.input.addEventListener('change',()=>draft.analysisTouched=true)}form.append(f.host)}
+    draft.collect=()=>Object.fromEntries(Object.entries(draft.fields).map(([k,get])=>[k,get()]));draft.baseline=draft.collect();
+   }
+   function display(){drafts.forEach((d,i)=>d.view.hidden=i!==index);position.textContent=`${index+1} / ${drafts.length}枚`;previous.disabled=saving||index===0;next.disabled=saving||index===drafts.length-1;content.scrollTop=0;}
+   const previous=btn('前の画像',()=>{if(index>0){index--;display()}}),next=btn('次の画像',()=>{if(index<drafts.length-1){index++;display()}});navigation.append(previous,position,next);navigation.hidden=drafts.length===1;
+   let touchX=null;host.addEventListener('touchstart',e=>{touchX=e.target.tagName==='IMG'?e.touches[0]?.clientX:null},{passive:true});host.addEventListener('touchend',e=>{if(saving||touchX==null)return;const dx=e.changedTouches[0].clientX-touchX;touchX=null;if(Math.abs(dx)>60){index=Math.max(0,Math.min(drafts.length-1,index+(dx<0?1:-1)));display()}},{passive:true});
+   const note=el('div','qbLibraryStatus');note.setAttribute('role','status');footer.append(note);
+   return new Promise(resolveReview=>{
+    function finish(){if(finished)return;finished=true;stopOCR();window.removeEventListener('qb-library-access-changed',finish);modal.remove();panel.inert=false;resolveReview(drafts.map(d=>d.row));}
+    window.addEventListener('qb-library-access-changed',finish);
+    const confirmButton=btn('確定',confirmReview,'qbLibraryPrimary');footer.append(confirmButton);
+    async function confirmReview(){
+     if(saving||finished)return;saving=true;stopOCR();content.inert=true;confirmButton.disabled=true;note.textContent='保存中…';
+     try{for(const d of drafts){const patch=C.changed(d.baseline,d.collect());if(Object.keys(patch).length){d.row=await S.save(sb,d.row,patch,{reason:d.ocrApplied?'アップロード後の内容確認（ブラウザOCRの仮読み取りを含む）':'アップロード後の内容確認'});d.baseline=d.collect();if(selected.has(d.row.id))selected.set(d.row.id,d.row)}}await load(true);finish()}
+     catch(e){note.textContent=(e.message||e)+' 入力内容は保持しています。';}
+     finally{saving=false;content.inert=false;confirmButton.disabled=false;display()}
+    }
+    modal.addEventListener('keydown',e=>{
+     e.stopPropagation();if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing)confirmReview();return}
+     if(e.key==='Escape'){e.preventDefault();if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('編集内容を破棄して閉じますか？アップロードした画像は残ります。')))finish();return}
+     if(e.key==='Tab'){const nodes=[...box.querySelectorAll('button,input,select,textarea,summary')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===modal)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
+    });modal.addEventListener('paste',e=>e.stopPropagation());display();confirmButton.focus();
+    // Local OCR never blocks confirmation or overwrites a field the user has touched.
+    async function readDrafts(){
+     const targets=drafts.filter(d=>!d.ocrTouched);if(!targets.length)return;
+     targets.forEach(d=>d.ocrStatus.textContent='簡易OCRを準備中… 待たずに確定できます。');
+     let stopped=false;
+     ocrTimer=setTimeout(()=>{stopped=true;stopOCR();targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを終了しました。未入力でも確定できます。')},60000);
+     const alive=()=>!finished&&!saving&&!stopped&&!closed&&!ocrStopped;
+     try{
+      const engine=await loadUploadOCR();if(!alive())return;
+      const created=await engine.createWorker(['jpn','eng'],1,{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',errorHandler:()=>{}});
+      if(!alive()){await created.terminate();return}worker=created;
+      for(const d of targets){
+       if(!alive())return;if(d.ocrTouched){d.ocrStatus.textContent='入力した本文を保持しています。';continue}
+       d.ocrStatus.textContent='簡易OCRで読み取り中… 待たずに確定できます。';
+       const blob=await S.download(sb,d.row);if(!alive())return;
+       const result=await created.recognize(blob,{}, {text:true,blocks:false,hocr:false,tsv:false});if(!alive())return;
+       const text=(result.data?.text||'').trim();
+       if(d.ocrTouched){d.ocrStatus.textContent='入力した本文を保持しています。';continue}
+       if(text){d.ocrInput.value=text;d.ocrApplied=true;if(!d.analysisTouched)d.analysisInput.value='needs_review';d.ocrStatus.textContent='簡易OCRの仮読み取りです。必要なら修正して確定してください。文脈による補完・分類は行っていません。'}else d.ocrStatus.textContent='文字を読み取れませんでした。未入力でも確定できます。';
+      }
+     }catch{if(alive())targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを利用できませんでした。未入力でも確定できます。')}
+     finally{stopOCR()}
+    }
+    readDrafts();
+   });
   }
   uploadInput.onchange=()=>register([...uploadInput.files],f=>S.add(sb,f));
   async function pasteImages(){
@@ -212,10 +292,11 @@ async function open({context=null}={}){
    addPaste.contentEditable='true';addPaste.tabIndex=0;addPaste.hidden=true;addPaste.setAttribute('role','textbox');addPaste.setAttribute('aria-label','セットへの画像貼り付け欄');
    const alive=()=>!closed&&gen===detailGeneration;
    async function appendImages(values,save){
-    if(busy||!alive()||!values.length)return;setBusy(true);let count=0;
-    try{for(const value of values){if(!alive())return;note.textContent=`画像を追加中… ${count}/${values.length}`;const image=await save(value);if(!alive())return;if(!members.some(r=>r.id===image.id))members.push(image);count++;drawMembers();}note.textContent=`${count}枚を追加しました。「セットを保存」で確定してください。`;}
+    if(busy||!alive()||!values.length)return;setBusy(true);let count=0,registered=[];
+    try{for(const value of values){if(!alive())return;note.textContent=`画像を追加中… ${count}/${values.length}`;const image=await save(value);if(!alive())return;if(!members.some(r=>r.id===image.id))members.push(image);registered.push(image);count++;drawMembers();}note.textContent=`${count}枚を追加しました。「セットを保存」で確定してください。`;}
     catch(e){note.textContent=`${count}枚を追加済み。`+(e.message||e)+' 追加できた画像は保持しています。';}
     finally{addInput.value='';setBusy(false);if(alive()&&count)try{await load(true)}catch(e){report(note,e)}}
+    if(alive()&&registered.length){const updated=await reviewUploads(registered);if(alive()&&updated){const byId=new Map(updated.map(r=>[r.id,r]));members=members.map(r=>byId.get(r.id)||r);drawMembers()}}
    }
    addInput.onchange=()=>appendImages([...addInput.files],f=>S.add(sb,f));
    async function pasteIntoSet(){

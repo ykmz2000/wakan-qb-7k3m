@@ -8,6 +8,7 @@ async function boot(browser){
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  await page.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><header class="qbAccountCluster"><button class="qbRankBtn">ランキング</button><button id="acctBtn">マイページ</button></header><main><input id="draft" value="保存していない問題文"><section class="qsiHost" data-qid="q1"><div class="qsiEditor"><div class="qsiActions"><button id="oldUpload">アップロード</button><button id="oldRecent">最近の画像</button></div></div></section><section class="adeEditor" data-ade-editor="choice-c1"><div class="oeiBox"><div class="oeiActions"></div></div></section></main></body></html>'}));
+ await page.route('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',r=>r.fulfill({contentType:'application/javascript',body:'window.Tesseract={createWorker:async()=>{throw Error("OCR unavailable fixture")}};'}));
  await page.goto('https://qb.test/');
  await page.addStyleTag({content:':root{--text:#202124;--card:#fff;--line:#ddd;--accent:#3b6dcc;--muted:#666;--bg:#fafafa}body{margin:0;font-family:sans-serif}.qbAccountCluster{display:flex;justify-content:flex-end;align-items:center;gap:6px}button{min-height:44px}'});
  await page.addStyleTag({content:read('image-library-v1.css')});
@@ -101,6 +102,7 @@ async function run(browser,name){
  assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧へ戻る'}).click();pass('conflicting updates keep draft without overwriting');
  await p.getByRole('searchbox').fill('');await p.getByRole('button',{name:'検索',exact:true}).click();
  await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles({name:'unprocessed.png',mimeType:'image/png',buffer:Buffer.from('independent original bytes')});await p.waitForFunction(()=>db.qb_image_library_items.length===3);
+ await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');
  assert.equal(await p.evaluate(()=>calls.filter(c=>c[1]==='qb_library_record_reading').length),0);
  await p.getByRole('button',{name:'閉じる',exact:true}).click();assert.equal(await p.locator('#draft').inputValue(),'保存していない問題文');assert.equal(await p.locator('main').evaluate(n=>n.inert),false);pass('upload immediately usable, no OCR, background draft preserved');
