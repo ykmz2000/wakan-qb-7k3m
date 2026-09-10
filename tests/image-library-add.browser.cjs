@@ -35,11 +35,11 @@ async function run(browser,name){
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).click();await p.getByRole('textbox',{name:'ライブラリへの画像貼り付け欄'}).waitFor();
  await p.locator('.qbLibraryPasteZone').evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['pasted pixels'],'clipboard.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
- await p.waitForFunction(()=>db.qb_image_library_items.length===3);assert.equal(await p.locator('.qbLibraryPasteZone').isVisible(),false);
+ await p.waitForFunction(()=>db.qb_image_library_items.length===3);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryPasteZone').isVisible(),false);
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');
  pass('denied clipboard read falls back to iPad paste target and registers immediately');
  await p.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>[{types:['image/png'],getType:async()=>new Blob(['direct clipboard pixels'],{type:'image/png'})}]}}));
- await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items.length===4);
+ await p.locator('.qbLibraryPanel').getByRole('button',{name:'画像をコピペ',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items.length===4);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  pass('clipboard button imports image bytes without typing into question editor');
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'最近の画像',exact:true}).click();await p.locator('.qbripItem').first().waitFor();
  assert.equal(await p.locator('.qbLibraryPanel').evaluate(n=>n.inert),true);
@@ -50,7 +50,7 @@ async function run(browser,name){
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'最近の画像',exact:true}).click();await p.locator('.qbripItem').first().waitFor();
  const before=p.locator('.qbripItem[data-id="r1:before-annotation"]');await before.focus();await p.keyboard.press('Alt+Enter');await p.locator('.qbripPreview').waitFor();
  await p.keyboard.press('Escape');await p.locator('.qbripPreview').waitFor({state:'detached'});assert.equal(await p.locator('.qbripItem.on').count(),0);
- await before.click();await p.locator('.qbripItem[data-id="r1"]').click();await p.locator('.qbripUse').click();await p.waitForFunction(()=>db.qb_image_library_items.length===6);
+ await before.click();await p.locator('.qbripItem[data-id="r1"]').click();await p.locator('.qbripUse').click();await p.waitForFunction(()=>db.qb_image_library_items.length===6);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  const result=await p.evaluate(async()=>{const rows=db.qb_image_library_items.slice(-2);return{bytes:await Promise.all(rows.map(r=>objects.get('qb-image-library/'+r.object_path).text())),paths:rows.map(r=>r.object_path),states:rows.map(r=>[r.metadata.analysis_status,r.metadata.classification_status]),sourceUnchanged:JSON.stringify(db.question_images)===savedSource,uses:db.qb_image_library_usages.length,ai:calls.filter(c=>c[1]==='qb_library_record_reading').length}});
  assert.deepEqual(result.bytes,['before annotation bytes','edited image bytes']);assert.notEqual(result.paths[0],result.paths[1]);assert.deepEqual(result.states,[['unprocessed','unknown'],['unprocessed','unknown']]);assert.equal(result.sourceUnchanged,true);assert.equal(result.uses,0);assert.equal(result.ai,0);
  const independent=await p.evaluate(async()=>{const row=db.qb_image_library_items.at(-1);objects.set('question-media/q1/current.png',new Blob(['later edited']));return await objects.get('qb-image-library/'+row.object_path).text()});assert.equal(independent,'edited image bytes');
@@ -66,3 +66,4 @@ async function run(browser,name){
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+count+' library-add checks passed');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+
