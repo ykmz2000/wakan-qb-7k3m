@@ -6,7 +6,10 @@ async function run(browser,label){
  const {page:p,errors}=await boot(browser);p.setDefaultTimeout(10000);await p.setViewportSize({width:1024,height:900});
  await p.addStyleTag({content:read('image-annotation-v1.css')});
  for(const f of ['image-annotation-model-v1.js','image-annotation-editor-v1.js'])await p.addScriptTag({content:read(f)});
- await p.evaluate(()=>{window.Tesseract={createWorker:async()=>({recognize:()=>new Promise(r=>window.lateOCR=r),terminate:async()=>{}})};window.QBImageCrop={open:async()=>null};localStorage.setItem('qb-image-editor-settings-v1','{}')});
+ await p.evaluate(()=>{window.Tesseract={createWorker:async()=>({recognize:()=>new Promise(r=>window.lateOCR=r),terminate:async()=>{}})};window.QBImageCrop={open:async()=>null};localStorage.setItem('qb-image-editor-settings-v1','{}');
+  // Real Storage snapshots uploaded bytes. Do not retain Playwright's temporary WebKit File handle after the file input resets.
+  const from=qbSupabase.storage.from;qbSupabase.storage.from=bucket=>{const api=from(bucket),upload=api.upload;api.upload=async(path,file)=>upload(path,new Blob([await file.arrayBuffer()],{type:file.type}));return api};
+ });
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
  const image=await p.evaluate(async()=>{const c=document.createElement('canvas');c.width=800;c.height=600;c.getContext('2d').fillRect(0,0,800,600);return c.toDataURL().split(',')[1]});
  await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles(['one.png','two.png'].map(name=>({name,mimeType:'image/png',buffer:Buffer.from(image,'base64')})));
