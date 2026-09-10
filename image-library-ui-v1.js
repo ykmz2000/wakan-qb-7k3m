@@ -27,9 +27,16 @@ async function open({context=null}={}){
   const listView=el('div'),detailView=el('div');detailView.hidden=true;body.append(listView,detailView);
   function report(target,e){target.textContent=e?.message||String(e)}
   function close(){if(closed||busy)return;if(dirty()&&!confirm('未保存の変更を破棄して閉じますか？'))return;closed=true;generation++;clearTimeout(searchTimer);overlay.remove();background.forEach(([n,inert])=>{if(n.isConnected)n.inert=inert});document.documentElement.style.overflow=oldOverflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});try{if(added.length)context?.onSaved?.(added)}catch(e){console.warn('画像は保存済みですが画面の再表示に失敗しました',e)}resolve(added)}
-  overlay.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const nodes=[...overlay.querySelectorAll('button,input,select,textarea,summary,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(!first){e.preventDefault();overlay.focus()}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===overlay)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
+  overlay.addEventListener('keydown',e=>{e.stopPropagation();if(e.target.closest('.qbripModal'))return;if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const nodes=[...overlay.querySelectorAll('button,input,select,textarea,summary,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(!first){e.preventDefault();overlay.focus()}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===overlay)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
   // Isolate shortcuts and paste from the underlying question editor.
-  overlay.addEventListener('paste',e=>e.stopPropagation());overlay.addEventListener('click',e=>e.stopPropagation());
+  overlay.addEventListener('paste',e=>{
+   e.stopPropagation();
+   const editor=e.target.closest('input,textarea,[contenteditable="true"]');
+   if(e.target.closest('.qbripModal')||listView.hidden||(editor&&editor!==pasteZone))return;
+   const data=e.clipboardData,files=[...(data?.files||[])].filter(f=>f.type.startsWith('image/'));
+   if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean));
+   if(!files.length)return;e.preventDefault();if(busy)return;pasteZone.hidden=true;register(files,f=>S.add(sb,f));
+  });overlay.addEventListener('click',e=>e.stopPropagation());
   function setBusy(v){busy=v;listView.inert=v;detailView.inert=v;head.querySelector('button').disabled=v;useButton.disabled=v||!selected.size;uploadInput.disabled=v;}
   const footStatus=el('span','qbLibraryStatus'),useButton=btn('選択した画像を貼る',useSelected,'qbLibraryPrimary');useButton.hidden=!context;useButton.disabled=true;foot.append(footStatus,useButton);
   function syncSelection(){footStatus.textContent=context?(selected.size?`${selected.size}枚を選択中`:'画像を開いて確認・選択できます。'):'';useButton.disabled=busy||!selected.size;for(const i of listView.querySelectorAll('[data-select-image]')){i.checked=selected.has(i.dataset.selectImage)}}
@@ -42,13 +49,37 @@ async function open({context=null}={}){
   }
   const searchForm=el('form','qbLibrarySearch'),searchInput=el('input');searchInput.type='search';searchInput.placeholder='画像名・テーマ・画像内の本文を検索';searchInput.setAttribute('aria-label','画像を検索');const searchButton=btn('検索',()=>load(true));searchForm.append(searchInput,searchButton);searchForm.onsubmit=e=>{e.preventDefault();load(true)};searchInput.oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>load(true),300)};
   const tools=el('div','qbLibraryTools'),uploadInput=el('input');uploadInput.type='file';uploadInput.accept='image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif';uploadInput.multiple=true;uploadInput.hidden=true;
-  const uploadStatus=el('div','qbLibraryStatus');uploadStatus.setAttribute('role','status');tools.append(btn('画像を追加',()=>uploadInput.click()),btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),uploadInput);
-  uploadInput.onchange=async()=>{const files=[...uploadInput.files];if(!files.length||busy)return;setBusy(true);let done=0;try{for(const f of files){uploadStatus.textContent=`画像を登録中… ${done}/${files.length}`;await S.add(sb,f);done++}uploadStatus.textContent=`${done}枚を登録しました。`;await load(true)}catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}finally{uploadInput.value='';setBusy(false)}};
+  const uploadStatus=el('div','qbLibraryStatus');uploadStatus.setAttribute('role','status');
+  const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードで画像を貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへの画像貼り付け欄');
+  const pasteButton=btn('画像をコピペ',pasteImages),recentButton=btn('最近の画像',chooseRecent);
+  tools.append(btn('画像を選択',()=>uploadInput.click()),pasteButton,recentButton,btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),uploadInput);
+  async function register(values,save){
+   if(!values.length||busy||closed)return;setBusy(true);let done=0;
+   try{for(const value of values){uploadStatus.textContent=`画像を登録中… ${done}/${values.length}`;await save(value);done++}uploadStatus.textContent=`${done}枚を登録しました。`;}
+   catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}
+   finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
+  }
+  uploadInput.onchange=()=>register([...uploadInput.files],f=>S.add(sb,f));
+  async function pasteImages(){
+   if(busy)return;setBusy(true);let files=[];
+   try{if(navigator.clipboard?.read){const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(t=>t.startsWith('image/'));if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付け画像.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* iPad and denied clipboard reads use an explicit paste target. */}
+   finally{setBusy(false)}
+   if(files.length){pasteZone.hidden=true;await register(files,f=>S.add(sb,f));return}
+   pasteZone.hidden=false;pasteZone.focus();uploadStatus.textContent='画像をコピーして、貼り付け欄にペーストしてください。';
+  }
+  async function chooseRecent(){
+   if(busy)return;const picker=window.qbRecentImagePicker;if(!picker){uploadStatus.textContent='最近の画像を読み込めません。画面を再読み込みしてください。';return}
+   setBusy(true);panel.inert=true;let rows=[];
+   try{rows=await picker.pick({sb,title:'ライブラリに追加する画像を選択',parent:overlay,context:null})}
+   catch(e){report(uploadStatus,e)}
+   finally{panel.inert=false;setBusy(false);recentButton.focus({preventScroll:true})}
+   await register(rows,row=>S.addRecent(sb,row));
+  }
   const filters=el('details','qbLibraryFilters'),filterSummary=el('summary','','絞り込み'),subjectChecks=el('div','qbLibraryChecks'),filterGrid=el('div','qbLibraryFilterGrid');filters.append(filterSummary,el('div','qbLibraryMeta','関連科目（複数選択可）'),subjectChecks,filterGrid);
   const fields=[['aspect','内容の観点',[['','すべて'],...ASPECTS.map(x=>[x,x])]],['analysis','解析状況',[['','すべて'],...Object.entries(ANALYSIS)]],['classification','分類状況',[['','すべて'],...Object.entries(CLASSIFICATION)]],['used','使用状況',[['','すべて'],['used','使用履歴あり'],['unused','未使用']]]];
   for(const [key,label,options] of fields){const f=selectField(label,options);filterGrid.append(f.host);f.input.onchange=()=>{state[key]=f.input.value;load(true)}}
   const related=check('関連する内容も検索する',false),archived=check('削除した画像を表示',false);filters.append(related.host,archived.host);related.input.onchange=()=>{state.related=related.input.checked;load(true)};archived.input.onchange=()=>{state.archived=archived.input.checked;selected.clear();load(true)};
-  const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('さらに表示',()=>load(false));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,uploadStatus,filters,status,suggest,grid,more);
+  const status=el('div','qbLibraryStatus'),suggest=el('div','qbLibraryTools'),grid=el('div','qbLibraryGrid'),more=btn('さらに表示',()=>load(false));more.hidden=true;status.setAttribute('role','status');listView.append(searchForm,tools,pasteZone,uploadStatus,filters,status,suggest,grid,more);
   async function thumbnail(img,path,version){try{const url=await S.signedURL(sb,path);if(!closed&&version===generation&&img.isConnected)img.src=url}catch{if(img.isConnected)img.alt='画像を読み込めませんでした'}}
   function subjectNames(ids){return (ids||[]).map(id=>subjects.find(s=>s.id===id)?.name||id).join('、')}
   function renderResult(result,version){
