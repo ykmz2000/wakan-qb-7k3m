@@ -1,0 +1,1 @@
+{"path":"official-edit-images.js","before":"a413e94486ada0260de5a5c09011eada793676a751490afb1ccd355020e605f1","after":"968a119ace414ce14b66114a9e1ae059bb2e59c85461d63408b63406f33aa188","edits":[[8043,8043,"files.some(f=>f.size>50*1024*1024)?'大きな画像を保存中… 通信に時間がかかる場合があります。':"]]}
