@@ -41,7 +41,7 @@ async function boot(browser,seed=null,userId='u1'){
         if(this.n!==null)found=found.slice(0,this.n);return{data:this.one?found[0]||null:found,error:null};
       }
     }
-    window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:testUser}},error:null})},from:t=>new Query(t),rpc:async(name,args)=>{
+    window.qbSupabase={auth:{onAuthStateChange:()=>{},getUser:async()=>({data:{user:{id:testUser}},error:null})},from:t=>new Query(t),rpc:async(name,args)=>{
       if(name==='get_subject_question_progress_v2')return{data:[],error:null};
       if(name!=='save_attempt_self_rating')throw new Error('Unexpected RPC '+name);
       if(testFailRating)return{data:null,error:{message:'rating fixture failure'}};
@@ -55,7 +55,7 @@ async function boot(browser,seed=null,userId='u1'){
       }return{data:null,error:null};
     }};
   },{seed,userId});
-  for(const f of ['answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
+  for(const f of ['theme-system-v1.js','answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
   await p.locator('[data-s="s1"]').click();await p.locator('[data-u="unit1"]').click();await p.locator('#start').click();await p.locator('[data-mode="ordered"]').click();await p.locator('.choice[data-c="0"]').waitFor();
   return{p,errors};
 }
@@ -63,6 +63,24 @@ async function ready(p){await p.waitForFunction(()=>{const d=document.querySelec
 async function rate(p,value){await p.locator(`[data-qb-rate="${value}"]`).click();await p.waitForFunction(()=>document.querySelector('.qbRateMsg')?.textContent==='保存しました')}
 async function answer(p,keys=[0]){for(const key of keys)await p.locator(`[data-c="${key}"]`).click();await p.locator('#answer').click();await ready(p)}
 async function run(browser,name){
+  // Answer feedback uses the current attempt only, never previous saved answers.
+  {
+   const {p,errors}=await boot(browser);
+   const states=()=>p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({good:b.classList.contains('good'),bad:b.classList.contains('bad'),label:b.dataset.qbChoiceFeedback||''})));
+   assert.deepEqual(await states(),[{good:false,bad:false,label:''},{good:false,bad:false,label:''}]);
+   await answer(p,[1]);assert.deepEqual(await states(),[{good:true,bad:false,label:'正解'},{good:false,bad:true,label:'× 自分の回答・不正解'}]);
+   const colors=await p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({bg:getComputedStyle(b).backgroundColor,opacity:getComputedStyle(b).opacity})));
+   assert.notEqual(colors[0].bg,colors[1].bg);assert.ok(colors.every(x=>x.opacity==='1'));
+   await p.locator('#answer').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
+   await answer(p,[0]);assert.equal((await states())[0].label,'✓ 自分の回答・正解');
+   await p.locator('#answer').click();await p.locator('[data-c="1"]').click();await p.locator('#review').click();await ready(p);
+   assert.deepEqual(await states(),[{good:true,bad:false,label:'正解'},{good:false,bad:false,label:''}]);
+   await p.locator('#next').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
+   await answer(p,[0,1]);assert.equal((await states())[0].good,true);assert.equal((await states())[1].bad,true);
+   await p.locator('#prev').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
+   await p.locator('#review').click();await ready(p);assert.equal((await states())[0].label,'正解');
+   assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS correct/wrong/missed answer colors, review-only, retry and question navigation reset');
+  }
   let {p,errors}=await boot(browser);assert.equal(await p.locator('.qbAttemptPast').count(),0,'history hidden before answering');
   await p.evaluate(()=>testDelayAttempt=300);await p.locator('[data-c="0"]').click();await p.locator('#answer').click();
   await p.locator('.qbAttemptCurrent').waitFor();assert.equal(await p.locator('[data-qb-rate="△"]').isEnabled(),false,'wait for exact attempt ID before grading');await ready(p);

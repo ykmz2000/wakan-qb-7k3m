@@ -40,3 +40,9 @@ jobs:
         env:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: node tests/editor-appearance-stem.browser.cjs
+
+      - name: Answer feedback and history regression
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/answer-history.browser.cjs
+
