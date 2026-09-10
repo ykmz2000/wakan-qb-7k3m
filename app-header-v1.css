@@ -1,0 +1,24 @@
+/* Keep navigation visible while the page, rather than a nested panel, scrolls. */
+html {
+  scroll-padding-top: var(--qb-header-scroll-padding, 100px);
+}
+
+.app > .header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -12px -10px 12px;
+  padding: calc(12px + env(safe-area-inset-top, 0px))
+    max(10px, env(safe-area-inset-right, 0px)) 12px
+    max(10px, env(safe-area-inset-left, 0px));
+  background: var(--bg, #f5f7fb);
+  border-bottom: 1px solid var(--line, #dce3ec);
+}
+
+@media print {
+  html { scroll-padding-top: 0; }
+  .app > .header {
+    position: static;
+    padding-top: 12px;
+  }
+}
