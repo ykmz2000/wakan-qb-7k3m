@@ -14,9 +14,9 @@ async function run(browser,name){
   await drag(p,map,[[100,100],[500,100]]);await settle(p);
   const solid=await p.locator('.qbDrawCanvas').evaluate((c,{a,b})=>{const r=c.getBoundingClientRect(),d=c.width/r.width,x=c.getContext('2d');let gaps=0;for(let px=a.x;px<b.x;px+=2){const v=x.getImageData(Math.round((px-r.left)*d),Math.round((a.y-r.top)*d),1,1).data;if(v[0]<150||v[1]>130)gaps++}return gaps},{a:map(130,100),b:map(470,100)});assert.equal(solid,0,'live pen must stay solid across consecutive render frames');
   console.log(name+' PASS live handwriting remains a continuous solid line');
-  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,200],[300,280]]);await drag(p,map,[[100,240],[300,300]]);
-  await p.locator('[data-tool=arrow]').click();await drag(p,map,[[100,400],[300,400]]);await drag(p,map,[[200,400],[400,430]]);
-  await p.locator('[data-tool=text]').click();let t=map(110,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('MOVE');await p.locator('[data-tool=rect]').click();
+  await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,200],[300,280]]);await p.locator('[data-tool=lasso]').click();await drag(p,map,[[100,240],[300,300]]);
+  await p.locator('[data-tool=arrow]').click();await drag(p,map,[[100,400],[300,400]]);await p.locator('[data-tool=lasso]').click();await drag(p,map,[[200,400],[400,430]]);
+  await p.locator('[data-tool=text]').click();let t=map(110,500);await p.mouse.click(t.x,t.y);await p.getByRole('textbox',{name:'画像に入れる文字'}).fill('MOVE');await p.locator('[data-tool=lasso]').click();
   t=map(150,515);await p.mouse.click(t.x,t.y);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'first click selects without entering text');
   await drag(p,map,[[150,515],[500,515]]);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'dragging selected text must not start typing');
   t=map(500,515);await p.mouse.click(t.x,t.y);await p.locator('.qbDrawText').waitFor();assert.equal(await p.locator('.qbDrawText').inputValue(),'MOVE');
@@ -24,7 +24,7 @@ async function run(browser,name){
   await p.locator('.qbDrawText').fill('EDIT');await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
   const result=await pixels(p,[[300,260],[100,200],[350,430],[150,400]]);assert.ok(result.colors[0][0]>180&&result.colors[0][1]<110);assert.deepEqual(result.colors[1],[255,255,255,255]);assert.ok(result.colors[2][0]>180&&result.colors[2][1]<110);assert.deepEqual(result.colors[3],[255,255,255,255]);
   const textRegions=await p.evaluate(async()=>{const i=await createImageBitmap(drawResult),c=document.createElement('canvas');c.width=i.width;c.height=i.height;const x=c.getContext('2d');x.drawImage(i,0,0);i.close();return[110,460].map(left=>{const d=x.getImageData(left,500,120,42).data;let n=0;for(let k=0;k<d.length;k+=4)if(d[k+1]<180)n++;return n})});assert.equal(textRegions[0],0);assert.ok(textRegions[1]>30);
-  console.log(name+' PASS direct rectangle/arrow moves, text click-select/drag/click-edit at its own position, saved output has no duplicate originals');
+  console.log(name+' PASS lasso rectangle/arrow moves, text click-select/drag/click-edit at its own position, saved output has no duplicate originals');
   await launch(p);await mapping(p);const initial=await matrix(p);await native(p,'gesturestart',1);await native(p,'gesturechange',2);near((await matrix(p)).a,initial.a*2);
   await p.locator('.qbDrawCanvas').dispatchEvent('wheel',{deltaY:-100,ctrlKey:true,bubbles:true,cancelable:true});await settle(p);near((await matrix(p)).a,initial.a*2);
   await native(p,'gesturechange',2);near((await matrix(p)).a,initial.a*2);await native(p,'gesturechange',.5);near((await matrix(p)).a,initial.a*.5);await native(p,'gestureend',.5);
