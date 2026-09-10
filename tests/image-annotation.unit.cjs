@@ -52,6 +52,7 @@ test('rectangle hit testing follows all four strokes, with bounded edge toleranc
   assert.equal(M.hit(r,{x:220,y:160},6),false);
   assert.equal(M.hit(r,{x:220,y:109},6),true);
   assert.equal(M.hit(r,{x:220,y:111},6),false);
+  assert.equal(M.hit(r,{x:89,y:160},6),false);
   assert.equal(M.hit({...r,type:'image'},{x:220,y:160},6),true);
 });
 
