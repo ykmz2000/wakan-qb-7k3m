@@ -72,3 +72,9 @@ body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.
 .qbLibraryAuthorIcon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 22px;overflow:hidden;background:var(--line,#e2e7ed);font-size:11px}
 .qbLibraryAuthorIcon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .qbLibraryReadOnly{margin:16px 0}.qbLibraryReadOnly dt{font-weight:600;margin-top:14px}.qbLibraryReadOnly dd{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Attribution overlays only list thumbnails; gestures pass through to the image. */
+.qbLibraryGrid>.qbLibraryItem{position:relative;isolation:isolate}
+.qbLibraryGrid>.qbLibraryItem>.qbLibraryAuthor{position:absolute;top:6px;left:6px;z-index:2;max-width:calc(100% - 12px);margin:0;padding:2px 4px;background:var(--card,#fff);color:var(--text,#172033);pointer-events:none}
+.qbLibraryGrid>.qbLibraryItem>.qbLibraryAuthor>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qbLibraryAuthorIcon img{margin:0}
