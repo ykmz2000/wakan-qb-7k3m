@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - name: Verify exact source hashes and apply reviewed edits
+      - name: Verify exact source hashes and apply reviewed app edits
         run: |
           python3 - <<'PY'
           import hashlib,json,os,subprocess
@@ -36,7 +36,8 @@ jobs:
               for a,b,replacement in reversed(r['edits']):
                   text=text[:a]+replacement+text[b:]
               assert digest(text)==r['after'], 'Transport mismatch: '+str(p)
-              results[p]=text
+              if not str(p).startswith('.github/'):
+                  results[p]=text
           for p,text in results.items():
               p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
               if p.suffix in ('.js','.cjs'):subprocess.run(['node','--check',str(p)],check=True)
@@ -46,7 +47,7 @@ jobs:
           assert subprocess.check_output(['git','rev-parse','FETCH_HEAD'],text=True).strip()==os.environ['GITHUB_SHA'], 'Branch changed during verification'
           subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
           subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
-          subprocess.run(['git','add','--',*sorted(expected)],check=True)
+          subprocess.run(['git','add','--',*[str(p) for p in results]],check=True)
           subprocess.run(['git','commit','-m','Preserve native collage and crop pixels; complete source and UI regressions'],check=True)
           subprocess.run(['git','push','origin','HEAD:refs/heads/'+branch],check=True)
           PY
