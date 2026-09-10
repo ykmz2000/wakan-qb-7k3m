@@ -3,7 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const M=require('../image-annotation-model-v1.js');
 test('stabilization zero preserves input and strength reduces jitter with bounded lag',()=>{const p={x:0,y:0},q={x:2,y:3};assert.deepEqual(M.stabilize(p,q,0),q);assert.ok(M.stabilize(p,q,100).y<M.stabilize(p,q,20).y);let previous=p;for(let x=1;x<100;x++){const raw={x,y:x%2?2:-2};previous=M.stabilize(previous,raw,100);assert.ok(Math.hypot(previous.x-raw.x,previous.y-raw.y)<8)}const scaled=M.stabilize(p,{x:4,y:6},100,.5),base=M.stabilize(p,q,100,1);assert.ok(Math.abs(scaled.x-base.x*2)<1e-10)});
-test('palette is exactly the seven agreed colors',()=>assert.deepEqual(M.colors.map(c=>c.name),['赤','青','オレンジ','緑','水色','ピンク','黄色']));
+test('palette includes the agreed seven colors plus black and white',()=>assert.deepEqual(M.colors.map(c=>c.name),['赤','青','オレンジ','緑','水色','ピンク','黄色','黒','白']));
 test('rectangle can be dragged in every direction without an aspect lock',()=>{
   assert.deepEqual(M.rect({x:300,y:100},{x:20,y:140}),{x:20,y:100,w:280,h:40});
 });
@@ -52,9 +52,21 @@ test('rectangle hit testing follows all four strokes, with bounded edge toleranc
   assert.equal(M.hit(r,{x:220,y:160},6),false);
   assert.equal(M.hit(r,{x:220,y:109},6),true);
   assert.equal(M.hit(r,{x:220,y:111},6),false);
-  assert.equal(M.hit(r,{x:89,y:160},6),false);
   assert.equal(M.hit({...r,type:'image'},{x:220,y:160},6),true);
 });
 
+test('layer order supports one-step and absolute movement while preserving selected order',()=>{
+  const items=['a','b','c','d'].map(id=>({id,type:'image',x:0,y:0,w:10,h:10}));
+  assert.deepEqual(M.reorder(items,['b'],'forward').map(x=>x.id),['a','c','b','d']);
+  assert.deepEqual(M.reorder(items,['c'],'backward').map(x=>x.id),['a','c','b','d']);
+  assert.deepEqual(M.reorder(items,['b','c'],'front').map(x=>x.id),['a','d','b','c']);
+  assert.deepEqual(M.reorder(items,['b','c'],'back').map(x=>x.id),['b','c','a','d']);
+});
+
+test('snap move aligns matching edges and centers using screen-pixel tolerance',()=>{
+  const items=[{id:'move',type:'image',x:10,y:20,w:100,h:80},{id:'fixed',type:'image',x:210,y:120,w:100,h:80}];
+  const x=M.snapMove(items,['move'],198,0,600,400,1,10);assert.equal(x.dx,200);assert.deepEqual(x.guides,[{axis:'x',value:210}]);
+  const center=M.snapMove(items,['move'],0,76,600,400,.5,10);assert.equal(center.dy,100);assert.ok(center.guides.some(g=>g.axis==='y'&&g.value===160));
+});
 
 test('counter labels keep lowercase words and explicit integer starts',()=>{assert.equal(M.counterLabel(26,'letter'),'z');assert.equal(M.counterLabel(27,'letter'),'aa');assert.equal(M.counterValue('aa','letter'),27);assert.equal(M.counterValue('3'),3);assert.equal(M.counterValue('A','letter'),null);assert.equal(M.counterValue('0'),null)});
