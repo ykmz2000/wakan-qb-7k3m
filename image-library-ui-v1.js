@@ -180,7 +180,7 @@ async function open({context=null}={}){
    grid.append(article);thumbnail(img,row.object_path,version);
   }
   function maybeLoadMore(){
-   if(closed||busy||loading||autoPaused||!hasMore||listView.hidden||panel.inert)return;
+   if(closed||busy||loading||autoPaused||!hasMore||listView.hidden||panel.inert||searchInput.value!==state.query)return;
    if(body.scrollHeight-body.scrollTop-body.clientHeight<400)load(false);
   }
   body.addEventListener('scroll',maybeLoadMore,{passive:true});
