@@ -10,6 +10,7 @@ function css(){
   const s=document.createElement('style');s.id='qbImageViewerCss';s.textContent=`
 .qbMediaImg,.qbNoteImageGrid img,.oeiGrid img{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:none!important;object-fit:contain!important;object-position:center!important;margin:8px auto!important;border-radius:10px;border:1px solid #dce3ec;cursor:zoom-in;background:#fff}
 .qbMediaHost,.qbNoteImageGrid,.oeiGrid{overflow:visible!important}
+#ans .qbMediaImg{max-height:240px!important;object-position:left center!important;margin:8px 0!important}
 .qbImageLightbox{position:fixed;inset:0;z-index:10150;box-sizing:border-box;background:rgba(0,0,0,.94);color:#fff;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overscroll-behavior:contain;touch-action:none}
 .qbImageLightboxHead,.qbImageLightboxFoot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .qbImageLightboxTitle{font-size:13px;font-weight:700}

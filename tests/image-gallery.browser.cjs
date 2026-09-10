@@ -21,9 +21,9 @@ async function run(browser,name){
   const ctx=await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
   const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
   await p.route('**/*',r=>r.abort());
-  await p.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}#fixture{width:300px}button{font:inherit}</style><main id="fixture"><textarea id="draft">未保存のメモ</textarea></main><div id="alreadyInert" inert></div>');
+  await p.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0}#fixture{width:300px}button{font:inherit}</style><main id="fixture"><div id="ans"><textarea id="draft">未保存のメモ</textarea></div></main><div id="alreadyInert" inert></div>');
   await p.evaluate(src=>{
-    const f=document.getElementById('fixture');
+    const f=document.getElementById('ans');
     const spec=[['stem','qsiGrid','qsiImg',3],['point','qbMediaHostV2','qbMediaImg',3],['choiceA','qbMediaHostV2','qbMediaImg',2],['choiceB','qbMediaHostV2','qbMediaImg',2],['intent','qbMediaHostV2','qbMediaImg',2],['summary','qbMediaHostV2','qbMediaImg',2],['noteA','qbNoteImageGrid','',2],['noteB','qbNoteImageGrid','',2],['editA','oeiGrid','',2],['editB','oeiGrid','',2],['unknown','','qbMediaImg',2],['single','qbMediaHostV2','qbMediaImg',1]];
     for(const [id,cls,imgClass,n] of spec){
       const card=document.createElement('section');card.className=id.startsWith('choice')?'exp':'card';
@@ -43,6 +43,18 @@ async function run(browser,name){
     document.addEventListener('keydown',e=>{if(e.key==='Escape')outsideEscapes++});
   },svg);
   await p.addScriptTag({content:fs.readFileSync(path.join(root,'image-viewer.js'),'utf8')});
+  // Tall official explanation images stay fully visible, left aligned and vertically ordered.
+  const original=await p.locator('#choiceA img').first().getAttribute('src');
+  await p.locator('#choiceA img').first().evaluate(i=>i.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1800"><rect width="600" height="1800" fill="red"/></svg>'));
+  await p.waitForFunction(()=>{const i=document.querySelector('#choiceA img');return i.complete&&i.naturalHeight===1800});
+  for(const width of [390,1024]){
+   await p.setViewportSize({width,height:844});
+   const geometry=await p.locator('#choiceA img').first().evaluate(i=>{const r=i.getBoundingClientRect(),parent=i.parentElement.getBoundingClientRect(),next=i.parentElement.nextElementSibling.getBoundingClientRect();return{h:r.height,w:r.width,left:r.left-parent.left,next:next.top-r.bottom,fit:getComputedStyle(i).objectFit}});
+   assert.ok(geometry.h<=240.1&&geometry.h>0);assert.ok(Math.abs((geometry.w-2)/(geometry.h-2)-1/3)<.02);assert.equal(geometry.left,0);assert.ok(geometry.next>=0);assert.equal(geometry.fit,'contain');
+  }
+  await p.locator('#choiceA img').first().click();await ready(p);assert.equal(await p.locator(stage+' img').evaluate(i=>i.naturalHeight),1800);await close(p);
+  await p.locator('#choiceA img').first().evaluate((i,src)=>i.src=src,original);await p.setViewportSize({width:390,height:844});
+  console.log(name+' PASS 240px explanation height, left alignment, aspect ratio, vertical order and full-resolution enlargement');
   for(const [id,total] of [['stem',3],['point',3],['choiceA',2],['choiceB',2],['intent',2],['summary',2],['noteA',2],['noteB',2],['editA',2],['editB',2]]){
     const images=p.locator('#'+id+' > div:not([hidden]) > img');
     const alts=await images.evaluateAll(xs=>xs.map(x=>x.alt));
