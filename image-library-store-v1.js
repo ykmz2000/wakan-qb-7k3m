@@ -1,6 +1,6 @@
 (function(root){
 'use strict';
-const BUCKET='qb-image-library',DESTINATION='question-media',C=root.QBImageLibraryCore;
+const BUCKET='qb-image-library',DESTINATION='question-media',C=root.QBImageLibraryCore,MAX_IMAGE_BYTES=100*1024*1024;
 const TYPES={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
 const one=data=>Array.isArray(data)?data[0]:data;
 const unwrap=r=>{if(r.error)throw r.error;return r.data};
@@ -15,7 +15,7 @@ async function authors(sb,ids){ids=[...new Set(ids.filter(Boolean))];const rows=
 function avatarURL(sb,path){return path?sb.storage.from('user-avatars').getPublicUrl(path).data.publicUrl:''}
 async function get(sb,id){const r=await sb.from('qb_image_library_items').select('*').eq('id',id).maybeSingle();const row=unwrap(r);if(!row)throw Error('画像が見つかりません。');return row}
 async function signedURL(sb,path){return unwrap(await sb.storage.from(BUCKET).createSignedUrl(path,1800)).signedUrl}
-function fileInfo(file){if(!file||!file.size||file.size>20*1024*1024)throw Error('画像は20MB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('PNG・JPEG・WebP・GIF・HEIC・HEIFの画像を選んでください。');return {type,ext}}
+function fileInfo(file){if(!file||!file.size||file.size>MAX_IMAGE_BYTES)throw Error('画像は100MB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('PNG・JPEG・WebP・GIF・HEIC・HEIFの画像を選んでください。');return {type,ext}}
 async function upload(sb,id,file){const {type,ext}=fileInfo(file),path=id+'/'+crypto.randomUUID()+'.'+ext;unwrap(await sb.storage.from(BUCKET).upload(path,file,{contentType:type,upsert:false,cacheControl:'3600'}));return path}
 async function add(sb,file){
  await authorize(sb);const id=crypto.randomUUID(),path=await upload(sb,id,file);
@@ -95,4 +95,3 @@ async function attach(sb,row,context,job){
 }
 root.QBImageLibraryStore={access,requireOwner,authors,avatarURL,taxonomy,setGet,setSave,sets,catalogSave,download,BUCKET,available,authorize,get,signedURL,add,addRecent,save,replace,search,catalog,history,readings,usages,recordReading,termSave,newJob,attach};
 })(typeof window!=='undefined'?window:globalThis);
-
