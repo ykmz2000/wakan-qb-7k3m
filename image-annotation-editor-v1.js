@@ -10,7 +10,42 @@ const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className
 const btn=(label,cls,fn)=>{const b=el('button',cls,label);b.type='button';b.onclick=fn;return b};
 function filesFromPaste(e){const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
 function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}
-function png(canvas){return new Promise((resolve,reject)=>{try{canvas.toBlob(b=>b?resolve(b):reject(Error('画像を作成できませんでした。')), 'image/png')}catch(e){reject(e)}})}
+// Encode a single lossless PNG without allocating a full-size output canvas.
+// PNG scanlines share one zlib stream; IDAT boundaries are independent of tiles.
+async function tiledPng(width,height,paint,progress){
+  if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<1||height<1||width>0x7fffffff||height>0x7fffffff)throw Error('画像の寸法がPNG形式で扱える範囲を超えています。');
+  if(typeof CompressionStream==='undefined')throw Error('このブラウザは高解像度保存に対応していません。ブラウザを更新してください。');
+  const table=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[n]=c;}
+  function chunk(type,data){const b=new Uint8Array(data.length+12),v=new DataView(b.buffer);v.setUint32(0,data.length);for(let i=0;i<4;i++)b[4+i]=type.charCodeAt(i);b.set(data,8);let crc=0xffffffff;for(let i=4;i<b.length-4;i++)crc=table[(crc^b[i])&255]^(crc>>>8);v.setUint32(b.length-4,(crc^0xffffffff)>>>0);return b;}
+  const header=new Uint8Array(13),hv=new DataView(header.buffer);hv.setUint32(0,width);hv.setUint32(4,height);header[8]=8;header[9]=6;
+  const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('sRGB',new Uint8Array([0]))];
+  const stream=new CompressionStream('deflate'),writer=stream.writable.getWriter(),reader=stream.readable.getReader();
+  let readError;
+  const draining=(async()=>{try{for(;;){const {done,value}=await reader.read();if(done)break;parts.push(chunk('IDAT',value));}}catch(e){readError=e;}})();
+  const canvas=document.createElement('canvas');
+  try{
+    // At most ~4MiB of assembled scanlines, plus a small rendering tile.
+    const stride=width*4+1,rows=Math.max(1,Math.min(128,Math.floor(4194304/stride)));
+    for(let y=0;y<height;y+=rows){
+      const h=Math.min(rows,height-y),band=new Uint8Array(stride*h);
+      for(let x=0;x<width;x+=2048){
+        const w=Math.min(2048,width-x);canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('画像の描画に必要なメモリを確保できませんでした。');
+        ctx.translate(-x,-y);paint(ctx);
+        const pixels=ctx.getImageData(0,0,w,h).data;
+        for(let r=0;r<h;r++)band.set(pixels.subarray(r*w*4,(r+1)*w*4),r*stride+1+x*4);
+      }
+      // Sub filter preserves exact pixels and compresses blank margins efficiently.
+      for(let r=0;r<h;r++){const start=r*stride;band[start]=1;for(let i=stride-1;i>=5;i--)band[start+i]=(band[start+i]-band[start+i-4])&255;}
+      await writer.write(band);if(readError)throw readError;
+      progress?.(Math.round((y+h)/height*100));await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    await writer.close();await draining;if(readError)throw readError;
+    parts.push(chunk('IEND',new Uint8Array()));return new Blob(parts,{type:'image/png'});
+  }catch(e){await writer.abort(e).catch(()=>{});await reader.cancel(e).catch(()=>{});await draining;throw e;}
+  finally{canvas.width=canvas.height=1;writer.releaseLock();reader.releaseLock();}
+}
 async function open(source,options={}){
   if(current)throw Error('画像編集中です。保存またはキャンセルしてから開いてください。');
   const preferences=readSettings();
@@ -183,7 +218,7 @@ async function open(source,options={}){
   listen(document,'gesturechange',e=>{if(!scene||busy||subDialog||penDown)return;e.preventDefault();e.stopImmediatePropagation();if(pinch||touchPair())return;if(!nativeGesture)nativeGesture={scale:1,anchor:gestureAnchor(e)};const scale=Number(e.scale);if(Number.isFinite(scale)&&scale>0){zoomAt(scale/nativeGesture.scale,nativeGesture.anchor);nativeGesture.scale=scale}},{passive:false,capture:true});
   listen(document,'gestureend',e=>{if(!nativeGesture)return;e.preventDefault();e.stopImmediatePropagation();nativeGesture=null;nativeEndedAt=performance.now()},{passive:false,capture:true});
   listen(document,'wheel',e=>{if(!scene||busy||subDialog||(!(e.ctrlKey||e.metaKey)&&!stage.contains(e.target)))return;e.preventDefault();e.stopImmediatePropagation();if(nativeGesture||pinch||touchPair()||performance.now()-nativeEndedAt<120)return;const unit=e.deltaMode===1?16:e.deltaMode===2?stage.clientHeight:1;if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*unit*.004),gestureAnchor(e));else{ox-=e.deltaX*unit;oy-=e.deltaY*unit;requestDraw()}},{passive:false,capture:true});
-  async function save(){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';let output;try{const d={width:Math.ceil(scene.width),height:Math.ceil(scene.height)};if(d.width>16384||d.height>16384||d.width*d.height>32000000)throw Error('元の画質を保つには画像が大きすぎます。余白を減らすか画像を分けてください（最大3,200万画素・一辺16,384px）。');const out=document.createElement('canvas');out.width=d.width;out.height=d.height;const ctx=out.getContext('2d');if(!ctx)throw Error('画像を作成できませんでした。');ctx.scale(d.width/scene.width,d.height/scene.height);paint(ctx);output=await png(out);out.width=out.height=1;await options.onSave?.(output,{width:d.width,height:d.height});close(output)}catch(e){status.textContent='保存できませんでした：'+(e.message||e);busy=false;panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);update()}}
+  async function save(){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';let output;try{const d={width:Math.ceil(scene.width),height:Math.ceil(scene.height)};output=await tiledPng(d.width,d.height,ctx=>{ctx.scale(d.width/scene.width,d.height/scene.height);paint(ctx)},percent=>status.textContent='保存中… '+percent+'%');await options.onSave?.(output,{width:d.width,height:d.height});close(output)}catch(e){status.textContent='保存できませんでした：'+(e.message||e);busy=false;panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);update()}}
   listen(window,'paste',e=>{if(closed||subDialog)return;const files=filesFromPaste(e);if(!files.length){if(e.target===pasteTarget){e.preventDefault();e.stopImmediatePropagation();pasteTarget.value='';status.textContent='画像をコピーしてから貼り付けてください。';canvas.focus({preventScroll:true})}return}e.preventDefault();e.stopImmediatePropagation();pasteTarget.value='';if(!busy&&!gesture){canvas.focus({preventScroll:true});addImages(files)}},true);
   listen(window,'keydown',e=>{
     if(closed||subDialog)return;const mod=e.metaKey||e.ctrlKey,key=e.key.toLowerCase(),input=e.target.closest?.('input,textarea');
@@ -203,4 +238,3 @@ async function open(source,options={}){
 }
 window.QBImageEditor={open,filesFromPaste,isOpen:()=>!!current};
 })();
-

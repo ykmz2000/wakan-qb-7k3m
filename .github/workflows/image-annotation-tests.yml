@@ -1,7 +1,7 @@
 name: Image annotation and question export regression
 on:
   push:
-    branches: [feat/image-annotation-export]
+    branches: [feat/image-annotation-export, fix/tiled-png-export]
   workflow_dispatch:
 permissions:
   contents: read
