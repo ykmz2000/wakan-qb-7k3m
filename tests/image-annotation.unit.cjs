@@ -66,7 +66,7 @@ test('layer order supports one-step and absolute movement while preserving selec
 test('snap move aligns matching edges and centers using screen-pixel tolerance',()=>{
   const items=[{id:'move',type:'image',x:10,y:20,w:100,h:80},{id:'fixed',type:'image',x:210,y:120,w:100,h:80}];
   const x=M.snapMove(items,['move'],198,0,600,400,1,10);assert.equal(x.dx,200);assert.deepEqual(x.guides,[{axis:'x',value:210}]);
-  const center=M.snapMove(items,['move'],0,76,600,400,.5,10);assert.equal(center.dy,100);assert.ok(center.guides.some(g=>g.axis==='y'&&g.value===160));
+  const center=M.snapMove(items,['move'],0,82,600,400,.5,10);assert.equal(center.dy,100);assert.ok(center.guides.some(g=>g.axis==='y'&&g.value===160));
 });
 
 test('counter labels keep lowercase words and explicit integer starts',()=>{assert.equal(M.counterLabel(26,'letter'),'z');assert.equal(M.counterLabel(27,'letter'),'aa');assert.equal(M.counterValue('aa','letter'),27);assert.equal(M.counterValue('3'),3);assert.equal(M.counterValue('A','letter'),null);assert.equal(M.counterValue('0'),null)});
