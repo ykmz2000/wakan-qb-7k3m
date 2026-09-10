@@ -5,6 +5,7 @@ on:
       - 'image-library-*.js'
       - 'image-library-v1.css'
       - 'index.html'
+      - 'save-shortcut-input-guard-v1.js'
       - 'supabase/image-library-*.sql'
       - 'tests/image-library*'
       - '.github/workflows/image-library-tests.yml'
@@ -39,4 +40,6 @@ jobs:
           node tests/image-library.browser.cjs
           node tests/image-library-add.browser.cjs
           node tests/image-library-sets.browser.cjs
+          node tests/image-library-community.browser.cjs
           node tests/recent-image-scope-preview.browser.cjs
+

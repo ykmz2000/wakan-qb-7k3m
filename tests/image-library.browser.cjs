@@ -11,13 +11,14 @@ async function boot(browser){
  await page.goto('https://qb.test/');
  await page.addStyleTag({content:':root{--text:#202124;--card:#fff;--line:#ddd;--accent:#3b6dcc;--muted:#666;--bg:#fafafa}body{margin:0;font-family:sans-serif}.qbAccountCluster{display:flex;justify-content:flex-end;align-items:center;gap:6px}button{min-height:44px}'});
  await page.addStyleTag({content:read('image-library-v1.css')});
+ await page.addScriptTag({content:read('save-shortcut-input-guard-v1.js')});
  await page.addScriptTag({content:read('image-library-core-v1.js')});
  await page.evaluate(()=>{
   const clone=x=>JSON.parse(JSON.stringify(x)),C=QBImageLibraryCore;
-  window.testRole='admin';window.testQuestion={id:'q1'};window.pq=()=>testQuestion;
+  window.testRole='admin';window.testUserId='admin';window.testQuestion={id:'q1'};window.pq=()=>testQuestion;
   window.oldClicks=0;document.querySelector('#oldUpload').onclick=()=>oldClicks++;document.querySelector('#oldRecent').onclick=()=>oldClicks++;
   window.events=[];addEventListener('qb-content-updated',e=>events.push(e.detail));
-  const item=(id,name,extra={})=>({id,object_path:id+'/original.png',original_path:id+'/original.png',revision:1,image_version:1,metadata:{name,subject_ids:['s1'],topics:['眼球運動'],keywords:[],aspects:['構造'],roles:['総まとめ'],aliases:[],related_keywords:[],notes:'',ocr_text:'本文には動眼神経の説明があります',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown',...extra},manual_fields:[],ai_suggestions:{},archived:false,created_at:'2026-09-10T00:00:00Z'});
+  const item=(id,name,extra={})=>({created_by:'admin',id,object_path:id+'/original.png',original_path:id+'/original.png',revision:1,image_version:1,metadata:{name,subject_ids:['s1'],topics:['眼球運動'],keywords:[],aspects:['構造'],roles:['総まとめ'],aliases:[],related_keywords:[],notes:'',ocr_text:'本文には動眼神経の説明があります',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown',...extra},manual_fields:[],ai_suggestions:{},archived:false,created_at:'2026-09-10T00:00:00Z'});
   window.db={profiles:[{id:'admin',role:'admin'}],qb_image_library_config:[{singleton:true,enabled:true}],subjects:[{id:'s1',name:'眼科学',sort_order:1},{id:'s2',name:'神経学',sort_order:2}],qb_image_library_terms:[{id:'t1',canonical:'動眼神経',aliases:['どうがんしんけい'],revision:1}],qb_image_library_items:[item('i1','眼球運動の総まとめ'),item('i2','神経に絞った図',{topics:['動眼神経']})],qb_image_library_usages:[],qb_image_library_readings:[],qb_image_library_history:[],question_images:[]};
   db.qb_image_library_sets=[];db.qb_image_library_catalog=db.subjects.map(s=>({...s,kind:'subject',parent_id:null,aliases:[],revision:1,subject_id:s.id,path:s.name,sort_path:[s.sort_order]}));
   window.objects=new Map();window.calls=[];window.fault='';window.downloadHook=null;
@@ -26,26 +27,26 @@ async function boot(browser){
   class Query{
    constructor(t){this.t=t;this.filters=[];this.excludes=[];this.mode='select';this.bounds=[0,9999]}
    not(k,op,v){this.excludes.push([k,v]);return this}
-   select(){return this}eq(k,v){this.filters.push([k,v]);return this}order(){return this}range(a,b){this.bounds=[a,b];return this}limit(n){this.bounds=[0,n-1];return this}
+   in(k,values){this.include=[k,values];return this}select(){return this}eq(k,v){this.filters.push([k,v]);return this}order(){return this}range(a,b){this.bounds=[a,b];return this}limit(n){this.bounds=[0,n-1];return this}
    insert(p){this.mode='insert';this.payload=p;return this}update(p){this.mode='update';this.payload=p;return this}
    single(){this.one=true;return this.run()}maybeSingle(){this.one=true;return this.run()}then(a,b){return this.run().then(a,b)}
    async run(){
     calls.push([this.mode,this.t]);if(this.t==='profiles')return {data:{role:testRole}};
-    let rows=db[this.t]||[],matching=rows.filter(r=>this.filters.every(([k,v])=>r[k]===v)&&this.excludes.every(([k,v])=>r[k]!==v));
-    if(this.mode==='insert'){const r={revision:1,...this.payload};if(this.t==='qb_image_library_items')Object.assign(r,{revision:1,image_version:1,manual_fields:[],ai_suggestions:{},archived:false,created_at:new Date().toISOString()});rows.push(r);matching=[r]}
+    let rows=db[this.t]||[],matching=rows.filter(r=>(!this.include||this.include[1].includes(r[this.include[0]]))&&this.filters.every(([k,v])=>r[k]===v)&&this.excludes.every(([k,v])=>r[k]!==v));
+    if(this.mode==='insert'){const r={revision:1,created_by:testUserId,...this.payload};if(this.t==='qb_image_library_items')Object.assign(r,{revision:1,image_version:1,manual_fields:[],ai_suggestions:{},archived:false,created_at:new Date().toISOString()});rows.push(r);matching=[r]}
     if(this.mode==='update')matching.forEach(r=>Object.assign(r,this.payload));
     matching=matching.slice(this.bounds[0],this.bounds[1]+1);return{data:clone(this.one?(matching[0]||null):matching),error:null};
    }
   }
   const err=message=>({error:{message,code:'40001'}});
-  window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'admin'}}}),onAuthStateChange:f=>{window.authChanged=f}},from:t=>new Query(t),storage:{from:bucket=>({
+  window.qbSupabase={auth:{getUser:async()=>({data:{user:testUserId?{id:testUserId}:null}}),onAuthStateChange:f=>{window.authChanged=f}},from:t=>new Query(t),storage:{from:bucket=>({
    getPublicUrl:p=>({data:{publicUrl:URL.createObjectURL(objects.get(bucket+'/'+p)||new Blob([pixel],{type:'image/png'}))}}),
    createSignedUrl:async p=>({data:{signedUrl:URL.createObjectURL(objects.get(bucket+'/'+p)||new Blob([pixel],{type:'image/png'}))}}),
    upload:async(p,b)=>{calls.push(['upload',bucket,p]);if(objects.has(bucket+'/'+p))return err('already exists');objects.set(bucket+'/'+p,b);if(fault==='upload-response'){fault='';return err('lost upload response')}return{data:{path:p}}},
    download:async p=>{calls.push(['download',bucket,p]);if(downloadHook){const h=downloadHook;downloadHook=null;h()}return objects.has(bucket+'/'+p)?{data:objects.get(bucket+'/'+p)}:err('missing')},
    remove:async()=>{throw Error('Destructive Storage operation attempted')}
   })},rpc:async(name,a)=>{
-   calls.push(['rpc',name]);
+   calls.push(['rpc',name]);if(name==='qb_library_authors')return {data:a.p_ids.map(id=>({id,display_name:id==='admin'?'投稿者テスト':'別の投稿者',avatar_path:null}))};
    if(name==='qb_library_catalog_tree'){const tree=[];function walk(parent,path=[],sort=[],subject=null){for(const c of db.qb_image_library_catalog.filter(c=>c.parent_id===parent).sort((a,b)=>a.sort_order-b.sort_order)){const next=[...path,c.name],ss=[...sort,c.sort_order],sid=subject||c.id;tree.push({...clone(c),path:next.join(' / '),sort_path:ss,subject_id:sid});walk(c.id,next,ss,sid)}}walk(null);return {data:tree};}
    if(name==='qb_library_search_v2'){
     const forms=C.searchForms(a.p_query,db.qb_image_library_terms);
@@ -122,8 +123,9 @@ async function run(browser,name){
  assert.equal(await p.getByLabel('読み取り本文',{exact:true}).inputValue(),'手動で直した動眼神経の本文');await p.getByText('読み取り・補完結果',{exact:true}).click();await p.getByText(/画像版 1/).first().waitFor();pass('explicit AI import preserves manual text and exposes repair history');
  await p.getByRole('button',{name:'ライブラリから削除',exact:true}).click();await p.getByRole('searchbox').waitFor();await p.getByText('絞り込み',{exact:true}).click();await p.getByLabel('削除した画像を表示',{exact:true}).check();await p.waitForFunction(()=>document.querySelectorAll('.qbLibraryItem').length===1);await p.locator('.qbLibraryImageButton').click();await p.getByRole('button',{name:'ライブラリへ戻す',exact:true}).click();await p.waitForFunction(()=>!db.qb_image_library_items[0].archived);pass('archive can be reversed, copies survive');
  await p.getByRole('button',{name:'閉じる',exact:true}).click();
- await p.evaluate(()=>{testRole='user';authChanged()});await p.locator('.qbLibraryEntry').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryAction').count(),0);assert.equal(await p.locator('#oldUpload').count(),1);pass('non-admin entry hidden and old controls retained');
+ await p.evaluate(()=>{testRole='user';testUserId=null;authChanged()});await p.locator('.qbLibraryEntry').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryAction').count(),0);assert.equal(await p.locator('#oldUpload').count(),1);pass('signed-out entry hidden and old controls retained');
  assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' image-library browser checks passed');
 }
 module.exports={boot};
 if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+

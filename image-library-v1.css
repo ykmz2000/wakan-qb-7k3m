@@ -66,3 +66,9 @@ body:has(>.qbLibraryOverlay)>.qbDrawModal{z-index:10130}
 body:has(>.qbLibraryOverlay)>.qbCropModal{z-index:10140}
 body:has(>.qbLibraryOverlay) :is(.qbDrawPanel,.qbCropPanel,.qbDrawModal button,.qbCropModal button){border-radius:0}
 @media(max-width:600px){.qbLibrarySetMember{grid-template-columns:80px 1fr}.qbLibrarySetMember img{width:80px}.qbLibrarySlideNav button{padding:6px}}
+
+
+.qbLibraryAuthor{display:flex;align-items:center;gap:6px;margin:0 0 8px;color:var(--muted,#667085);font-size:12px;font-weight:500;min-height:22px}
+.qbLibraryAuthorIcon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 22px;overflow:hidden;background:var(--line,#e2e7ed);font-size:11px}
+.qbLibraryAuthorIcon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.qbLibraryReadOnly{margin:16px 0}.qbLibraryReadOnly dt{font-weight:600;margin-top:14px}.qbLibraryReadOnly dd{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}

@@ -25,7 +25,7 @@ function scan(){
 }
 async function boot(){
  const sb=window.qbSupabase;if(!sb)return;
- if(!subscribed&&sb.auth.onAuthStateChange){subscribed=true;sb.auth.onAuthStateChange(()=>{authorized=false;document.querySelectorAll('.qbLibraryEntry,.qbLibraryAction').forEach(n=>n.remove());setTimeout(schedule,0)})}
+ if(!subscribed&&sb.auth.onAuthStateChange){subscribed=true;sb.auth.onAuthStateChange(()=>{authorized=false;window.dispatchEvent(new Event('qb-library-access-changed'));document.querySelectorAll('.qbLibraryEntry,.qbLibraryAction').forEach(n=>n.remove());setTimeout(schedule,0)})}
  if(!authorized){if(checking)return;checking=window.QBImageLibraryStore.available(sb);try{authorized=await checking}catch{authorized=false}finally{checking=null}}
  scan();
 }
@@ -34,3 +34,4 @@ for(const event of ['qb-app-ready','qb-screen-change','qb-content-updated','qb-a
 new MutationObserver(ms=>{if(ms.some(m=>[...m.addedNodes].some(n=>n instanceof Element&&!n.closest('.qbLibraryOverlay')&&(n.matches('.qbAccountCluster,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')||n.querySelector('.qbAccountCluster,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')))))schedule()}).observe(document.body,{childList:true,subtree:true});
 window.QBImageLibraryIntegration={resolve};schedule();
 })();
+
