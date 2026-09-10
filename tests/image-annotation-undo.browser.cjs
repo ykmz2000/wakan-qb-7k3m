@@ -19,7 +19,7 @@ async function run(browser,label){
  // The next blank click can add text. Text undo cannot resurrect the prior editor's text.
  await click(500,350);await text.fill('Beta');await p.keyboard.press('Meta+z');assert.notEqual(await text.inputValue(),'Alpha');await text.fill('Beta');await click(700,500);assert.equal(await p.evaluate(()=>sceneHistory.current.items.length),2);
  // A single undo on the canvas undoes the latest committed change; repeated selection does not add history.
- const before=await p.evaluate(()=>sceneHistory.past.length);await click(110,115);await click(700,500);assert.equal(await p.evaluate(()=>sceneHistory.past.length),before);
+ await p.locator('[data-tool=lasso]').click();const before=await p.evaluate(()=>sceneHistory.past.length);await click(110,115);await click(700,500);assert.equal(await p.evaluate(()=>sceneHistory.past.length),before);
  await p.keyboard.press('Meta+z');assert.equal(await p.evaluate(()=>sceneHistory.past.length),before-1);
  assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS text-local undo/redo, consumed Z, deselection cushion and scene history');
 }
