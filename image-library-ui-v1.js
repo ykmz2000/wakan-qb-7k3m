@@ -81,8 +81,8 @@ async function open({context=null}={}){
    header.append(el('strong','','追加した画像を確認'));box.append(header,content,footer);modal.append(box);overlay.append(modal);panel.inert=true;
    const intro=el('div','qbLibraryStatus','画像は登録済みです。必要な情報だけ編集し、そのままでも「確定」できます。');content.append(intro);
    const navigation=el('div','qbLibraryTools'),position=el('span'),host=el('div');content.append(navigation,host);
-   const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,ocrTimer=null;
-   function stopOCR(){clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
+   const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,ocrTimer=null,ocrStopped=false;
+   function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage');im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,draft.row.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{im.alt='画像を読み込めませんでした'});
     const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(draft.ocrStatus,form);host.append(draft.view);
@@ -124,7 +124,7 @@ async function open({context=null}={}){
      targets.forEach(d=>d.ocrStatus.textContent='簡易OCRを準備中… 待たずに確定できます。');
      let stopped=false;
      ocrTimer=setTimeout(()=>{stopped=true;stopOCR();targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを終了しました。未入力でも確定できます。')},60000);
-     const alive=()=>!finished&&!saving&&!stopped&&!closed;
+     const alive=()=>!finished&&!saving&&!stopped&&!closed&&!ocrStopped;
      try{
       const engine=await loadUploadOCR();if(!alive())return;
       const created=await engine.createWorker(['jpn','eng'],1,{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',errorHandler:()=>{}});
