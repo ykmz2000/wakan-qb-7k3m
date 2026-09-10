@@ -1,12 +1,13 @@
 (()=>{
 'use strict';
 let active=null;
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function css(){
   if(document.getElementById('qbImageEditorSourceCss'))return;
   const s=document.createElement('style');s.id='qbImageEditorSourceCss';s.textContent=`
 .qbeSourceModal{position:fixed;inset:0;z-index:10170;background:#0009;display:flex;align-items:flex-end;justify-content:center;padding:12px;color:var(--text,#172033)}
 .qbeSourcePanel{width:min(760px,100%);max-height:88dvh;overflow:auto;background:var(--card,#fff);border:1px solid var(--line,#dce3ec);border-radius:16px;padding:14px;box-shadow:0 16px 60px #0005}
+.qbeSourcePanel button{min-height:44px;border:1px solid var(--line,#dce3ec);background:var(--card,#fff);color:var(--accent,#126fb3);font:inherit;padding:8px 10px;border-radius:8px}.qbeSourcePanel button:disabled{opacity:.45}.qbeSourcePanel button:focus-visible,.qbeSourcePanel input:focus-visible{outline:2px solid var(--accent,#126fb3);outline-offset:2px}
 .qbeSourceHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.qbeSourceHead b{font-size:16px}.qbeSourceClose{font-size:24px!important;line-height:1}
 .qbeSourceChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.qbeSourceChoices button{min-height:54px!important;text-align:left;font-weight:800}
 .qbeSourceSearch{display:flex;gap:8px;margin:8px 0 12px}.qbeSourceSearch input{flex:1;min-width:0;min-height:44px;font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px}
