@@ -165,7 +165,7 @@ async function open({context=null}={}){
    return new Promise(resolveReview=>{
     function finish(){if(finished)return;finished=true;stopOCR();window.removeEventListener('qb-library-access-changed',finish);modal.querySelectorAll('.qbLibraryAutoGrow').forEach(n=>fieldResize.unobserve(n));modal.remove();panel.inert=false;resolveReview(drafts.map(d=>d.row));}
     window.addEventListener('qb-library-access-changed',finish);
-    const confirmButton=btn('確定',confirmReview,'qbLibraryPrimary');footer.append(confirmButton);const reviewBack=btn('一覧に戻る',()=>{if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('未保存の変更を破棄しますか？追加した画像は残ります。')))finish()});header.append(reviewBack);
+    const confirmButton=btn('確定',confirmReview,'qbLibraryPrimary');footer.append(confirmButton);const reviewBack=btn('一覧に戻る',confirmReview);header.append(reviewBack);
     async function confirmReview(){
      if(saving||finished)return;saving=true;stopOCR();content.inert=true;confirmButton.disabled=true;confirmButton.textContent='保存中…';confirmButton.setAttribute('aria-busy','true');reviewBack.disabled=true;note.textContent='変更内容を保存しています…';
      try{for(const d of drafts){d.commit();const patch=C.changed(d.baseline,d.collect());if(Object.keys(patch).length){d.row=await S.save(sb,d.row,patch,{reason:d.ocrApplied?'アップロード後の内容確認（ブラウザOCRの仮読み取りを含む）':'アップロード後の内容確認'});d.baseline=d.collect();if(selected.has(d.row.id))selected.set(d.row.id,d.row)}}finish();void load(true)}
@@ -248,20 +248,20 @@ async function open({context=null}={}){
    while(!closed&&version===generation&&!autoPaused&&hasMore&&state.offset<retain)await load(false);
   }
   function enterDetail(title){saveCurrent=null;detailPaste=null;detailGeneration++;if(!listView.hidden)listScroll=body.scrollTop;listView.hidden=true;navigationButton.textContent='一覧に戻る';selectModeButton.hidden=true;setButton.hidden=true;detailView.hidden=false;detailView.querySelectorAll('.qbLibraryAutoGrow').forEach(n=>fieldResize.unobserve(n));detailView.replaceChildren();heading.textContent=title;body.scrollTop=0}
-  async function back(){if(busy)return;if(dirty()&&!confirm('未保存の変更を破棄して一覧に戻りますか？'))return;detailGeneration++;dirty=()=>false;saveCurrent=null;detailPaste=null;detailView.hidden=true;listView.hidden=false;navigationButton.textContent='閉じる';selectModeButton.hidden=!!context;setButton.hidden=!!context;syncSelection();heading.textContent=context?'画像ライブラリから選択':'画像ライブラリ';body.scrollTop=listScroll;searchInput.focus({preventScroll:true});}
+  async function back(){if(busy)return;if(dirty()){if(!saveCurrent)return;await saveCurrent();if(dirty())return;}detailGeneration++;dirty=()=>false;saveCurrent=null;detailPaste=null;detailView.hidden=true;listView.hidden=false;navigationButton.textContent='閉じる';selectModeButton.hidden=!!context;setButton.hidden=!!context;syncSelection();heading.textContent=context?'画像ライブラリから選択':'画像ライブラリ';body.scrollTop=listScroll;navigationButton.focus({preventScroll:true});}
   async function showDetail(initial,editing=false){
    if(busy)return;enterDetail('画像の詳細');const detailVersion=detailGeneration;const note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row;
    try{row=await S.get(sb,initial.id);if(closed||detailVersion!==detailGeneration)return;await drawDetail(row,note,editing)}catch(e){report(note,e)}
   }
   async function drawDetail(initial,note,editing){
-   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';detailView.append(authorLine(row),img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
+   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';zoomable(img);detailView.append(authorLine(row),img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)img.src=url}).catch(e=>report(note,e));
    if(!editing||!owns(row)){
     dirty=()=>false;saveCurrent=null;note.textContent='';
-    const actions=el('div','qbLibraryTools');actions.append(btn('画像を拡大',()=>img.classList.toggle('qbLibraryFullImage')));if(owns(row))actions.append(btn('編集',()=>showDetail(row,true),'qbLibraryPrimary'));
+    const actions=el('div','qbLibraryTools');if(owns(row))actions.append(btn('編集',()=>showDetail(row,true),'qbLibraryEditButton'));
     if(selectionMode&&!row.archived){const pick=btn('この画像を選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
-   top.append(btn('トリミング',()=>editImage('crop')),btn('書き込み',()=>editImage('annotation')),btn('元画像に戻す',()=>restore({},row.original_path)),btn('画像を拡大',e=>{img.classList.toggle('qbLibraryFullImage');e.currentTarget.textContent=img.classList.contains('qbLibraryFullImage')?'画像を縮小':'画像を拡大'}),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
+   top.append(btn('トリミング',()=>editImage('crop')),btn('書き込み',()=>editImage('annotation')),btn('元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('この画像に追加してセットにする',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'この画像を選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'この画像を選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
@@ -271,7 +271,7 @@ async function open({context=null}={}){
    const actions=el('div','qbLibraryTools qbLibraryWide'),saveButton=btn('変更を保存',()=>saveForm(),'qbLibraryPrimary'),conflictButton=btn('最新情報を別表示',()=>showLatest());conflictButton.hidden=true;actions.append(saveButton,conflictButton);form.append(actions);form.onsubmit=e=>{e.preventDefault();if(!imeActive(document.activeElement))saveForm()};
    async function showLatest(){try{const latest=await S.get(sb,row.id);const d=detailBlock('現在保存されている情報（入力内容は保持しています）');d.open=true;const p=el('pre');p.textContent=JSON.stringify(latest.metadata,null,2);d.append(p);detailView.append(d);note.textContent='入力内容を確認・控えたうえで詳細を開き直してください。強制上書きは行いません。'}catch(e){report(note,e)}}
    saveCurrent=saveForm;
-   async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';await load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
+   async function saveForm(){if(busy)return;fields.commit();const patch=C.changed(baseline,collect());if(!Object.keys(patch).length){note.textContent='変更はありません。';return}const focus=document.activeElement;setBusy(true);saveButton.disabled=true;saveButton.textContent='保存中…';note.textContent='保存中…';try{row=await S.save(sb,row,patch);baseline=collect();if(selected.has(row.id))selected.set(row.id,row);jobs.delete(row.id);note.textContent='保存しました。';void load(true)}catch(e){report(note,e);if(e.code==='40001')conflictButton.hidden=false;}finally{setBusy(false);saveButton.disabled=false;saveButton.textContent='変更を保存';if(focus?.isConnected)focus.focus({preventScroll:true})}}
    async function editImage(kind){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);
@@ -315,9 +315,10 @@ async function open({context=null}={}){
    for(const s of subjects){const c=check(s.name,state.subjects.includes(s.id));c.host.dataset.aliases=(s.aliases||[]).join(' ');c.input.value=s.id;c.input.onchange=()=>{state.subjects=[...subjectChecks.querySelectorAll('input:checked')].map(i=>i.value);refreshUnitFilter();load(true)};subjectChecks.append(c.host)}refreshUnitFilter();
   }
   function refreshUnitFilter(){const eligible=catalogRows.filter(c=>c.kind==='unit'&&(!state.subjects.length||state.subjects.includes(c.subject_id)));if(state.unit&&!eligible.some(c=>c.id===state.unit))state.unit='';unitFilter.input.replaceChildren(new Option('すべて',''));for(const u of eligible)unitFilter.input.add(new Option(u.path,u.id));unitFilter.input.value=state.unit;}
-  function carousel(members,onOpen,version){
+  function zoomable(img){img.classList.add('qbLibraryZoomImage');img.tabIndex=0;img.setAttribute('role','button');img.setAttribute('aria-label',(img.alt||'画像')+'を拡大表示');img.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();img.click()}})}
+  function carousel(members,onOpen,version,zoom=false){
    const host=el('div','qbLibraryCarousel'),track=el('div','qbLibrarySlides'),nav=el('div','qbLibrarySlideNav'),counter=el('span','',`1 / ${members.length}`);let current=0;
-   for(const row of members){const b=btn('',()=>onOpen(row),'qbLibrarySlide'),im=el('img');im.loading='lazy';im.alt=row.metadata?.name||'画像';b.append(im);track.append(b);S.signedURL(sb,row.object_path).then(url=>{if(im.isConnected&&!closed)im.src=url}).catch(()=>im.alt='画像を読み込めませんでした')}
+   for(const row of members){const b=btn('',()=>onOpen(row),'qbLibrarySlide'),im=el('img');im.loading='lazy';im.alt=row.metadata?.name||'画像';if(zoom){zoomable(im);b.tabIndex=-1;}b.append(im);track.append(b);S.signedURL(sb,row.object_path).then(url=>{if(im.isConnected&&!closed)im.src=url}).catch(()=>im.alt='画像を読み込めませんでした')}
    const move=delta=>{const next=Math.max(0,Math.min(members.length-1,current+delta));track.scrollTo({left:next*track.clientWidth,behavior:'smooth'})};
    nav.append(btn('前',()=>move(-1)),counter,btn('次',()=>move(1)));track.onscroll=()=>{current=Math.max(0,Math.min(members.length-1,Math.round(track.scrollLeft/(track.clientWidth||1))));counter.textContent=`${current+1} / ${members.length}`};host.append(track,nav);return host;
   }
@@ -331,10 +332,10 @@ async function open({context=null}={}){
    const gen=detailGeneration,note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row=initial,members=initialMembers.slice();
    try{if(row){row=await S.setGet(sb,row.id);members=row.members}if(closed||gen!==detailGeneration)return}catch(e){report(note,e);return}
    if(row&&(!editing||!owns(row))){
-    note.textContent='';detailView.append(authorLine(row),el('h2','',row.name),carousel(members,showDetail,generation));if(owns(row))detailView.append(btn('編集',()=>showSetEditor(row,[],true),'qbLibraryPrimary'));if(selectionMode)memberChoices(detailView,members.filter(r=>!r.archived));return;
+    note.textContent='';detailView.append(authorLine(row),el('h2','',row.name),carousel(members,()=>{},generation,true));if(owns(row))detailView.append(btn('編集',()=>showSetEditor(row,[],true),'qbLibraryEditButton'));if(selectionMode)memberChoices(detailView,members.filter(r=>!r.archived));return;
    }
    const name=inputField('セット名',row?.name||((members[0]?.metadata.name||'画像')+'のセット'));detailView.append(name.host);const host=el('div','qbLibrarySetMembers');detailView.append(host);
-   let baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);dirty=()=>baseline!==JSON.stringify([name.input.value,members.map(r=>r.id)]);
+   let baseline=row?JSON.stringify([name.input.value,members.map(r=>r.id)]):null;dirty=()=>baseline!==JSON.stringify([name.input.value,members.map(r=>r.id)]);
    function drawMembers(){host.replaceChildren();members.forEach((r,index)=>{
     const line=el('div','qbLibrarySetMember'),im=el('img');im.alt=r.metadata.name||'画像';im.loading='lazy';S.signedURL(sb,r.object_path).then(url=>{if(im.isConnected)im.src=url}).catch(()=>{});line.append(im,el('div','',`${index+1}. ${r.metadata.name}${r.archived?'（削除済み）':''}`));
     line.append(btn('詳細・画像編集',()=>{if(dirty()){note.textContent='先にセットを保存してください。';return}showDetail(r)}),btn('前へ',()=>{if(index){[members[index-1],members[index]]=[members[index],members[index-1]];drawMembers()}}),btn('後ろへ',()=>{if(index<members.length-1){[members[index+1],members[index]]=[members[index],members[index+1]];drawMembers()}}),btn('セットから外す',()=>{members.splice(index,1);selected.delete(r.id);drawMembers();syncSelection()}));host.append(line);
@@ -370,7 +371,7 @@ async function open({context=null}={}){
    });
    addTools.append(btn('画像を追加',()=>addInput.click()),btn('コピペで追加',pasteIntoSet),recentAdd);detailView.append(addTools,addInput,addPaste,el('div','qbLibraryStatus','追加した画像はすぐにライブラリへ登録されます。セットの構成は「セットを保存」で確定します。'));
    const actions=el('div','qbLibraryTools');actions.append(btn('全部を選択',()=>{members.forEach(r=>selected.delete(r.id));members.filter(r=>!r.archived).forEach(r=>selected.set(r.id,r));drawMembers();syncSelection()}),btn('選択を解除',()=>{members.forEach(r=>selected.delete(r.id));drawMembers();syncSelection()}),btn('セットを保存',saveSet,'qbLibraryPrimary'));detailView.append(actions);saveCurrent=saveSet;
-   async function saveSet(){if(busy)return;if(!name.input.value.trim()||!members.length){note.textContent='セット名と1枚以上の画像が必要です。';return}setBusy(true);try{row=await S.setSave(sb,row,name.input.value,members.map(r=>r.id));baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);const picked=members.filter(r=>selected.has(r.id));members.forEach(r=>selected.delete(r.id));picked.forEach(r=>selected.set(r.id,r));syncSelection();note.textContent='セットを保存しました。';await load(true)}catch(e){report(note,e)}finally{setBusy(false)}}
+   async function saveSet(){if(busy)return;if(!name.input.value.trim()||!members.length){note.textContent='セット名と1枚以上の画像が必要です。';return}setBusy(true);try{row=await S.setSave(sb,row,name.input.value,members.map(r=>r.id));baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);const picked=members.filter(r=>selected.has(r.id));members.forEach(r=>selected.delete(r.id));picked.forEach(r=>selected.set(r.id,r));syncSelection();note.textContent='セットを保存しました。';void load(true)}catch(e){report(note,e)}finally{setBusy(false)}}
    if(row)actions.append(btn('セットを解除',async()=>{if(busy||!confirm('セットを解除しますか？各画像はライブラリに残ります。'))return;setBusy(true);try{await S.setSave(sb,row,row.name,row.image_ids,true);dirty=()=>false;await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}));
    if(!initial){try{const existing=(await S.sets(sb)).filter(r=>!r.archived&&owns(r));if(closed||gen!==detailGeneration)return;const f=selectField('既存のセットに追加',[['','セットを選択'],...existing.map(r=>[r.id,r.name])]);detailView.append(f.host,btn('このセットに追加',async()=>{if(busy||!f.input.value)return;setBusy(true);try{const target=await S.setGet(sb,f.input.value);const ids=[...new Set([...target.image_ids,...members.map(r=>r.id)])];await S.setSave(sb,target,target.name,ids);dirty=()=>false;selected.clear();await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}))}catch(e){report(note,e)}}
   }
@@ -386,9 +387,9 @@ async function open({context=null}={}){
   async function showTerms(){
    if(busy)return;enterDetail('検索語・別名の管理');dirty=()=>false;const note=el('div','qbLibraryStatus','同じ意味の呼び名を登録します。関連するだけの語は画像の「関連する内容」に登録してください。'),form=el('div','qbLibraryForm'),select=selectField('編集する検索語',[['','新しく追加'],...terms.map(t=>[t.id,t.canonical])]),canonical=inputField('正式な検索語'),aliases=inputField('別名・読み・略語（改行または読点区切り）','',true);detailView.append(note,select.host,form);form.append(canonical.host,aliases.host);let row=null,initial=['',''];
    select.input.onchange=()=>{if(dirty()&&!confirm('未保存の変更を破棄しますか？')){select.input.value=row?.id||'';return}row=terms.find(t=>t.id===select.input.value)||null;canonical.input.value=row?.canonical||'';aliases.input.value=(row?.aliases||[]).join('\n');initial=[canonical.input.value,aliases.input.value]};dirty=()=>canonical.input.value!==initial[0]||aliases.input.value!==initial[1];
-   detailView.append(btn('検索語を保存',async()=>{if(busy)return;setBusy(true);try{await S.termSave(sb,row,canonical.input.value,aliases.input.value);terms=await S.catalog(sb,'qb_image_library_terms');dirty=()=>false;await showTerms();note.textContent='保存しました。'}catch(e){report(note,e)}finally{setBusy(false)}},'qbLibraryPrimary'));
+   const termSaveButton=btn('検索語を保存',async()=>{if(busy)return;setBusy(true);try{await S.termSave(sb,row,canonical.input.value,aliases.input.value);terms=await S.catalog(sb,'qb_image_library_terms');dirty=()=>false;await showTerms();note.textContent='保存しました。'}catch(e){report(note,e)}finally{setBusy(false)}},'qbLibraryPrimary');detailView.append(termSaveButton);saveCurrent=termSaveButton.onclick;
   }
-  overlay.focus();(async()=>{try{[catalogRows,terms]=await Promise.all([S.taxonomy(sb),S.catalog(sb,'qb_image_library_terms')]);if(closed)return;refreshCatalogFilters();await load(true);searchInput.focus()}catch(e){report(status,e)}})();
+  overlay.focus();(async()=>{try{[catalogRows,terms]=await Promise.all([S.taxonomy(sb),S.catalog(sb,'qb_image_library_terms')]);if(closed)return;refreshCatalogFilters();await load(true)}catch(e){report(status,e)}})();
  });
 }
 function placementName(p){return {question:'問題文',choice:'選択肢',explanation_overview:'問題文のポイント',choice_explanation:'選択肢解説',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification:'医学的検証'}[p]||p}

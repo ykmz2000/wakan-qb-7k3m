@@ -105,7 +105,7 @@ async function run(browser,name){
  await p.getByRole('button',{name:'変更を保存',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_items[0].revision===2);await p.getByLabel('画像名',{exact:true}).waitFor();
  assert.deepEqual(await p.evaluate(()=>db.qb_image_library_items[0].metadata.subject_ids),['s1','s2']);pass('multiple subjects and editable full body');
  await p.getByLabel('画像名',{exact:true}).fill('競合中の下書き');await p.evaluate(()=>db.qb_image_library_items[0].revision++);await p.getByRole('button',{name:'変更を保存',exact:true}).click();await p.getByRole('button',{name:'最新情報を別表示'}).waitFor();
- assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧に戻る'}).click();pass('conflicting updates keep draft without overwriting');
+ assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');await p.getByRole('button',{name:'一覧に戻る'}).click();assert.equal(await p.getByLabel('画像名',{exact:true}).inputValue(),'競合中の下書き');assert.equal(await p.getByRole('searchbox').isVisible(),false);await p.getByLabel('画像名',{exact:true}).fill('眼球運動の総まとめ');await p.getByRole('button',{name:'一覧に戻る'}).click();pass('conflicting return keeps draft without overwriting; unchanged fields allow return');
  await p.getByRole('searchbox').fill('');await p.getByRole('button',{name:'検索',exact:true}).click();
  await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles({name:'unprocessed.png',mimeType:'image/png',buffer:Buffer.from('independent original bytes')});await p.waitForFunction(()=>db.qb_image_library_items.length===3);
  await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
