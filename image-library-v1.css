@@ -45,7 +45,7 @@ body :is(.qbInlineImageToggle,.qsiMoreBtn,.qsiCropTool,.qsiDelete,.qbsortHandle)
  background:var(--card)!important;color:var(--accent)!important;box-shadow:none!important;cursor:pointer;
 }
 body :is(.qsiActions,.oeiActions)>label{display:inline-flex;align-items:center}
-body :is(.qsiActions,.oeiActions)>.qbLibraryAction{order:2}
+body :is(.qsiActions,.oeiActions)>.qbLibraryAction,.qbCreatePDF{order:2}
 body :is(.oeiItemActions,.qbImageWriteActions)>.danger,body .qsiDelete{color:var(--bad)!important;border-color:var(--bad)!important}
 body :is(.oeiBox,.oeiItem,.qsiEditor,.qsiInlineEditor,.qsiPasteZone,.oeiPaste){border-radius:0!important}
 body .qbripModal :is(.qbripPanel,button,select,.qbripItem img,.qbripCheck){border-radius:0!important}
@@ -117,3 +117,6 @@ body .qbLibraryPanel button.qbLibraryEditButton{display:inline-flex;align-items:
 
 .qbLibraryCarousel{min-width:0;max-width:100%}.qbLibrarySlides .qbLibrarySlide{overflow:hidden}.qbLibrarySlide img{display:block;width:100%;height:min(55vh,520px);object-fit:contain}.qbLibrarySlide .qbPdfCard{margin:0 auto;max-width:100%}.qbLibrarySetMember .qbPdfCard{min-height:100px}.qbLibrarySetMember .qbPdfPoster canvas{max-height:120px}
 .qbLibraryUploadMode .qbLibraryPanel{height:auto;max-height:90dvh;width:min(540px,96vw)}.qbLibraryUploadChoice{display:block;width:100%;min-height:56px;text-align:left;font-weight:700;margin-top:16px}
+
+.qbLibraryUploadPreview{display:flex;align-items:center;gap:8px;margin:8px 0;min-width:0}.qbLibraryUploadPreview>span{flex:1;min-width:0;overflow-wrap:anywhere}.qbLibraryUploadPreview img{width:64px;height:64px;object-fit:contain}.qbLibraryUploadPreview button{min-width:44px}.qbLibraryUploadPreviews{max-height:32dvh;overflow:auto}
+.qbLibraryUploadPreview>.qbPdfCard{width:64px;max-height:90px;flex:none}.qbLibraryUploadPreview .qbPdfPoster{height:64px}.qbLibraryUploadPreview .qbPdfCaption{font-size:10px}

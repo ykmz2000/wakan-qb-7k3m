@@ -35,6 +35,7 @@ jobs:
           node --check current-question-identity-v1.js
           node --check image-viewer.js
           node --check recent-image-picker-v1.js
+          node --check editable-media-v1.js
           node --check image-annotation-editor-v1.js
           node --check image-edit-integration-v1.js
           node --check image-edit-storage-v1.js
@@ -63,6 +64,7 @@ jobs:
           node tests/inline-enter.browser.cjs
           node tests/fill-blank-reference.browser.cjs
           node tests/question-image-add-theme.browser.cjs
+          node tests/editable-media.browser.cjs
           node tests/pdf-editor.browser.cjs
           node tests/file-media.browser.cjs
           node tests/library-file-batch.browser.cjs

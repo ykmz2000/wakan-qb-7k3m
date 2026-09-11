@@ -111,22 +111,25 @@ async function open({context=null}={}){
   const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードでファイルを貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへのファイル貼り付け欄');
 
   const pasteButton=btn('ファイルをペースト',pasteImages),recentButton=btn('最近のファイル',chooseRecent);
-  tools.append(btn('ファイルを追加',()=>uploadInput.click()),pasteButton,recentButton,uploadInput);if(access.admin)tools.append(btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'));
-  function uploadMode(count){
+  tools.append(btn('ファイルを追加',()=>uploadInput.click()),pasteButton,recentButton,btn('PDFを新規作成',async()=>{let row;try{await QBPDFEditor.create({onSave:async output=>{row=await S.add(sb,new File([output],'新しい資料.pdf',{type:'application/pdf'}))}});if(row){await load(true);await reviewUploads([row])}}catch(e){report(uploadStatus,e)}}),uploadInput);if(access.admin)tools.append(btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'));
+  function uploadMode(values){
+   const count=values.length;
    if(count<2)return Promise.resolve('separate');
    return new Promise(resolve=>{
     const origin=document.activeElement,modal=el('div','qbLibraryOverlay qbLibraryUploadMode'),box=el('section','qbLibraryPanel'),head=el('div','qbLibraryHeader'),body=el('div','qbLibraryBody');
     modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','ファイルの追加方法');modal.tabIndex=-1;
     head.append(el('strong','',`${count}ファイルの追加方法`));body.append(el('p','','追加するカードの分け方を選んでください。PDFはページ数にかかわらず1ファイルです。'));
-    const finish=value=>{modal.remove();panel.inert=false;if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value)};
+    const urls=[];const finish=value=>{urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();panel.inert=false;if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value)};
+    const previews=el('div','qbLibraryUploadPreviews');body.append(previews);
+    function drawOrder(){previews.replaceChildren();values.forEach((value,index)=>{const row=el('div','qbLibraryUploadPreview'),name=value.name||value.metadata?.name||`ファイル ${index+1}`,im=el('img');im.alt=name;row.append(im,el('span','',`${index+1}. ${name}`));if(value instanceof Blob){const url=URL.createObjectURL(value);urls.push(url);if(window.QBFiles?.isPDF(value)){const holder=el('span');holder.innerHTML=QBFiles.markup(url,name);const card=holder.firstElementChild;card.dataset.pdfPassive='true';im.replaceWith(card)}else im.src=url}else if(value.object_path)S.signedURL(sb,value.object_path).then(url=>{if(im.isConnected)media(im,url)}).catch(()=>im.remove());else if(value.image_path){const url=value.image_url||value.url||sb.storage.from('question-media').getPublicUrl(value.image_path).data.publicUrl;media(im,url)};const move=delta=>{const next=index+delta;if(next<0||next>=values.length)return;[values[index],values[next]]=[values[next],values[index]];drawOrder()};const up=btn('↑',()=>move(-1)),down=btn('↓',()=>move(1));up.setAttribute('aria-label',`${name}を前へ`);down.setAttribute('aria-label',`${name}を後ろへ`);up.disabled=index===0;down.disabled=index===values.length-1;row.append(up,down);previews.append(row)})}drawOrder();
     const separate=btn(`別々のカードに追加（${count}枚）`,()=>finish('separate'),'qbLibraryUploadChoice'),together=btn(`1つのカードにまとめる（${count}ファイル）`,()=>finish('together'),'qbLibraryUploadChoice');
     body.append(separate,el('p','qbLibraryMeta','1ファイルにつき1枚のカード。タイトルや情報を個別に管理します。'),together,el('p','qbLibraryMeta','選んだ順に1枚のカードへ。カードを開いて各ファイルを見られます。'));
     const cancel=btn('キャンセル',()=>finish(null));head.append(cancel);box.append(head,body);modal.append(box);overlay.append(modal);panel.inert=true;separate.focus();
-    modal.addEventListener('click',e=>e.stopPropagation());modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Tab'){if(e.shiftKey&&document.activeElement===cancel){e.preventDefault();together.focus()}else if(!e.shiftKey&&document.activeElement===together){e.preventDefault();cancel.focus()}}});
+    modal.addEventListener('click',e=>e.stopPropagation());modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Tab'){const buttons=[...modal.querySelectorAll('button')].filter(b=>!b.disabled&&b.getClientRects().length),i=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus()}});
    });
   }
   async function register(values,save){
-   if(!values.length||busy||closed)return;setBusy(true);const mode=await uploadMode(values.length);if(!mode){uploadInput.value='';setBusy(false);return}let done=0,registered=[];
+   if(!values.length||busy||closed)return;setBusy(true);const mode=await uploadMode(values);if(!mode){uploadInput.value='';setBusy(false);return}let done=0,registered=[];
    try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きなファイルを保存中… 通信に時間がかかる場合があります。 ':'ファイルを登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(mode==='together'&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のカード',registered.map(r=>r.id));uploadStatus.textContent=`${done}ファイルを登録しました。`;}
    catch(e){uploadStatus.textContent=`${done}ファイルを登録済み。`+(e.message||e)}
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
@@ -295,14 +298,14 @@ async function open({context=null}={}){
    try{row=await S.get(sb,initial.id);if(closed||detailVersion!==detailGeneration)return;await drawDetail(row,note,editing)}catch(e){report(note,e)}
   }
   async function drawDetail(initial,note,editing){
-   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';zoomable(img);const updated=updatedLine(row);detailView.append(authorLine(row),updated,img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)media(img,url)}).catch(e=>report(note,e));
+   let row=initial,m=row.metadata||{};const img=el('img','qbLibraryDetailImage');img.alt=m.name||'ライブラリ画像';zoomable(img);if(owns(row))img.qbEditMedia=async()=>{if(dirty()){note.textContent='先に情報の変更を保存してください。';return}setBusy(true);let output;try{const blob=await S.download(sb,row);output=await (pdf(row)?QBPDFEditor:QBImageEditor).open(blob,{resetSource:row.original_path&&row.original_path!==row.object_path?()=>S.download(sb,{...row,object_path:row.original_path}):null,onSave:async output=>{row=await S.replace(sb,row,output)}});await load(true)}finally{setBusy(false)}await showDetail(row,editing);return output};const updated=updatedLine(row);detailView.append(authorLine(row),updated,img);S.signedURL(sb,row.object_path).then(url=>{if(img.isConnected)media(img,url)}).catch(e=>report(note,e));
    if(!editing||!owns(row)){
     dirty=()=>false;saveCurrent=null;note.textContent='';
     const actions=el('div','qbLibraryTools');if(owns(row))actions.append(btn('編集',()=>showDetail(row,true),'qbLibraryEditButton'));
     if(selectionMode&&!row.archived){const pick=btn('このファイルを選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
-   top.append(btn(pdf(row)?'PDF編集':'画像編集',()=>editImage('annotation')),btn(pdf(row)?'元ファイルに戻す':'元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
+   top.append(btn(pdf(row)?'PDF編集':'画像編集',()=>editImage('annotation')),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('このカードにファイルを追加',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'このファイルを選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'このファイルを選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
@@ -317,7 +320,7 @@ async function open({context=null}={}){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);
      if(kind==='crop'){if(!window.QBImageCrop)throw Error('画像編集を読み込めません。再読み込みしてください。');url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'ライブラリ画像をトリミング'});if(output){row=await S.replace(sb,row,output);changed=true}}
-     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await (pdf(row)?QBPDFEditor:QBImageEditor).open(blob,{title:'ライブラリ画像を画像編集',onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
+     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await (pdf(row)?QBPDFEditor:QBImageEditor).open(blob,{title:'ライブラリ画像を画像編集',resetSource:row.original_path&&row.original_path!==row.object_path?()=>S.download(sb,{...row,object_path:row.original_path}):null,onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
      if(changed){selected.delete(row.id);jobs.delete(row.id);dirty=()=>false;await load(true)}
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);panel.inert=false;setBusy(false)}
     if(changed)await showDetail(row,true);else top.querySelector('button')?.focus();
@@ -359,7 +362,7 @@ async function open({context=null}={}){
   function zoomable(img){img.classList.add('qbLibraryZoomImage');img.tabIndex=0;img.setAttribute('role','button');img.setAttribute('aria-label',(img.alt||'画像')+'を拡大表示');img.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();img.click()}})}
   function carousel(members,onOpen,version,zoom=false){
    const host=el('div','qbLibraryCarousel'),track=el('div','qbLibrarySlides'),nav=el('div','qbLibrarySlideNav'),counter=el('span','',`1 / ${members.length}`);let current=0;
-   for(const row of members){const b=btn('',()=>onOpen(row),'qbLibrarySlide'),im=el('img');im.loading='lazy';im.alt=row.metadata?.name||'画像';if(zoom){zoomable(im);b.tabIndex=-1;}b.append(im);track.append(b);S.signedURL(sb,row.object_path).then(url=>{if(im.isConnected&&!closed)media(im,url)}).catch(()=>im.alt='画像を読み込めませんでした')}
+   for(const row of members){const b=btn('',()=>onOpen(row),'qbLibrarySlide'),im=el('img');im.loading='lazy';im.alt=row.metadata?.name||'画像';if(zoom){zoomable(im);b.tabIndex=-1;b.dataset.row=row.id;if(owns(row))b.qbEditMedia=async()=>{if(busy||dirty())return;setBusy(true);try{const latest=await S.get(sb,row.id);if(!owns(latest))throw Error('このファイルを編集する権限がありません。');const output=await (pdf(latest)?QBPDFEditor:QBImageEditor).open(await S.download(sb,latest),{resetSource:latest.original_path&&latest.original_path!==latest.object_path?()=>S.download(sb,{...latest,object_path:latest.original_path}):null,onSave:async value=>Object.assign(row,await S.replace(sb,latest,value))});if(output instanceof Blob){if(b.isConnected)media(im,await S.signedURL(sb,row.object_path));await load(true)}return output}finally{setBusy(false)}}}b.append(im);track.append(b);S.signedURL(sb,row.object_path).then(url=>{if(im.isConnected&&!closed)media(im,url)}).catch(()=>im.alt='画像を読み込めませんでした')}
    const move=delta=>{const next=Math.max(0,Math.min(members.length-1,current+delta));track.scrollTo({left:next*track.clientWidth,behavior:'smooth'})};
    nav.append(btn('前',()=>move(-1)),counter,btn('次',()=>move(1)));track.onscroll=()=>{current=Math.max(0,Math.min(members.length-1,Math.round(track.scrollLeft/(track.clientWidth||1))));counter.textContent=`${current+1} / ${members.length}`};host.append(track,nav);return host;
   }

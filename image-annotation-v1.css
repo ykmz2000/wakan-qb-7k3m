@@ -31,3 +31,5 @@
 .qbDrawModal>.qbripModal{z-index:2}.qbDrawModal>.qbripModal .qbripPreview{z-index:3}
 .qbDrawModal.qbDrawHasChild>.qbDrawPanel{pointer-events:none}
 .qbDrawPanel .qbDrawSwatch[data-color="#111111"][aria-pressed=true]::after{color:#fff;text-shadow:none}
+
+.qbDrawModal[hidden]{display:none!important}
