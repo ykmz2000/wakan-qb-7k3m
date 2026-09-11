@@ -103,7 +103,7 @@ function prepareEditor(ed,q){
   if(!defs.length)return;
   const target=choice||q,id=qid(q),expected={},initial={};
   for(const d of defs){if(!d.ta)return;expected[d.field]=target[d.field]??null;initial[d.field]=d.ta.value}
-  if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct}
+  if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct;expected.statement_is_true=choice.statement_is_true??null}
   const state={id,table:choice?'choices':'questions',targetId:String(target.id||target.dbId),metaField:isStem?STEM_META:META,expected,fields:[],error:null,ready:null};editors.set(ed,state);
   state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=isStem?{stem:meta[STEM_META]}:choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];for(const d of defs)state.fields.push(choice&&window.QBInlineOverview?.mountField&&new URLSearchParams(location.search).get('editor')!=='classic'?window.QBInlineOverview.mountField(d.ta,d.field,map?.[d.field],d.ta.value,LABELS[d.field]):mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
 }
