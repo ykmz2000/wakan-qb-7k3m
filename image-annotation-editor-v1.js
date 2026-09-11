@@ -10,7 +10,7 @@ function readSettings(){try{return JSON.parse(localStorage.getItem(settingsKey)|
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
 const btn=(label,cls,fn)=>{const b=el('button',cls,label);b.type='button';b.onclick=fn;return b};
 function filesFromPaste(e){const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
-function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}
+function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();if(/^https?:/i.test(String(source)))img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}
 // Encode a single lossless PNG without allocating a full-size output canvas.
 // PNG scanlines share one zlib stream; IDAT boundaries are independent of tiles.
 async function tiledPng(width,height,paint,progress){
@@ -118,7 +118,7 @@ async function open(source,options={}){
     let source=null;childMode(true);
     try{source=await window.QBImageEditorSources.choose({onDevice:()=>{childMode(false);fileInput.click()}})}catch(e){status.textContent=e.message||e}finally{childMode(false)}
     if(!source||closed||source==='device')return;
-    const blobs=[];let complete=false;childMode(true);status.textContent='画像を準備中…';
+    const blobs=[];let complete=false;busy=true;childMode(true);update();status.textContent='画像を準備中…';
     try{
       if(source==='recent'){
         if(!window.qbRecentImagePicker||!window.qbSupabase)throw Error('最近の画像を読み込めません。');
@@ -133,7 +133,7 @@ async function open(source,options={}){
         const result=await window.QBQuestionExport.render(questionSnapshot,{width:3600,native:true});blobs.push(result.blob);
       }
       complete=true;
-    }catch(e){status.textContent='画像を追加できませんでした：'+(e.message||e)}finally{childMode(false)}
+    }catch(e){status.textContent='画像を追加できませんでした：'+(e.message||e)}finally{busy=false;childMode(false);if(!closed)update()}
     if(complete&&blobs.length&&!closed)await addImages(blobs);
   }
   for(const c of M.colors){const b=btn('','qbDrawSwatch',()=>{if(busy)return;commitText();color=c.value;remember();scene?.items.filter(i=>selection.includes(i.id)&&i.type!=='image').forEach(i=>i.color=color);if(selection.length)checkpoint();else update()});b.dataset.color=c.value;b.style.setProperty('--swatch',c.value);b.title=c.name;b.setAttribute('aria-label',c.name);palette.append(b)}
