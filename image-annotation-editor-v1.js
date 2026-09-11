@@ -304,7 +304,8 @@ async function open(source,options={}){
   }
   const pastePhotoButton=btn('コピーした写真を貼り付け','qbDrawPastePhoto',()=>{if(photoClipboard)addImages([photoClipboard.blob])});pastePhotoButton.hidden=!photoClipboard;tools.append(pastePhotoButton);
   listen(canvas,'pointerdown',e=>{
-    if(!scene||busy||subDialog||e.pointerType==='pen'||e.button!==0)return;
+    if(e.pointerType==='pen'||penDown){clearPhotoHold();photoTap=null;photoContacts.clear();return}
+    if(!scene||busy||subDialog||e.button!==0)return;
     const p=local(e);photoContacts.set(e.pointerId,p);clearPhotoHold();
     if(photoContacts.size===1){const item=photoAt(point(e));photoTap={item,start:performance.now(),moved:false,two:false,zoom,ox,oy};if(item)photoHold=setTimeout(()=>{if(photoTap&&!photoTap.moved&&photoContacts.size===1)photoMenu(item)},550)}
     else if(photoContacts.size===2&&photoTap){photoTap.two=true;const points=[...photoContacts.values()],center={x:(points[0].x+points[1].x)/2,y:(points[0].y+points[1].y)/2};photoTap.item=photoAt({x:(center.x-ox)/zoom,y:(center.y-oy)/zoom})}
