@@ -4,7 +4,7 @@ const {chromium,webkit}=require('playwright'),{boot,edit,peek}=require('./image-
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
 async function run(browser,name){
  const {page:p,errors}=await boot(browser);let count=0;const pass=s=>console.log(name+' '+(++count)+' '+s);
- await p.addScriptTag({content:read('recent-image-picker-v1.js')});
+ await p.addScriptTag({content:read('file-media-v1.js')});await p.addScriptTag({content:read('recent-image-picker-v1.js')});
  // Recreate the existing theme/legacy styles which previously overrode only some buttons.
  await p.addStyleTag({content:'.oeiBtn,.qsiPick,.qsiPasteBtn,.qsiRecentBtn{border:1px solid blue;border-radius:8px;padding:7px 10px;font-weight:900;font-size:11px}.oeiActions,.qsiActions{display:flex;gap:7px;flex-wrap:wrap}'});
  await p.addStyleTag({content:read('editor-appearance-v1.css')});
