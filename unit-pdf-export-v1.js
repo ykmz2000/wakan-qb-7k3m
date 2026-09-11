@@ -74,32 +74,53 @@ async function loadLibrary(){
 }
 async function loadImages(sb,rows,signal,pdf){
   const out=[];
+  async function addImage(row,blob){
+    const url=URL.createObjectURL(blob),img=new Image();let native=null,preview=null;
+    try{
+      await cancellable(new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('画像を読み込めませんでした。'));img.src=url}),signal);
+      const width=img.naturalWidth,height=img.naturalHeight;
+      let bytes=new Uint8Array(await blob.arrayBuffer());
+      const png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);
+      if(!png){
+        // Normalize other formats at native dimensions (including EXIF orientation), without JPEG recompression.
+        native=document.createElement('canvas');native.width=width;native.height=height;const nativeCtx=native.getContext('2d');
+        if(!nativeCtx)throw Error('元画像の画質を保持して変換できませんでした。');
+        nativeCtx.drawImage(img,0,0,width,height);
+        const normalized=await new Promise((resolve,reject)=>native.toBlob(b=>b?resolve(b):reject(Error('元画像の画質を保持して変換できませんでした。')),'image/png'));
+        bytes=new Uint8Array(await normalized.arrayBuffer());native.width=native.height=1;
+      }
+      aborted(signal);const pdfImage=await pdf.embedPng(bytes);await pdfImage.embed();
+      // A small preview is used only for QA canvases. The PDF receives the native image object.
+      const scale=Math.min(1,600/width,600/height);preview=document.createElement('canvas');preview.width=Math.max(1,Math.round(width*scale));preview.height=Math.max(1,Math.round(height*scale));
+      preview.getContext('2d').drawImage(img,0,0,preview.width,preview.height);
+      out.push({...row,image:{width,height},preview,pdfImage});preview=null;
+    }finally{URL.revokeObjectURL(url);img.src='';if(native)native.width=native.height=1;if(preview)preview.width=preview.height=1}
+  }
+  async function addPdfPages(row,blob){
+    if(!window.QBFiles?.documentTask)throw Error('PDFページの読み込み機能を利用できませんでした。');
+    let task=null,doc=null;
+    try{
+      task=await QBFiles.documentTask(blob);doc=await cancellable(task.promise,signal);
+      for(let pageNumber=1;pageNumber<=doc.numPages;pageNumber++){
+        aborted(signal);const page=await cancellable(doc.getPage(pageNumber),signal),raw=page.getViewport({scale:1});
+        // Render each vector PDF page at up to 2x. The limit prevents pathological pages from exhausting memory.
+        const scale=Math.min(2,Math.sqrt(8000000/(raw.width*raw.height)),8192/Math.max(raw.width,raw.height));
+        const viewport=page.getViewport({scale}),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(viewport.width));canvas.height=Math.max(1,Math.ceil(viewport.height));
+        try{
+          const context=canvas.getContext('2d');if(!context)throw Error('PDFページを描画できませんでした。');
+          await cancellable(page.render({canvasContext:context,viewport}).promise,signal);
+          const pageBlob=await cancellable(new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('PDFページを画像化できませんでした。')),'image/png')),signal);
+          await addImage({...row,id:`${row.id}:pdf-page:${pageNumber}`,caption:pageNumber===1?(row.caption||''):'',alt_text:row.alt_text||`PDF ${pageNumber}ページ目`},pageBlob);
+        }finally{canvas.width=canvas.height=1}
+      }
+    }finally{try{await doc?.cleanup?.()}catch{}try{await task?.destroy?.()}catch{}}
+  }
   try{
     for(const row of rows){
       aborted(signal);
       const file=await cancellable(sb.storage.from('question-media').download(row.image_path),signal);
       if(file.error||!file.data)throw Error('画像を取得できませんでした。画像を省略せず、出力を中止しました。');
-      if(window.QBFiles?.isPDF(row.image_path)){const preview=await QBFiles.previewPage(file.data);file.data=preview.blob;row.caption=`PDFの1ページ目（全${preview.pages}ページ・全体はアプリで確認） ${row.caption||''}`}
-      const url=URL.createObjectURL(file.data),img=new Image();let native=null,preview=null;
-      try{
-        await cancellable(new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('画像を読み込めませんでした。'));img.src=url}),signal);
-        const width=img.naturalWidth,height=img.naturalHeight;
-        let bytes=new Uint8Array(await file.data.arrayBuffer());
-        const png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);
-        if(!png){
-          // Normalize other formats at native dimensions (including EXIF orientation), without JPEG recompression.
-          native=document.createElement('canvas');native.width=width;native.height=height;const nativeCtx=native.getContext('2d');
-          if(!nativeCtx)throw Error('元画像の画質を保持して変換できませんでした。');
-          nativeCtx.drawImage(img,0,0,width,height);
-          const blob=await new Promise((resolve,reject)=>native.toBlob(b=>b?resolve(b):reject(Error('元画像の画質を保持して変換できませんでした。')),'image/png'));
-          bytes=new Uint8Array(await blob.arrayBuffer());native.width=native.height=1;
-        }
-        aborted(signal);const pdfImage=await pdf.embedPng(bytes);await pdfImage.embed();
-        // A small preview is used only for QA canvases. The PDF receives the native image object.
-        const scale=Math.min(1,600/width,600/height);preview=document.createElement('canvas');preview.width=Math.max(1,Math.round(width*scale));preview.height=Math.max(1,Math.round(height*scale));
-        preview.getContext('2d').drawImage(img,0,0,preview.width,preview.height);
-        out.push({...row,image:{width,height},preview,pdfImage});preview=null;
-      }finally{URL.revokeObjectURL(url);img.src='';if(native)native.width=native.height=1;if(preview)preview.width=preview.height=1}
+      if(window.QBFiles?.isPDF(row.image_path))await addPdfPages(row,file.data);else await addImage(row,file.data);
     }
     return out;
   }catch(e){out.forEach(r=>{r.preview.width=r.preview.height=1});throw e}

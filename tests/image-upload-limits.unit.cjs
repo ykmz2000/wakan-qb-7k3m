@@ -1,14 +1,14 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),crypto=require('node:crypto').webcrypto;
-function fixture(){
+function fixture({tus}={}){
  const uploads=[];
  class Query{
   constructor(table){this.table=table}select(){return this}eq(){return this}is(){return this}order(){return this}limit(){return this}insert(payload){this.payload=payload;return this}
   maybeSingle(){return Promise.resolve({data:this.table==='profiles'?{role:'admin'}:this.table==='qb_image_library_config'?{enabled:true}:null})}
   single(){return Promise.resolve({data:{id:'row',...this.payload}})}then(a,b){return Promise.resolve({data:[]}).then(a,b)}
  }
- const sb={auth:{getUser:async()=>({data:{user:{id:'admin'}}})},from:t=>new Query(t),storage:{from:bucket=>({upload:async(path,blob)=>{uploads.push({bucket,size:blob.size});return{data:{path}}}})}};
- const window={pq:()=>({id:'question'}),QBImageLibraryCore:{}};const context=vm.createContext({window,globalThis:window,crypto,console});
+ const sb={supabaseUrl:'https://project.supabase.co',auth:{getUser:async()=>({data:{user:{id:'admin'}}}),getSession:async()=>({data:{session:{access_token:'session-token'}}})},from:t=>new Query(t),storage:{from:bucket=>({upload:async(path,blob)=>{uploads.push({bucket,size:blob.size});return{data:{path}}}})}};
+ const window={pq:()=>({id:'question'}),QBImageLibraryCore:{},tus};const context=vm.createContext({window,globalThis:window,crypto,console});
  for(const file of ['image-edit-storage-v1.js','image-library-store-v1.js'])vm.runInContext(fs.readFileSync(path.resolve(__dirname,'..',file),'utf8'),context);
  return{sb,uploads,window};
 }
@@ -23,4 +23,10 @@ test('every editing bucket accepts the 100MiB boundary and rejects one byte abov
 test('library accepts 100MiB and rejects larger inputs without a Storage write',async()=>{
  const {sb,uploads,window:w}=fixture();await w.QBImageLibraryStore.add(sb,{size:100*1024*1024,type:'image/png',name:'large.png'});assert.equal(uploads.at(-1).size,100*1024*1024);
  await assert.rejects(()=>w.QBImageLibraryStore.add(sb,{size:100*1024*1024+1,type:'image/png'}),/100M(?:i)?B/);assert.equal(uploads.length,1);
+});
+test('library uses resumable upload for PDFs above 6MiB',async()=>{
+ const tasks=[];class Upload{constructor(file,options){this.file=file;this.options=options;tasks.push(this)}start(){this.options.onSuccess()}}
+ const {sb,uploads,window:w}=fixture({tus:{Upload}});const file={size:6*1024*1024+1,type:'application/pdf',name:'large.pdf'};
+ await w.QBImageLibraryStore.add(sb,file);assert.equal(uploads.length,0);assert.equal(tasks.length,1);
+ assert.equal(tasks[0].options.endpoint,'https://project.supabase.co/storage/v1/upload/resumable');assert.equal(tasks[0].options.headers.authorization,'Bearer session-token');assert.equal(tasks[0].options.metadata.bucketName,'qb-image-library');assert.equal(tasks[0].options.metadata.contentType,'application/pdf');assert.match(tasks[0].options.metadata.objectName,/\.pdf$/);
 });
