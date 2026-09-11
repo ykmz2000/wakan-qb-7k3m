@@ -6,7 +6,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function css(){
   if(document.getElementById('qbImageEditorSourceCss'))return;
   const s=document.createElement('style');s.id='qbImageEditorSourceCss';s.textContent=`
-.qbeSourceModal{position:fixed;inset:0;z-index:10170;background:#0009;display:flex;align-items:flex-end;justify-content:center;padding:12px;color:var(--text,#172033)}
+.qbeSourceModal{position:fixed;inset:0;z-index:10450;background:#0009;display:flex;align-items:flex-end;justify-content:center;padding:12px;color:var(--text,#172033)}
 .qbeSourcePanel{box-sizing:border-box;width:min(760px,100%);max-height:88dvh;overflow:auto;background:var(--card,#fff);border:1px solid var(--line,#dce3ec);border-radius:16px;padding:14px;box-shadow:0 16px 60px #0005}
 .qbeSourcePanel button,.qbeSourcePanel select{min-height:44px;border:1px solid var(--line,#dce3ec);background:var(--card,#fff);color:var(--accent,#126fb3);font:inherit;padding:8px 10px;border-radius:8px}.qbeSourcePanel button:disabled{opacity:.45}.qbeSourcePanel :is(button,input,select):focus-visible{outline:2px solid var(--accent,#126fb3);outline-offset:2px}.qbeSourcePanel [hidden]{display:none!important}
 .qbeSourceHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.qbeSourceHead b{font-size:16px}.qbeSourceClose{font-size:24px!important;line-height:1}

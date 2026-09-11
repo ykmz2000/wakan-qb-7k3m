@@ -5,7 +5,9 @@ const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http:
 async function run(browser,label,url){
  const p=await browser.newPage({viewport:{width:1100,height:1000}}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(25000);await p.goto(url);
  for(const f of ['image-annotation-v1.css','file-media-v1.css'])await p.addStyleTag({url:url+f});
- for(const f of ['file-media-v1.js','image-annotation-model-v1.js','editable-media-v1.js','image-annotation-editor-v1.js','pdf-editor-v1.js','image-viewer.js'])await p.addScriptTag({url:url+f});
+ for(const f of ['file-media-v1.js','image-annotation-model-v1.js','editable-media-v1.js','image-annotation-editor-v1.js','pdf-editor-v1.js','image-viewer.js','image-editor-source-picker-v1.js'])await p.addScriptTag({url:url+f});
+ // A library picker opened from PDF creation/editing must sit above the PDF modal.
+ await p.evaluate(()=>{window.QBImageLibraryStore={authorize:async()=>{},search:async()=>[],catalog:async()=>[],signedURL:async()=>''};window.qbSupabase={};window.layeredCreate=QBPDFEditor.create();window.layeredPick=QBImageEditorSources.pickLibrary({sb:qbSupabase,title:'重なり順確認',noun:'ファイル'})});await p.locator('.qbeSourceModal').waitFor();assert.ok(await p.evaluate(()=>Number(getComputedStyle(document.querySelector('.qbeSourceModal')).zIndex)>Number(getComputedStyle(document.querySelector('.qbPdfModal')).zIndex)));await p.locator('.qbeCancel').click();await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  // A previously saved crop with independent vector items and an immutable 4000px source.
  await p.evaluate(async()=>{
   const c=document.createElement('canvas');c.width=4000;c.height=2400;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.fillStyle='#ff0000';x.fillRect(400,400,800,400);for(let n=0;n<300;n++){x.fillStyle=n%2?'#000':'#fff';x.fillRect(1600+n,400,1,400)}window.raw=await new Promise(r=>c.toBlob(r,'image/png'));
