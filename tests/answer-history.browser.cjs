@@ -107,6 +107,10 @@ async function run(browser,name){
    assert.match(await p.locator('.resultcard').textContent(),/正解/);
    await p.waitForFunction(()=>document.querySelector('.qbChoiceCorrection')?.textContent.includes('正しくすると'));
    assert.match(await p.locator('.qbChoiceCorrection').first().textContent(),/修正文/);
+   for(const value of [null,'','  ','未登録']){
+    await p.locator('#answer').click();await p.evaluate(value=>{window.QB_QUESTIONS.find(q=>q.id==='q1').choices[0].correction_text=value},value);await answer(p,[0]);
+    assert.equal(await p.locator('.qbChoiceCorrection').count(),0);
+   }
    assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS correct/wrong/missed answer colors, review-only, retry and question navigation reset');
   }
   let {p,errors}=await boot(browser);assert.equal(await p.locator('.qbAttemptPast').count(),0,'history hidden before answering');
