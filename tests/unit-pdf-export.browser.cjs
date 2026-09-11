@@ -22,6 +22,7 @@ async function run(type,name){
       q1.explanation_formatting={explanation_overview:{version:1,source_text:q1.explanation_overview,ranges:[{start:0,end:6,kind:'bold'},{start:0,end:6,kind:'accent'},{start:0,end:6,kind:'underline'}]}};
       window.pdfDB={grades:[{id:'g',code:'M4'}],subjects:[{id:'s1',grade_id:'g',is_active:true,name:'テスト医学',sort_order:1}],units:[{id:'u2',subject_id:'s1',name:'第2単元',sort_order:2,is_active:true},{id:'u1',subject_id:'s1',name:'第1単元・画像と解説',sort_order:1,is_active:true}],questions:[q1,q2,q3,{...question('draft','u1',0),status:'draft'},{...question('other','u1',0),subject_id:'other'}],question_images:[{id:'i1',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'one.png',caption:'第1の画像の説明',sort_order:1},{id:'i2',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'two.png',caption:'第2の画像の説明',sort_order:2}]};
       for(let n=3;n<=7;n++)pdfDB.question_images.push({id:'i'+n,question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:n===7?'wide.png':'extra'+n+'.png',caption:'第'+n+'の画像の説明',sort_order:n});
+      pdfDB.question_images.push({id:'pdf',question_id:'q2',placement:'explanation_overview',choice_id:null,image_path:'two-pages.pdf',caption:'PDF資料',sort_order:8});
       q2.medical_verification_note='PDFには出力しない医学的疑義の検証用メモ';q2.has_verification_issue=true;
       pdfDB.question_images.push({id:'verification',question_id:'q2',placement:'medical_verification',image_path:'verification-only.png',caption:'疑義専用画像',sort_order:99});
       window.pdfReads=[];window.pdfWrites=[];window.failPDF=false;window.delayPDF=false;
@@ -41,9 +42,17 @@ async function run(type,name){
       window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'user1'}}})},from:t=>new Query(t),rpc:async()=>({data:[],error:null}),storage:{from:()=>({download:async file=>{
         if(file==='verification-only.png')throw Error('Excluded verification image must not be downloaded');
         if(failPDF)return{data:null,error:{message:'synthetic missing image'}};
+        if(file==='two-pages.pdf')return{data:new Blob(['%PDF-synthetic'],{type:'application/pdf'}),error:null};
         const c=document.createElement('canvas');c.width=file==='one.png'?3600:file==='wide.png'?3600:900;c.height=file==='one.png'?4000:file==='wide.png'?1200:1000;const x=c.getContext('2d');x.fillStyle=file==='one.png'?'#c5e6ef':'#f8d8e6';x.fillRect(0,0,c.width,c.height);x.fillStyle='#172033';x.font='40px sans-serif';x.fillText(file,60,100);x.strokeStyle='#172033';x.strokeRect(60,200,700,600);return{data:await new Promise(r=>c.toBlob(r,file==='two.png'?'image/jpeg':'image/png')),error:null};
       }})}};
       window.pdfSnapshot=JSON.stringify(pdfDB);
+      window.QBFiles={
+        isPDF:file=>String(file).toLowerCase().endsWith('.pdf'),
+        documentTask:async()=>({promise:Promise.resolve({numPages:2,cleanup:async()=>{},getPage:async pageNumber=>({
+          getViewport:({scale})=>({width:600*scale,height:800*scale}),
+          render:({canvasContext,viewport})=>({promise:Promise.resolve().then(()=>{canvasContext.fillStyle=pageNumber===1?'#dbeafe':'#dcfce7';canvasContext.fillRect(0,0,viewport.width,viewport.height);canvasContext.fillStyle='#172033';canvasContext.font=`${40*(viewport.width/600)}px sans-serif`;canvasContext.fillText(`PDF page ${pageNumber}`,60,100)})})
+        })}),destroy:async()=>{}})
+      };
     });
     for(const f of ['unit-pdf-layout-v1.js','unit-pdf-export-v1.js','vendor/pdf-lib-1.17.1.min.js','qb-app.js','unit-section-divider-v1.js','ui-polish.js','subject-coming-soon-v1.js'])await p.addScriptTag({content:source(f)});
     await p.waitForFunction(()=>window.QB_DB_READY);await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').click();await p.locator('[data-u="u1"]').waitFor();await p.waitForTimeout(150);
@@ -79,10 +88,11 @@ async function run(type,name){
     assert.ok(result.imageSizes.some(s=>s.width===3600&&s.height===1200),'wide native picture must remain intact');
     assert.ok(result.imageSizes.some(s=>s.width===900&&s.height===1000),'JPEG normalization must keep native size');
     const imageRows=result.meta.flatMap(m=>m.items||[]).filter(i=>i.type==='imageRow');
-    assert.deepEqual(imageRows.map(r=>r.images.length),[3,3,1]);
+    assert.deepEqual(imageRows.map(r=>r.images.length),[3,3,3]);
     imageRows.forEach(r=>r.images.forEach(i=>assert.ok(i.imageHeight/1123*297<=50.001)));
     for(const m of result.meta.filter(m=>m.items))for(const i of m.items)assert.ok(i.y>=86&&i.y+i.height<=1065,JSON.stringify(i));
-    assert.deepEqual(result.meta.flatMap(m=>m.items||[]).flatMap(i=>i.images||[]).map(i=>i.imageId),['i1','i2','i3','i4','i5','i6','i7']);
+    assert.deepEqual(result.meta.flatMap(m=>m.items||[]).flatMap(i=>i.images||[]).map(i=>i.imageId),['i1','i2','i3','i4','i5','i6','i7','pdf:pdf-page:1','pdf:pdf-page:2']);
+    assert.equal(result.imageSizes.filter(s=>s.width===1200&&s.height===1600).length,2,'every PDF page must be embedded at the high-resolution render size');
     assert.equal(await p.evaluate(()=>JSON.stringify(pdfDB)===pdfSnapshot),true);assert.equal(await p.evaluate(()=>pdfWrites.length),0);
     assert.equal(await p.evaluate(()=>JSON.stringify(qbGetPracticeState())),state);assert.equal(await p.evaluate(()=>qbGetScreen()),'units');
     fs.writeFileSync(path.join(out,name+'-all.pdf'),Buffer.from(await p.evaluate(()=>pdfBytes)));
