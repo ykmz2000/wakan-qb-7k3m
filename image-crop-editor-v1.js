@@ -109,15 +109,26 @@ async function open(src,{title='画像をトリミング',rotatable=true}={}){
     modal.querySelector('.qbCropFull').onclick=fitAll;
     modal.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{if(!ready||busy)return;cropper.setAspectRatio(Number(b.dataset.r));modal.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));status.textContent=''});
     modal.querySelectorAll('[data-rotate]').forEach(b=>b.onclick=()=>{if(ready&&!busy){cropper.rotate(Number(b.dataset.rotate));status.textContent=''}});
-    saveButton.onclick=()=>{
+    saveButton.onclick=async()=>{
       if(!ready||busy)return;
       busy=true;modal.querySelectorAll('button').forEach(b=>b.disabled=true);cropper.disable();status.textContent='画像を作成中…';
       const failed=e=>{busy=false;cropper.enable();modal.querySelectorAll('button').forEach(b=>b.disabled=false);status.textContent='保存できませんでした：'+(e.message||e)};
       try{
         const data=cropper.getData(true),canvas=cropper.getCroppedCanvas({imageSmoothingEnabled:false});
-        if(!canvas||canvas.width<Math.floor(data.width)||canvas.height<Math.floor(data.height))throw Error('この端末では元解像度のトリミング画像を生成できません。自動縮小は行いません。');
         if(!canvas||!canvas.width||!canvas.height)throw new Error('切り抜く範囲を選択してください。');
-        canvas.toBlob(blob=>{if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/png');
+        if(canvas.width<Math.floor(data.width)||canvas.height<Math.floor(data.height)){
+          // iPad/WebKit may reject an 11k-wide canvas even though the source
+          // image is valid. Encode the crop in scanline tiles instead of
+          // lowering the output resolution.
+          const encoder=window.QBImageEditor?.encodePng;
+          const rotated=Math.abs(Number(data.rotate||0))%360>0.01;
+          if(typeof encoder!=='function'||rotated)throw Error('この端末では元解像度のトリミング画像を生成できません。自動縮小は行いません。');
+          const width=Math.max(1,Math.round(data.width)),height=Math.max(1,Math.round(data.height));
+          const sx=Number(data.scaleX||1),sy=Number(data.scaleY||1),source=img;
+          const blob=await encoder(width,height,ctx=>{ctx.save();ctx.scale(sx,sy);ctx.drawImage(source,-Number(data.x||0)/sx,-Number(data.y||0)/sy);ctx.restore();},p=>{status.textContent='元解像度トリミング '+p+'%';});
+          close(blob);return;
+        }
+        await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?close(blob,undefined,resolve):reject(new Error('画像を生成できませんでした。')),'image/png'));
       }catch(e){failed(e)}
     };
     img.onload=()=>{
