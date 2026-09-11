@@ -129,7 +129,7 @@ function bindRating(root,q,d){
     }catch(e){if(valid(b)){b.msg.textContent='自己評価を準備できませんでした：'+(e.message||e);b.past.replaceChildren(node('div','qbAttemptNotice','回答履歴を取得できませんでした。'))}}
   })();
 }
-window.QBAnswerHistory={record,review,bindRating};
+window.QBAnswerHistory={record,review,bindRating,rebindAfterRefresh(q){if(active?.questionId===idOf(q))active.root=document.getElementById('ans')}};
 window.addEventListener('qb-answer-shown',refresh);
 window.addEventListener('qb-retry-current',()=>{active=null});
 window.addEventListener('qb-screen-change',()=>{if(window.qbGetScreen?.()!=='practice')active=null});

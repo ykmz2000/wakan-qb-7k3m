@@ -190,7 +190,7 @@ function refreshCurrentScreen(){
       before.subjectId?refreshRows('questions','id,unit_id',filters,'id'):null,
       before.subjectId?sb.rpc('get_subject_question_progress_v2',{p_subject_id:before.subjectId}):null,
       ['problems','practice'].includes(before.screen)?refreshRows('questions',LIST_SELECT,filters.concat(before.unitId==='__all__'?[]:[['unit_id',before.unitId]]),'study_order'):null,
-      before.screen==='practice'?sb.from('questions').select(DETAIL_SELECT).eq('id',before.id).eq('status','published').maybeSingle():null
+      before.screen==='practice'?sb.from('questions').select(DETAIL_SELECT+',answer_fields').eq('id',before.id).eq('status','published').maybeSingle():null
     ]);
     if(progress?.error)throw progress.error;if(detail?.error)throw detail.error;
     if(screen!==before.screen||subject?.id!==before.subjectId||unitId!==before.unitId||interactionVersion!==before.version||window.QBDataRefresh?.blocked())throw Error('画面の操作があったため更新を中止しました。もう一度お試しください。');
@@ -205,6 +205,7 @@ function refreshCurrentScreen(){
     }
     const wasRevealed=!!V.querySelector('#ans:not(.hidden) .resultcard');
     const fillState=window.QBFillBlankRefresh?.capture();
+    if(fresh&&fillState&&!window.QBFillBlankRefresh.accepts(fresh,fillState))throw Error('入力済みの解答欄が変更されています。現在の入力を保持しています。');
     // Invalidate in-flight prefetches before publishing the new snapshot.
     detailGeneration++;detailCache.clear();detailPending.clear();unitProgressToken++;
     subjects=nextSubjects;if(nextSubject)subject=nextSubject;
@@ -220,7 +221,7 @@ function refreshCurrentScreen(){
       window.QB_QUESTIONS=questions;
     }
     window.dispatchEvent(new CustomEvent('qb-data-refreshed',{detail:{questionId:before.screen==='practice'?before.id:null}}));
-    render();
+    render();if(fresh)window.QBAnswerHistory?.rebindAfterRefresh?.(fresh);
     if(fresh&&(wasRevealed||fillState)&&(fresh.answer_mode==='fill_blank'||!fresh.choices.length)){
       if(fillState)await window.QBFillBlankRefresh.restore(fresh,fillState);
       else drawTextAnswer(fresh,fresh.occ[0]?.official_answer);

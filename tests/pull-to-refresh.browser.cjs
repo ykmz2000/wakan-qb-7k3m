@@ -77,7 +77,7 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('#view').innerHTML(),old);await p.evaluate(()=>testReadFail=false);
  await p.evaluate(()=>{const e=document.createElement('textarea');e.className='adeEditor';e.value='未保存';document.querySelector('#view').append(e)});
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('.adeEditor').inputValue(),'未保存');await p.locator('.adeEditor').evaluate(e=>e.remove());
- await p.evaluate(()=>{testReadDelay=150;window.refreshPending=QBDataRefresh.refresh()});await p.locator('#next').click();assert.equal(await p.evaluate(()=>refreshPending),false);await p.evaluate(()=>testReadDelay=0);
+ await p.evaluate(()=>{testReadDelay=150;window.refreshPending=QBDataRefresh.refresh();document.getElementById('next').click()});assert.equal(await p.evaluate(()=>refreshPending),false);await p.evaluate(()=>testReadDelay=0);
  assert.equal(await p.evaluate(()=>qbGetPracticeState().currentIndex),1);
  await p.locator('#next').click();await p.locator('.fbInput').first().waitFor();await p.locator('.fbInput').first().fill('入力を保持');
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),true);assert.equal(await p.locator('.fbInput').first().inputValue(),'入力を保持');

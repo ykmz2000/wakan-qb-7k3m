@@ -136,6 +136,7 @@ async function enhancePractice(){
   bindPracticeBox(wrap,Q);await ensureAdminButton(wrap,Q)
 }
 window.QBFillBlankRefresh={
+  accepts(Q,state){const keys=new Set(keysFor(Q));return Object.entries(state.values).every(([key,value])=>!value||keys.has(key));},
   capture(){const box=document.querySelector('.fbBox'),result=document.querySelector('#ans .resultcard');if(!box)return null;return{values:Object.fromEntries([...box.querySelectorAll('.fbInput')].map(x=>[x.dataset.k,x.value])),revealed:!!result,review:!result?.classList.contains('fillblank')};},
   async restore(Q,state){await enhancePractice();const box=document.querySelector('.fbBox');if(box){refreshPracticeFields(box,Q);box.querySelectorAll('.fbInput').forEach(x=>{x.value=state.values[x.dataset.k]||''});syncButton(box)}if(state.revealed)renderResult(Q,state.values,state.review,true);}
 };
