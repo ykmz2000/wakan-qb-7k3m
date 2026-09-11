@@ -40,7 +40,7 @@ function groupImages(img){
   const group=img.closest(GROUP);
   const nodes=group?[...group.querySelectorAll(TARGET)].filter(x=>x.closest(GROUP)===group&&!x.closest('.sortable-fallback,.sortable-drag')&&x.getClientRects().length&&getComputedStyle(x).visibility!=='hidden'):[img];
   // Identical URLs can belong to distinct rows. Preserve each row and its order.
-  const images=nodes.map(node=>({node,src:node.currentSrc||node.src,alt:node.alt||''})).filter(x=>x.src);
+  const images=nodes.map(node=>({node,src:node.dataset.originalSrc||node.currentSrc||node.src,alt:node.alt||''})).filter(x=>x.src);
   const index=images.findIndex(x=>x.node===img);
   return index<0?{images:[{node:img,src:img.currentSrc||img.src,alt:img.alt||''}],index:0}:{images,index};
 }
