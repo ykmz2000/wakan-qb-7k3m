@@ -6,7 +6,9 @@ let announcedNode=null,announcedId=null,announcedText=null;
 function visibleStem(){return norm(document.querySelector('#view > .card > .qtext')?.textContent||'')}
 function visibleChoices(){
   return [...document.querySelectorAll('#view > .card > .choices > .choice')].map(el=>{
-    const t=norm(el.textContent||'');
+    const source=el.cloneNode(true);
+    source.querySelectorAll('.qbInlineCorrection').forEach(n=>n.remove());
+    const t=norm(source.textContent||'');
     const m=t.match(/^([^\.．\s]+)[\.．]\s*(.*)$/s);
     return m?{key:norm(m[1]),text:norm(m[2])}:{key:'',text:t};
   });
