@@ -98,7 +98,11 @@ async function open(src,{title='画像をトリミング',rotatable=true,selecti
     listen(stage,pointer?'pointerdown':'touchstart',start,{capture:true,passive:false});
     listen(document,pointer?'pointermove':'touchmove',move,{capture:true,passive:false});
     for(const name of pointer?['pointerup','pointercancel']:['touchend','touchcancel'])listen(document,name,end,{capture:true,passive:false});
-    listen(window,'blur',()=>{points.clear();previousGesture=null;multiActive=false});
+    let nativeScale=null,nativeEnded=-Infinity;
+    function zoomAt(factor,e){if(!ready||busy||points.size>1)return;const c=cropper.getCanvasData(),r=surface.getBoundingClientRect(),x=Number.isFinite(e.clientX)?e.clientX-r.left:r.width/2,y=Number.isFinite(e.clientY)?e.clientY-r.top:r.height/2,ratio=Math.max(.5,Math.min(2,factor));cropper.setCanvasData({width:c.width*ratio,left:x-(x-c.left)*ratio,top:y-(y-c.top)*ratio})}
+    listen(stage,'wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();e.stopPropagation();if(nativeScale!==null||performance.now()-nativeEnded<120)return;const unit=e.deltaMode===1?16:e.deltaMode===2?stage.clientHeight:1;zoomAt(Math.exp(-e.deltaY*unit*.004),e)},{passive:false});
+    for(const type of ['gesturestart','gesturechange','gestureend'])listen(stage,type,e=>{e.preventDefault();e.stopPropagation();if(type==='gesturestart')nativeScale=1;else if(type==='gestureend'){nativeScale=null;nativeEnded=performance.now()}else if(Number(e.scale)>0){zoomAt(e.scale/(nativeScale||1),e);nativeScale=e.scale}},{passive:false});
+    listen(window,'blur',()=>{points.clear();previousGesture=null;multiActive=false;nativeScale=null});
     listen(panel,'keydown',e=>{
       if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(!busy)close();return}
       if(e.key!=='Tab')return;
