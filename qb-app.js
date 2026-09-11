@@ -132,10 +132,12 @@ function syncChoiceFeedback(){
  const q=pq();
  V.querySelectorAll('.choice[data-c]').forEach(b=>{
   const i=Number(b.dataset.c),revealed=submitted&&q?.answer_mode!=='fill_blank',correct=revealed&&q.ans.includes(i),chosen=revealed&&!reviewOnly&&sel.has(i),wrong=chosen&&!correct;
-  const truth=revealed?q.choices[i]?.statement_is_true:null;
-  b.classList.toggle('good',truth===true);b.classList.toggle('bad',truth===false);
+  b.classList.toggle('good',!!correct);b.classList.toggle('bad',!!wrong);
   b.classList.toggle('sel',!submitted&&sel.has(i));
-  const label=revealed?[truth===true?'内容：正しい':truth===false?'内容：誤り':'',correct?'設問の正答':'',chosen?'あなたの選択':''].filter(Boolean).join(' ／ '):'';
+  const label=revealed?[correct?'設問の正答':'',chosen?'あなたの選択':''].filter(Boolean).join(' ／ '):'';
+  b.querySelector('.qbInlineCorrection')?.remove();
+  const correction=String(q?.choices[i]?.correction_text||'').trim();
+  if(revealed&&correction&&!/^(?:未登録|未記入|なし|[-—])$/.test(correction)){const note=document.createElement('span');note.className='qbInlineCorrection';const title=document.createElement('strong');title.textContent='正しくすると';const text=document.createElement('span');text.textContent=correction;note.append(title,text);b.append(note)}
   if(label){b.dataset.qbChoiceFeedback=label;b.setAttribute('aria-description',label)}
   else{delete b.dataset.qbChoiceFeedback;b.removeAttribute('aria-description')}
  });

@@ -12,3 +12,5 @@
 .qbLibraryImageButton,.qbripItem,.qbPublicImageWrap,.qsiImgWrap{min-width:0;max-width:100%;box-sizing:border-box}
 
 .qbPdfModal[hidden]{display:none!important}
+
+.qbPdfCreate{max-height:80dvh!important;height:auto!important}.qbPdfCreate .qbPdfStage{padding:20px}.qbPdfCreate label{display:block;margin:12px 0}.qbPdfCreate input,.qbPdfCreate select{max-width:100%;min-height:44px;padding:8px;font:inherit}.qbPdfDimensions[hidden]{display:none}

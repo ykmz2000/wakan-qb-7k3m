@@ -2,6 +2,9 @@ name: Image library verification
 on:
   pull_request:
     paths:
+      - 'editable-media-v1.js'
+      - 'tests/editable-media.browser.cjs'
+      - 'tests/answer-history.browser.cjs'
       - 'pdf-editor-v1.js'
       - 'tests/pdf-editor.browser.cjs'
       - 'file-media-*'
@@ -71,6 +74,7 @@ jobs:
           node --check image-library-integration-v1.js
           node --check image-editor-source-picker-v1.js
           node --check image-annotation-model-v1.js
+          node --check editable-media-v1.js
           node --check image-annotation-editor-v1.js
           node --check image-crop-editor-v1.js
           node --check question-image-export-v1.js
@@ -79,7 +83,7 @@ jobs:
           node --check question-stem-images-v2.js
           node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs tests/image-upload-limits.unit.cjs
           test_status=0
-          for test_file in tests/pdf-editor.browser.cjs tests/image-interaction.browser.cjs tests/file-media.browser.cjs tests/library-file-batch.browser.cjs tests/image-crop-scene.browser.cjs tests/pull-to-refresh.browser.cjs tests/explanation-image-layout.browser.cjs tests/image-editor-native.browser.cjs tests/image-editor-sources.browser.cjs tests/image-annotation.browser.cjs tests/image-crop.browser.cjs tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
+          for test_file in tests/editable-media.browser.cjs tests/answer-history.browser.cjs tests/pdf-editor.browser.cjs tests/image-interaction.browser.cjs tests/file-media.browser.cjs tests/library-file-batch.browser.cjs tests/image-crop-scene.browser.cjs tests/pull-to-refresh.browser.cjs tests/explanation-image-layout.browser.cjs tests/image-editor-native.browser.cjs tests/image-editor-sources.browser.cjs tests/image-annotation.browser.cjs tests/image-crop.browser.cjs tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
             node "$test_file" || test_status=1
           done
           exit "$test_status"

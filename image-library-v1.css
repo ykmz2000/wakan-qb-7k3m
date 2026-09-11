@@ -117,3 +117,5 @@ body .qbLibraryPanel button.qbLibraryEditButton{display:inline-flex;align-items:
 
 .qbLibraryCarousel{min-width:0;max-width:100%}.qbLibrarySlides .qbLibrarySlide{overflow:hidden}.qbLibrarySlide img{display:block;width:100%;height:min(55vh,520px);object-fit:contain}.qbLibrarySlide .qbPdfCard{margin:0 auto;max-width:100%}.qbLibrarySetMember .qbPdfCard{min-height:100px}.qbLibrarySetMember .qbPdfPoster canvas{max-height:120px}
 .qbLibraryUploadMode .qbLibraryPanel{height:auto;max-height:90dvh;width:min(540px,96vw)}.qbLibraryUploadChoice{display:block;width:100%;min-height:56px;text-align:left;font-weight:700;margin-top:16px}
+
+.qbLibraryUploadPreview{display:flex;align-items:center;gap:8px;margin:8px 0;min-width:0}.qbLibraryUploadPreview>span{flex:1;min-width:0;overflow-wrap:anywhere}.qbLibraryUploadPreview img{width:64px;height:64px;object-fit:contain}.qbLibraryUploadPreview button{min-width:44px}.qbLibraryUploadPreviews{max-height:32dvh;overflow:auto}

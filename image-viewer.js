@@ -48,6 +48,7 @@ function open(origin){
   if(active)return;
   const {images,index:startIndex}=groupImages(origin);if(!images[0]?.src)return;
   const focusBefore=document.activeElement;
+  const mediaEditor=node=>{for(let n=node;n;n=n.parentElement)if(typeof n.qbEditMedia==='function')return n;return null};
   const locks=[document.documentElement,document.body].map(el=>({el,value:el.style.getPropertyValue('overflow'),priority:el.style.getPropertyPriority('overflow')}));
   const underneath=[...document.body.children].filter(el=>!['SCRIPT','STYLE','LINK'].includes(el.tagName)).map(el=>({el,inert:el.inert}));
   const d=document.createElement('div');d.id='qbImageLightbox';d.className='qbImageLightbox';d.tabIndex=-1;
@@ -56,11 +57,12 @@ function open(origin){
   const get=s=>d.querySelector(s),stage=get('.qbImageLightboxStage'),status=get('.qbImageLightboxStatus'),retry=get('.qbImageLightboxRetry');
   const prev=get('.qbImageLightboxPrev'),next=get('.qbImageLightboxNext'),counter=get('.qbImageLightboxCounter');
   const zoomIn=get('.qbImageLightboxIn'),zoomOut=get('.qbImageLightboxOut'),reset=get('.qbImageLightboxReset'),closeButton=get('.qbImageLightboxClose');
+  let prepared=null,renderCanvas=null,loadToken=0;
   let index=startIndex,img=null,scale=1,x=0,y=0,width=0,height=0,ready=false,closed=false;
   let gesture=null,blocked=false,backdropTap=false,lastTap=null,lastTouchTime=-Infinity,suppressClickUntil=0,wheelTime=0,wheelSum=0,wheelUsed=false;
   const pointers=new Map();
   function close(){
-    if(closed)return;closed=true;pointers.clear();observer.disconnect();
+    if(closed)return;closed=true;loadToken++;prepared?.dispose();prepared=null;renderCanvas?.remove();pointers.clear();observer.disconnect();
     document.removeEventListener('keydown',key,true);window.removeEventListener('qb-screen-change',close);window.removeEventListener('qb-retry-current',close);
     if(img){img.onload=null;img.onerror=null}d.remove();active=null;
     underneath.forEach(({el,inert})=>{el.inert=inert});
@@ -68,10 +70,11 @@ function open(origin){
     if(focusBefore?.isConnected)focusBefore.focus?.({preventScroll:true});
   }
   function paint(){
-    const box=stage.getBoundingClientRect();
+    const box=stage.getBoundingClientRect();if(renderCanvas)renderCanvas.style.transform='';
     x=clamp(x,-Math.max(0,(width*scale-box.width)/2),Math.max(0,(width*scale-box.width)/2));
     y=clamp(y,-Math.max(0,(height*scale-box.height)/2),Math.max(0,(height*scale-box.height)/2));
     if(img)img.style.transform=`translate(-50%,-50%) translate(${x}px,${y}px) scale(${scale})`;
+    if(prepared&&renderCanvas){const dpr=Math.min(devicePixelRatio||1,2);renderCanvas.width=Math.max(1,Math.ceil(box.width*dpr));renderCanvas.height=Math.max(1,Math.ceil(box.height*dpr));const ctx=renderCanvas.getContext('2d');ctx.scale(dpr,dpr);ctx.translate(box.width/2+x-width*scale/2,box.height/2+y-height*scale/2);ctx.scale(width*scale/prepared.scene.width,height*scale/prepared.scene.height);prepared.draw(ctx)}
     stage.dataset.zoomed=String(scale>1.01);
     zoomOut.disabled=!ready||scale<=1;zoomIn.disabled=!ready||scale>=6;reset.disabled=!ready;
     get('.qbImageLightboxHint').textContent=scale>1.01?'ドラッグで移動 · ピンチで拡大・縮小':images.length>1?'左右にスワイプで画像送り · ピンチで拡大':'ピンチ・ダブルタップで拡大';
@@ -83,13 +86,14 @@ function open(origin){
     img.style.width=width+'px';img.style.height=height+'px';paint();
   }
   function show(){
-    ready=false;scale=1;x=y=0;lastTap=null;
+    const token=++loadToken;prepared?.dispose();prepared=null;renderCanvas?.remove();renderCanvas=null;
+    editButton.hidden=!mediaEditor(images[index].node);ready=false;scale=1;x=y=0;lastTap=null;
     prev.hidden=next.hidden=images.length<2;prev.disabled=index===0;next.disabled=index===images.length-1;
     counter.textContent=`${index+1} / ${images.length}`;
     status.hidden=false;status.querySelector('span').textContent='読み込み中…';retry.hidden=true;
     if(img){img.onload=null;img.onerror=null;img.remove()}
     const current=document.createElement('img');img=current;current.alt=images[index].alt;current.draggable=false;current.hidden=true;
-    current.onload=()=>{if(closed||current!==img)return;ready=true;status.hidden=true;fit();current.hidden=false};
+    current.onload=async()=>{if(closed||current!==img)return;ready=true;status.hidden=true;fit();current.hidden=false;if(!window.QBEditableMedia)return;try{const response=await fetch(images[index].src);if(!response.ok)throw Error();const record=await QBEditableMedia.read(await response.blob());if(!record||closed||token!==loadToken)return;const result=await QBEditableMedia.prepare(record);if(closed||token!==loadToken){result.dispose();return}prepared=result;renderCanvas=document.createElement('canvas');renderCanvas.className='qbEditableZoom';renderCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';stage.prepend(renderCanvas);current.style.opacity='0';paint()}catch{if(!closed&&token===loadToken)get('.qbImageLightboxHint').textContent='元画像を取得できませんでした。プレビューを表示しています。'}};
     current.onerror=()=>{if(closed||current!==img)return;status.querySelector('span').textContent='画像を読み込めませんでした';retry.hidden=false};
     stage.prepend(current);paint();current.src=images[index].src;
   }
@@ -131,7 +135,7 @@ function open(origin){
     if(!gesture.axis&&gesture.moved)gesture.axis=Math.abs(dx)>Math.abs(dy)*1.25?'x':'y';
     if(gesture.axis==='x'&&images.length>1&&!(window.visualViewport?.scale>1.01)){
       const edge=dx>0?index===0:index===images.length-1;
-      img.style.transform=`translate(-50%,-50%) translateX(${dx*(edge ? .18 : .8)}px)`;
+      if(renderCanvas)renderCanvas.style.transform=`translateX(${dx*(edge?.18:.8)}px)`;else img.style.transform=`translate(-50%,-50%) translateX(${dx*(edge ? .18 : .8)}px)`;
     }
   },{passive:false});
   function endPointer(e,cancelled=false){
@@ -185,6 +189,8 @@ function open(origin){
       else if(e.key==='ArrowLeft'||e.key==='ArrowRight')go(e.key==='ArrowRight'?1:-1);
     }
   }
+  const editButton=document.createElement('button');editButton.type='button';editButton.textContent='画像編集';editButton.className='qbImageLightboxEdit';closeButton.before(editButton);
+  editButton.onclick=async()=>{const node=images[index].node,host=mediaEditor(node);if(!host)return;const run=host.qbEditMedia,row=host.dataset.row||host.dataset.id,cls=host.classList.contains('qbLibraryDetailImage')?'qbLibraryDetailImage':null;close();try{await run();let target=node.isConnected?node:null;if(row){const wrapper=[...document.querySelectorAll('[data-row],[data-id]')].find(w=>(w.dataset.row||w.dataset.id)===row&&w.querySelector(TARGET));target=wrapper?.querySelector(TARGET)||target}if(cls)target=document.querySelector('.'+cls);if(target?.isConnected)open(target)}catch(e){alert('画像編集を開けませんでした：'+e.message)}};
   prev.onclick=()=>go(-1);next.onclick=()=>go(1);retry.onclick=show;
   zoomIn.onclick=()=>zoom(scale*1.5);zoomOut.onclick=()=>zoom(scale/1.5);reset.onclick=()=>zoom(1);closeButton.onclick=close;
   // Pointer capture retargets image clicks to the stage. Only a tap which

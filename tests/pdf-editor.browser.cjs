@@ -8,7 +8,7 @@ const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http:
 async function run(browser,label,url){
  const p=await browser.newPage({viewport:{width:1100,height:850}}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(25000);await p.goto(url);
  for(const name of ['file-media-v1.css','image-annotation-v1.css'])await p.addStyleTag({url:url+name});
- for(const name of ['file-media-v1.js','image-annotation-model-v1.js','image-annotation-editor-v1.js','pdf-editor-v1.js'])await p.addScriptTag({url:url+name});
+ for(const name of ['file-media-v1.js','image-annotation-model-v1.js','editable-media-v1.js','image-annotation-editor-v1.js','pdf-editor-v1.js'])await p.addScriptTag({url:url+name});
  await p.evaluate(async()=>{window.original=await(await fetch('/fixture.pdf')).blob();window.saved=null;QBPDFEditor.open(original,{onSave:async b=>window.saved=b})});
  await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();
