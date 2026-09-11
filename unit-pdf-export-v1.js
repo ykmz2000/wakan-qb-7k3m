@@ -79,6 +79,7 @@ async function loadImages(sb,rows,signal,pdf){
       aborted(signal);
       const file=await cancellable(sb.storage.from('question-media').download(row.image_path),signal);
       if(file.error||!file.data)throw Error('画像を取得できませんでした。画像を省略せず、出力を中止しました。');
+      if(window.QBFiles?.isPDF(row.image_path)){const preview=await QBFiles.previewPage(file.data);file.data=preview.blob;row.caption=`PDFの1ページ目（全${preview.pages}ページ・全体はアプリで確認） ${row.caption||''}`}
       const url=URL.createObjectURL(file.data),img=new Image();let native=null,preview=null;
       try{
         await cancellable(new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('画像を読み込めませんでした。'));img.src=url}),signal);

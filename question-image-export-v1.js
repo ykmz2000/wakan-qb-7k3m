@@ -20,7 +20,7 @@ async function render(Q,options={}){
   const sb=window.qbSupabase,id=qid(Q);if(!sb||!id)throw Error('問題の情報を読み込み中です。');
   const record=await sb.from('questions').select('stem,stem_formatting').eq('id',id).maybeSingle();if(record.error)throw record.error;
   const r=await sb.from('question_images').select('image_path,caption,alt_text,sort_order,created_at').eq('question_id',id).eq('placement','question').is('choice_id',null).order('sort_order').order('created_at');if(r.error)throw r.error;
-  const images=[];for(const row of r.data||[]){const file=await sb.storage.from('question-media').download(row.image_path);if(file.error)throw Error('問題画像の取得に失敗しました。通信状態を確認してください。');images.push({image:await imageFromBlob(file.data),caption:row.caption||''})}
+  const images=[];for(const row of r.data||[]){const file=await sb.storage.from('question-media').download(row.image_path);if(file.error)throw Error('問題画像の取得に失敗しました。通信状態を確認してください。');let blob=file.data,caption=row.caption||'';if(window.QBFiles?.isPDF(row.image_path)){const preview=await QBFiles.previewPage(blob);blob=preview.blob;caption=`PDFの1ページ目（全${preview.pages}ページ・全体はアプリで確認） ${caption}`}images.push({image:await imageFromBlob(blob),caption})}
   if(qid(q())!==id)throw Error('問題が切り替わりました。もう一度ボタンを押してください。');
   const width=1200,pad=54,inner=width-pad*2,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d'),font='-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif',blocks=[];let y=pad;
   function text(t,size=30,bold=false,gap=22,format=null){ctx.font=`${bold?'700 ':''}${size}px ${font}`;const lines=wrappedLines(ctx,t,inner);blocks.push({type:'text',lines,x:pad,y,size,bold,source:String(t),format});y+=lines.length*size*1.55+gap}

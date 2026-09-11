@@ -61,7 +61,7 @@ async function pickLibrary({sb=window.qbSupabase}={}){
     function addCard(row){
       const b=document.createElement('button');b.type='button';b.className='qbeLibraryItem';b.dataset.id=row.id;b.setAttribute('aria-pressed','false');const name=row.metadata?.name||'画像';
       b.innerHTML=`<img alt="${esc(name)}" loading="lazy"><span class="qbeLibraryName">${esc(name)}</span><span class="qbeLibraryOrder" hidden></span>`;grid.append(b);
-      S.signedURL(sb,row.object_path).then(url=>{if(!closed&&b.isConnected)window.QBFiles?QBFiles.present(b.querySelector('img'),url,false):b.querySelector('img').src=url}).catch(()=>{if(b.isConnected)b.title='プレビューの取得に失敗しました。検索で再読み込みしてください。'});
+      S.signedURL(sb,row.object_path).then(url=>{if(!closed&&b.isConnected&&b.querySelector('img'))window.QBFiles?QBFiles.present(b.querySelector('img'),url,false):b.querySelector('img').src=url}).catch(()=>{if(b.isConnected)b.title='プレビューの取得に失敗しました。検索で再読み込みしてください。'});
       b.onclick=()=>{selected.has(row.id)?selected.delete(row.id):selected.set(row.id,row);sync()};
     }
     async function load(reset=false){
