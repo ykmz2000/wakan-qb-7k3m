@@ -36,3 +36,9 @@ PDFカードは1ページ目とページ数を表示します。専用ビュー�
 - PDF editor provides page selection, move earlier/later, and insertion after the current page from blank, image files, or PDF files. Source pages and editable overlays are remapped together; imported app PDFs retain their editable overlays. Page operations validate a replacement before committing it.
 - Viewer trackpad handling supports Ctrl/Meta wheel and native gesture events, with deduplication. Crop editor receives the same zoom input. Browser zoom shortcuts outside media surfaces remain unchanged.
 - Browser regressions cover inline page selection, mixed-media boundaries, PDF order and editable import persistence, wheel zoom and native gesture cancellation. Physical Mac trackpad behavior still requires a real-device check.
+
+## Touch navigation and bounded previews
+
+Inline PDF pages keep their aspect ratio within 380 × 400 CSS pixels and available width, without a viewer backdrop. They still render from the PDF at display density. In PDF and image viewers, one-finger horizontal swipes navigate even while zoomed; two fingers pan/pinch. Lifting one finger after a pinch cannot trigger a swipe. Single-finger double-tap zoom is disabled; zoom buttons and trackpad gestures remain available.
+
+PDF annotation dialogs provide previous/next page buttons. Navigation applies the current editable overlay to the pending document and opens the next page directly; returning restores editable items. The final PDF save persists the document. Recent-file PDF cards are passive previews: a tap selects and a long press opens details.

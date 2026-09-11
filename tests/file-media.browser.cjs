@@ -10,10 +10,11 @@ async function run(browser,label,url){
  await p.evaluate(()=>document.querySelector('#files').innerHTML=QBFiles.markup('/fixture.pdf'));
  await p.waitForFunction(()=>document.querySelector('[data-inline-page="1"] canvas'));
  assert.ok(await p.locator('.qbPdfPoster canvas').first().evaluate(c=>c.width>=parseFloat(c.style.width)*1.9));
+ assert.ok(await p.locator('[data-inline-page]').evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.width<=380.5&&r.height<=400.5})));
  assert.equal(await p.locator('#files img').count(),0);await p.locator('[data-inline-page="1"]').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  const waitForWholePage=()=>p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage')?.getBoundingClientRect(),s=document.querySelector('.qbPdfViewingStage')?.getBoundingClientRect();return c&&s&&c.left>=s.left+23&&c.right<=s.right-23&&c.top>=s.top+23&&c.bottom<=s.bottom-23});
  await waitForWholePage();await p.setViewportSize({width:390,height:700});await waitForWholePage();await p.screenshot({path:'test-results/ui/pdf-popup-fit-'+label+'.png'});
- // Pinch zoom changes only the PDF, then one-finger movement pans the page.
+ // Pinch zoom changes only the PDF; the remaining single finger must not pan or navigate.
  const gesture=await p.evaluate(()=>{
   const stage=document.querySelector('.qbPdfViewingStage'),c=stage.querySelector('canvas'),r=c.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
   const send=(type,id,x,y)=>stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',clientX:x,clientY:y,button:0}));
@@ -21,8 +22,11 @@ async function run(browser,label,url){
   const expanded=c.getBoundingClientRect().width;send('pointerup',42,x+80,y);const before=stage.scrollLeft;send('pointermove',41,x-110,y);const after=stage.scrollLeft;send('pointerup',41,x-110,y);
   return {initial:r.width,expanded,before,after};
  });
- assert.ok(gesture.expanded>gesture.initial*3);assert.ok(gesture.after>gesture.before);
+ assert.ok(gesture.expanded>gesture.initial*3);assert.equal(gesture.after,gesture.before);
  await p.waitForTimeout(300);assert.ok(await p.locator('.qbPdfPage').evaluate(c=>c.getBoundingClientRect().width)>gesture.initial*3);
+ await p.locator('.qbPdfViewingStage').evaluate(stage=>{const r=stage.getBoundingClientRect(),x=r.left+r.width*.7,y=r.top+r.height/2;for(const [type,px] of [['pointerdown',x],['pointermove',x-130],['pointerup',x-130]])stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:55,pointerType:'touch',clientX:px,clientY:y,button:0}))});
+ await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');
+ await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
  assert.equal(await p.locator('#origin').evaluate(n=>n.inert),true);
  const color=()=>p.locator('.qbPdfPage').evaluate(c=>Array.from(c.getContext('2d').getImageData(10,10,1,1).data));

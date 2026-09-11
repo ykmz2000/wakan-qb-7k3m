@@ -14,6 +14,12 @@ async function run(browser,label,url){
  await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();
  assert.equal(await p.locator('.qbPdfModal').isVisible(),false);assert.equal(await p.getByRole('button',{name:'全体をトリミング',exact:true}).count(),0);
  await p.getByRole('button',{name:'四角い枠',exact:true}).click();await p.getByRole('button',{name:'全体表示',exact:true}).click();const box=await p.locator('.qbDrawStage').boundingBox(),z=Math.min((box.width-32)/400,(box.height-32)/600),at=(x,y)=>({x:box.x+(box.width-400*z)/2+x*z,y:box.y+(box.height-600*z)/2+y*z}),a=at(100,100),b=at(250,350);await p.mouse.move(a.x,a.y);await p.mouse.down();await p.mouse.move(b.x,b.y,{steps:4});await p.mouse.up();
+ await p.locator('.qbDrawPageNavigation[data-page-delta="1"]').click();
+ await p.waitForFunction(()=>document.querySelector('.qbDrawPanel')?.getAttribute('aria-label')==='PDF編集 · 2 / 3ページ'&&!document.querySelector('.qbDrawSave').disabled);
+ assert.equal(await p.locator('.qbPdfModal').isVisible(),false);
+ await p.locator('.qbDrawPageNavigation[data-page-delta="-1"]').click();
+ await p.waitForFunction(()=>document.querySelector('.qbDrawPanel')?.getAttribute('aria-label')==='PDF編集 · 1 / 3ページ'&&!document.querySelector('.qbDrawSave').disabled);
+ assert.equal(await p.locator('.qbDrawPageNavigation[data-page-delta="-1"]').isDisabled(),true);
  await p.getByRole('button',{name:'このページに適用',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});assert.equal(await p.evaluate(()=>saved),null);
  await p.getByRole('button',{name:'次のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('2 / 3'));await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('1 / 3'));
  await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.waitForFunction(()=>saved instanceof Blob);await p.locator('.qbPdfModal').waitFor({state:'detached'});

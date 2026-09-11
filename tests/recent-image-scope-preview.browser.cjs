@@ -170,6 +170,16 @@ async function run(browser,name){
   await beforeVersion.click();await p.locator('[data-id="versioned"]').click();assert.equal(await p.locator('.qbripItem.on').count(),2);
   await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
   pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
+  await p.addScriptTag({content:fs.readFileSync(path.join(root,'file-media-v1.js'),'utf8')});
+  await p.evaluate(()=>{testDB.question_images.push({id:'recent-pdf',image_path:'recent.pdf',question_id:'q1',placement:'explanation_overview',created_at:'2026-09-10T00:00:00.000Z'});window.pdfDetails=0;QBFiles.open=async()=>{pdfDetails++}});
+  await open(p);await finish(p);
+  const pdfItem=p.locator('[data-id="recent-pdf"]'),pdfPoster=pdfItem.locator('.qbPdfCard');await pdfPoster.waitFor();
+  await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'true');assert.equal(await p.locator('.qbPdfModal').count(),0);assert.equal(await p.evaluate(()=>pdfDetails),0);
+  await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'false');
+  await pdfPoster.dispatchEvent('pointerdown',{pointerId:91,pointerType:'touch',button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true});
+  await p.waitForFunction(()=>pdfDetails===1);await pdfPoster.dispatchEvent('pointerup',{pointerId:91,pointerType:'touch',button:0,clientX:100,clientY:100,bubbles:true});await pdfPoster.dispatchEvent('click');
+  assert.equal(await pdfItem.getAttribute('aria-pressed'),'false');await p.locator('.qbripCancel').click();
+  pass('PDF thumbnail tap toggles selection; long press opens details without selecting');
   assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' recent-image checks passed');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -14,7 +14,7 @@ async function previewPage(source){let task,canvas;try{task=await documentTask(s
 function element(tag,cls,text){const n=document.createElement(tag);n.className=cls||'';if(text!=null)n.textContent=text;return n}
 function button(label,fn){const n=element('button','',label);n.type='button';n.onclick=fn;return n}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function markup(url,label='PDF'){return `<div class="qbPdfCard" data-pdf-src="${esc(url)}" aria-label="${esc(label)}を開く"><span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span></div>`}
+function markup(url,label='PDF',{passive=false}={}){return `<div class="qbPdfCard" data-pdf-passive="${passive}" data-pdf-src="${esc(url)}" aria-label="${esc(label)}を開く"><span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span></div>`}
 // Replace only the media element. Attachment wrappers and row IDs stay intact.
 function present(img,url,interactive=true){const target=img.qbPdfReplacement?.isConnected?img.qbPdfReplacement:img;if(!isPDF(url)){if(target!==img)target.replaceWith(img);delete img.qbPdfReplacement;img.src=url;return img}const card=element('span','qbPdfCard');img.qbPdfReplacement=card;card.dataset.pdfSrc=url;card.dataset.pdfPassive=String(!interactive);card.innerHTML='<span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span>';card.qbEditMedia=img.qbEditMedia;target.replaceWith(card);scan(card);return card}
 let thumbnailQueue=[],thumbnailBusy=false;
@@ -32,7 +32,7 @@ async function drain(){
   card.dataset.pdfPages=doc.numPages;
   if(!st&&card.dataset.pdfPassive!=='true'&&!card.closest('.qbLibraryImageButton,.qbripItem')){
    card.classList.add('qbPdfInline');card.setAttribute('role','group');card.removeAttribute('tabindex');const poster=card.querySelector('.qbPdfPoster');poster.replaceChildren();
-   for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n),vp=page.getViewport({scale:1}),slot=element('span','qbPdfInlinePage');slot.dataset.inlinePage=n;slot.setAttribute('role','button');slot.tabIndex=0;slot.setAttribute('aria-label',`${n}ページを拡大表示`);slot.style.aspectRatio=vp.width+'/'+vp.height;poster.append(slot);inlineStates.set(slot,{card,visible:false,width:0,token:0});inlineObserver.observe(slot);inlineResize.observe(slot)}
+   for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n),vp=page.getViewport({scale:1}),slot=element('span','qbPdfInlinePage');slot.dataset.inlinePage=n;slot.setAttribute('role','button');slot.tabIndex=0;slot.setAttribute('aria-label',`${n}ページを拡大表示`);slot.style.aspectRatio=vp.width+'/'+vp.height;slot.style.setProperty('--qb-page-width',Math.min(380,400*vp.width/vp.height)+'px');poster.append(slot);inlineStates.set(slot,{card,visible:false,width:0,token:0});inlineObserver.observe(slot);inlineResize.observe(slot)}
    card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ · タップして拡大`;continue;
   }
   const token=st?++st.token:0,page=await doc.getPage(st?Number(node.dataset.inlinePage):1),raw=page.getViewport({scale:1}),canvas=element('canvas');
@@ -50,7 +50,7 @@ async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
  modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label',pickPage?'画像にするPDFページを選択':'PDFを表示');panel.tabIndex=-1;status.setAttribute('role','status');head.append(element('b','',pickPage?'PDFのページを画像として追加':'PDF'),status);panel.append(head,stage,nav);modal.append(panel);
  const origin=document.activeElement,background=[...document.body.children].filter(n=>!['SCRIPT','STYLE','LINK'].includes(n.tagName)).map(n=>[n,n.inert]),overflow=document.documentElement.style.overflow;
  background.forEach(([n])=>n.inert=true);document.documentElement.style.overflow='hidden';document.body.append(modal);active=modal;
- let gestureTimer;const pointers=new Map();let gesture=null;
+ let gestureTimer;const pointers=new Map();let gesture=null,swipe=null,multiTouch=false;
  let task,doc,renderTask,closed=false,busy=false,pageNumber=1,zoom=1,sequence=0,currentCanvas=null,resolveResult,resizeObserver,resizeTimer;
  const result=new Promise(resolve=>resolveResult=resolve);
  async function close(value=null){if(closed||busy)return;closed=true;clearTimeout(gestureTimer);pointers.clear();clearTimeout(resizeTimer);resizeObserver?.disconnect();sequence++;renderTask?.cancel();await task?.destroy().catch(()=>{});modal.remove();background.forEach(([n,v])=>{if(n.isConnected)n.inert=v});document.documentElement.style.overflow=overflow;active=null;if(origin?.isConnected)origin.focus({preventScroll:true});resolveResult(value)}
@@ -71,15 +71,21 @@ async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
   const center=pts.length>1?{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}:pts[0];
   gesture={center,zoom,width:rect.width,height:rect.height,u:(center.x-rect.left)/rect.width,v:(center.y-rect.top)/rect.height,distance:pts.length>1?Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y):0,left:stage.scrollLeft,top:stage.scrollTop};
  }
- stage.addEventListener('pointerdown',e=>{if(!currentCanvas||e.button>0)return;e.preventDefault();e.stopPropagation();clearTimeout(gestureTimer);sequence++;renderTask?.cancel();pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});try{stage.setPointerCapture(e.pointerId)}catch{}startGesture()});
+ stage.addEventListener('pointerdown',e=>{if(!currentCanvas||e.button>0)return;e.preventDefault();e.stopPropagation();clearTimeout(gestureTimer);sequence++;renderTask?.cancel();if(!pointers.size){swipe={x:e.clientX,y:e.clientY,time:performance.now()};multiTouch=false}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>1)multiTouch=true;try{stage.setPointerCapture(e.pointerId)}catch{}startGesture()});
  stage.addEventListener('pointermove',e=>{
   if(!pointers.has(e.pointerId)||!gesture)return;e.preventDefault();e.stopPropagation();pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const pts=[...pointers.values()];
   if(pts.length>1&&gesture.distance){
    const center={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};zoom=Math.max(.5,Math.min(4,gesture.zoom*Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)/gesture.distance));
    currentCanvas.style.width=gesture.width*zoom/gesture.zoom+'px';currentCanvas.style.height=gesture.height*zoom/gesture.zoom+'px';const r=currentCanvas.getBoundingClientRect();stage.scrollLeft+=r.left+gesture.u*r.width-center.x;stage.scrollTop+=r.top+gesture.v*r.height-center.y;
-  }else{stage.scrollLeft=gesture.left+gesture.center.x-e.clientX;stage.scrollTop=gesture.top+gesture.center.y-e.clientY}
+  }
  });
- function endGesture(e){if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);startGesture();if(!pointers.size){clearTimeout(gestureTimer);gestureTimer=setTimeout(()=>{if(!closed)void show(pageNumber,true)},100)}}
+ function endGesture(e){
+  if(!pointers.has(e.pointerId))return;const cancelled=e.type!=='pointerup';pointers.delete(e.pointerId);if(cancelled)multiTouch=true;
+  if(pointers.size){startGesture();return}
+  const start=swipe,wasMulti=multiTouch;gesture=null;swipe=null;multiTouch=false;clearTimeout(gestureTimer);
+  if(!cancelled&&!wasMulti&&start){const dx=e.clientX-start.x,dy=e.clientY-start.y;if(Math.abs(dx)>=Math.max(44,Math.min(100,stage.clientWidth*.12))&&Math.abs(dx)>Math.abs(dy)*1.4&&performance.now()-start.time<1000){void go(dx<0?1:-1);return}}
+  if(wasMulti)gestureTimer=setTimeout(()=>{if(!closed)void show(pageNumber,true)},100);
+ }
  for(const type of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(type,endGesture);
  async function go(delta){if(!doc||busy)return;const n=pageNumber+delta;if(n>=1&&n<=doc.numPages){zoom=1;await show(n);return}const group=mediaOrigin&&window.QBMediaGallery?.items(mediaOrigin),item=group?.images[group.index+delta];if(!pickPage&&item){await close();if(item.pdf)void open(item.src,{mediaOrigin:item.node,initialPage:delta<0?Infinity:1});else window.QBMediaGallery.open(item.node)}}
  let nativeScale=null,nativeEnded=-Infinity;
