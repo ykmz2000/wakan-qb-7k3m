@@ -24,12 +24,12 @@ function dispatchFiles(input,files){
 async function chooseRecent(input,status,button){
   const sb=window.qbSupabase,picker=window.qbRecentImagePicker;if(!sb||!picker)return;
   try{
-    button.disabled=true;if(status)status.textContent='最近の画像を読み込んでいます…';
+    button.disabled=true;if(status)status.textContent='最近のファイルを読み込んでいます…';
     const rows=await picker.pick({sb,title:'最近アップロードした画像'});if(!rows.length){if(status)status.textContent='';return}
     if(status)status.textContent='選択した画像を準備中…';
     const files=await recentFiles(sb,rows);
     if(!dispatchFiles(input,files))throw new Error('この端末では画像の受け渡しに失敗しました');
-  }catch(e){if(status)status.textContent='最近の画像の追加失敗: '+(e?.message||e)}finally{setTimeout(()=>{if(button.isConnected)button.disabled=false},300)}
+  }catch(e){if(status)status.textContent='最近のファイルの追加失敗: '+(e?.message||e)}finally{setTimeout(()=>{if(button.isConnected)button.disabled=false},300)}
 }
 function cropModal(src){return window.QBImageCrop.open(src,{title:'問題画像をトリミング',rotatable:false})}
 async function cropStem(button){
@@ -53,11 +53,11 @@ function css(){
   document.head.appendChild(s)
 }
 function enhanceStem(){
-  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
-  document.querySelectorAll('.qsiEditor,.qsiInlineEditor').forEach(box=>{const actions=box.querySelector('.qsiActions'),input=box.querySelector('input[type=file]');if(!actions||!input||actions.querySelector('.qsiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='qsiRecentBtn';b.textContent='最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.qsiStatus'),b)})
+  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(w.querySelector('[data-pdf-src]')||!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
+  document.querySelectorAll('.qsiEditor,.qsiInlineEditor').forEach(box=>{const actions=box.querySelector('.qsiActions'),input=box.querySelector('input[type=file]');if(!actions||!input||actions.querySelector('.qsiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='qsiRecentBtn';b.textContent='最近のファイル';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.qsiStatus'),b)})
 }
 function enhanceOfficial(){
-  document.querySelectorAll('.oeiBox').forEach(box=>{const actions=box.querySelector('.oeiActions'),input=box.querySelector('.oeiFile');if(!actions||!input||actions.querySelector('.oeiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='oeiBtn oeiRecentBtn';b.textContent='最近の画像';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.oeiStatus'),b)})
+  document.querySelectorAll('.oeiBox').forEach(box=>{const actions=box.querySelector('.oeiActions'),input=box.querySelector('.oeiFile');if(!actions||!input||actions.querySelector('.oeiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='oeiBtn oeiRecentBtn';b.textContent='最近のファイル';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.oeiStatus'),b)})
 }
 function scan(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;css();enhanceStem();enhanceOfficial()})}
 function relevant(node){if(!(node instanceof Element))return false;return node.matches?.('.qsiHost,.qsiImgWrap,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')||!!node.querySelector?.('.qsiHost,.qsiImgWrap,.qsiEditor,.qsiInlineEditor,.oeiBox,.adeEditor')}

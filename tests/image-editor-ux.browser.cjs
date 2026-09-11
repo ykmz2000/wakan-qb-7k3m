@@ -21,7 +21,7 @@ async function run(browser,label){
   // The rectangle tool remains active: dragging the existing border moves it instead of creating a new frame.
   a=at(100,160);b=at(150,190);await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(b.x,b.y,{steps:5});await page.mouse.up();const rect=await page.evaluate(()=>sceneHistory.current.items[0]);assert.equal((await page.evaluate(()=>sceneHistory.current.items.length)),1);assert.ok(rect.x>100&&rect.y>100);
   for(const name of ['最前面へ','一つ前面へ','一つ背面へ','最背面へ'])assert.equal(await page.getByRole('button',{name,exact:true}).isEnabled(),true);
-  await page.getByRole('button',{name:'画像追加',exact:true}).click();for(const name of ['端末から選ぶ','最近の画像から','画像ライブラリから','この問題を画像化'])await page.getByRole('button',{name,exact:true}).waitFor();await page.locator('.qbeSourceClose').click();
+  await page.getByRole('button',{name:'画像追加',exact:true}).click();for(const name of ['ファイルを選択','最近のファイルから','ライブラリから','この問題を画像化'])await page.getByRole('button',{name,exact:true}).waitFor();await page.locator('.qbeSourceClose').click();
   assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS nine colors, snap toggle, same-tool movement, layer actions and image source menu');
 }
 (async()=>{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,label)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});

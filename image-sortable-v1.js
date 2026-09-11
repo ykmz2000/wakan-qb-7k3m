@@ -120,7 +120,7 @@ async function bindQuestionStem(c,Q){
   document.querySelectorAll('.qsiGrid').forEach(grid=>{
     grid.querySelectorAll('.qsiImgWrap').forEach(item=>{
       if(item.querySelector('.qbsortHandle'))return;
-      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortStemHandle';b.textContent='並べ替え';b.setAttribute('aria-label','画像を並べ替え');item.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortStemHandle';b.textContent='並べ替え';b.setAttribute('aria-label','ファイルを並べ替え');item.appendChild(b);
     });
     bindSortable(grid,'.qsiImgWrap',x=>x.dataset.row,(ids,status)=>persist('question_images',ids,status,{questionId:qid(Q),type:'question-image-order',placement:'question',choiceId:null})).catch(console.error);
   });
@@ -145,15 +145,15 @@ async function bindPersonal(c,Q){
   const personals=[...document.querySelectorAll('.qbPersonal')];
   for(const personal of personals){
     const grid=personal.querySelector('.qbNoteImageGrid');if(!grid||grid.dataset.qbNoteSortPrepared==='1')continue;
-    const imgs=[...grid.querySelectorAll(':scope > img,:scope > .qbNoteImageWrap > img')];if(imgs.length<2)continue;
+    const imgs=[...grid.querySelectorAll(':scope > img,:scope > .qbNoteImageWrap > img,:scope > .qbNoteImageWrap > [data-pdf-src]')];if(imgs.length<2)continue;
     const rows=await noteRows(c,Q,personal);if(rows.length<2||grid.dataset.qbNoteSortPrepared==='1'||!grid.isConnected)continue;
     const byPath=new Map(rows.map(r=>[r.image_path,r]));
     for(let i=0;i<imgs.length;i++){
-      const img=imgs[i],path=decodeStoragePath(img.src,'user-note-images'),row=byPath.get(path)||rows[i];if(!row)continue;
+      const img=imgs[i],path=decodeStoragePath(img.dataset.pdfSrc||img.src,'user-note-images'),row=byPath.get(path)||rows[i];if(!row)continue;
       let w=img.closest('.qbNoteImageWrap');
       if(!w){w=document.createElement('div');img.replaceWith(w);w.appendChild(img)}
       w.classList.add('qbsortNoteItem');w.dataset.id=w.dataset.row||row.id;
-      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortNoteHandle';b.textContent='並べ替え';b.setAttribute('aria-label','画像を並べ替え');w.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.className='qbsortHandle qbsortNoteHandle';b.textContent='並べ替え';b.setAttribute('aria-label','ファイルを並べ替え');w.appendChild(b);
     }
     grid.dataset.qbNoteSortPrepared='1';
     await bindSortable(grid,'.qbsortNoteItem',x=>x.dataset.id,(ids,status)=>persist('user_note_images',ids,status,{questionId:qid(Q),type:'personal-note-image-order'}));

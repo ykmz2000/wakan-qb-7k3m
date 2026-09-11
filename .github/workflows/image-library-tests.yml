@@ -2,6 +2,12 @@ name: Image library verification
 on:
   pull_request:
     paths:
+      - 'file-media-*'
+      - 'tests/file-media*'
+      - 'tests/image-crop*'
+      - 'scripts/build-inline-overview.cjs'
+      - 'editor-build/package.json'
+      - 'supabase/file-media-v1.sql'
       - 'image-library-*.js'
       - 'image-library-v1.css'
       - 'image-viewer.js'
@@ -68,7 +74,7 @@ jobs:
           node --check question-stem-images-v2.js
           node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs tests/image-upload-limits.unit.cjs
           test_status=0
-          for test_file in tests/pull-to-refresh.browser.cjs tests/explanation-image-layout.browser.cjs tests/image-editor-native.browser.cjs tests/image-editor-sources.browser.cjs tests/image-annotation.browser.cjs tests/image-crop.browser.cjs tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
+          for test_file in tests/file-media.browser.cjs tests/image-crop-scene.browser.cjs tests/pull-to-refresh.browser.cjs tests/explanation-image-layout.browser.cjs tests/image-editor-native.browser.cjs tests/image-editor-sources.browser.cjs tests/image-annotation.browser.cjs tests/image-crop.browser.cjs tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
             node "$test_file" || test_status=1
           done
           exit "$test_status"

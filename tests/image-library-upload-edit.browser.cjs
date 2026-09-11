@@ -15,11 +15,12 @@ async function run(browser,label){
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
  const image=await p.evaluate(async()=>{const c=document.createElement('canvas');c.width=800;c.height=600;c.getContext('2d').fillRect(0,0,800,600);return c.toDataURL().split(',')[1]});
  await p.locator('.qbLibraryTools input[type=file][multiple]').setInputFiles(['one.png','two.png'].map(name=>({name,mimeType:'image/png',buffer:Buffer.from(image,'base64')})));
- const review=p.getByRole('dialog',{name:'追加した画像を確認',exact:true});await review.waitFor();await p.waitForFunction(()=>!!window.lateOCR);
- const name=review.getByLabel('画像名',{exact:true}).first();await name.fill('入力中の名前');await review.getByLabel('キーワード',{exact:true}).first().fill('lung cancer');
+ await p.getByRole('button',{name:'別々のカードに追加（2枚）',exact:true}).click();
+ const review=p.getByRole('dialog',{name:'追加したファイルを確認',exact:true});await review.waitFor();await review.getByRole('button',{name:'画像の文字を読み取る',exact:true}).click();await p.waitForFunction(()=>!!window.lateOCR);
+ const name=review.getByLabel('ファイル名',{exact:true}).first();await name.fill('入力中の名前');await review.getByLabel('キーワード',{exact:true}).first().fill('lung cancer');
  const before=await p.evaluate(()=>db.qb_image_library_items.slice(-2).map(r=>({id:r.id,path:r.object_path,version:r.image_version})));
  // Crop cancellation never discards metadata or mutates the image.
- await review.getByRole('button',{name:'トリミング',exact:true}).first().click();await review.getByText('画像の編集をキャンセルしました。',{exact:true}).waitFor();assert.equal(await name.inputValue(),'入力中の名前');assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-2).object_path),before[0].path);
+ await review.getByRole('button',{name:'画像編集',exact:true}).first().click();await p.locator('.qbDrawSave:enabled').waitFor();await p.locator('.qbDrawCropAll').click();await p.locator('.qbDrawClose').click();await review.getByText('画像の編集をキャンセルしました。',{exact:true}).waitFor();assert.equal(await name.inputValue(),'入力中の名前');assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-2).object_path),before[0].path);
  await review.getByRole('button',{name:'画像編集',exact:true}).first().click();try{await p.locator('.qbDrawSave:enabled').waitFor()}catch(e){console.error(await p.evaluate(()=>({status:document.querySelector('.qbDrawStatus')?.textContent,review:document.querySelector('.qbLibraryUploadReview .qbLibraryFooter')?.textContent,editor:!!document.querySelector('.qbDrawModal'),files:db.qb_image_library_items.slice(-2).map(r=>{const b=objects.get('qb-image-library/'+r.object_path);return {size:b?.size,type:b?.type}})})));throw e}assert.equal(await review.evaluate(n=>n.inert),true);
  assert.ok(await p.locator('.qbDrawModal').evaluate(n=>Number(getComputedStyle(n).zIndex))>10100);
  await p.getByRole('button',{name:'連番',exact:true}).click();await p.locator('.qbDrawNavigation').getByRole('button',{name:'全体表示',exact:true}).click();await p.locator('.qbDrawCanvas').click();
@@ -29,9 +30,9 @@ async function run(browser,label){
  assert.equal(await review.evaluate(n=>n.inert),false);assert.equal(await name.inputValue(),'入力中の名前');assert.notEqual(await p.evaluate(()=>db.qb_image_library_items.at(-2).object_path),before[0].path);assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-2).image_version),before[0].version+1);
  await p.evaluate(()=>lateOCR({data:{text:'古い画像の遅延OCR'}}));await review.getByText('細かい設定',{exact:true}).first().click();assert.equal(await review.getByLabel('読み取り本文',{exact:true}).first().inputValue(),'');
  // Crop save on the second image updates only that image and preserves both drafts.
- await review.getByRole('button',{name:'次の画像',exact:true}).click();await review.getByLabel('画像名',{exact:true}).nth(1).fill('二枚目');
- await p.evaluate(()=>QBImageCrop.open=async()=>{const c=document.createElement('canvas');c.width=100;c.height=100;return new Promise(r=>c.toBlob(r))});
- await review.getByRole('button',{name:'トリミング',exact:true}).click();await review.getByText('画像を保存しました。情報を確認して確定してください。',{exact:true}).waitFor();
+ await review.getByRole('button',{name:'次の画像',exact:true}).click();await review.getByLabel('ファイル名',{exact:true}).nth(1).fill('二枚目');
+ await p.evaluate(()=>QBImageCrop.open=async()=>({x:0,y:0,width:100,height:100}));
+ await review.getByRole('button',{name:'画像編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();await p.locator('.qbDrawCropAll').click();await p.locator('.qbDrawSave').click();await review.getByText('画像を保存しました。情報を確認して確定してください。',{exact:true}).waitFor();
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).image_version),before[1].version+1);
  await review.getByRole('button',{name:'確定',exact:true}).click();await review.waitFor({state:'detached'});
  assert.deepEqual(await p.evaluate(()=>db.qb_image_library_items.slice(-2).map(r=>r.metadata.name)),['入力中の名前','二枚目']);assert.deepEqual(await p.evaluate(()=>db.qb_image_library_items.at(-2).metadata.keywords),['lung cancer']);assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS upload annotation, crop save/cancel, layering, failed-save retry, metadata preservation, batch targeting and stale OCR isolation');

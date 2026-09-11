@@ -27,14 +27,14 @@ async function run(browser,label){
  await p.evaluate(()=>{localStorage.setItem('qb-image-editor-settings-v1','{}');QBImageEditor.open(sourceURL)});
  await p.locator('.qbDrawSave:enabled').waitFor();
  const menu=async name=>{await p.locator('.qbDrawPanel').getByRole('button',{name:'画像追加',exact:true}).click();await p.locator('.qbeSourcePanel').getByRole('button',{name,exact:true}).click()};
- await menu('画像ライブラリから');await p.locator('.qbeLibraryItem').nth(1).waitFor();
+ await menu('ライブラリから');await p.locator('.qbeLibraryItem').nth(1).waitFor();
  assert.equal(await p.locator('.qbeLibraryName').first().textContent(),'眼球運動の総まとめ');assert.equal(await p.evaluate(()=>searchCalls.at(-1).p_view),'images');
  assert.equal(await p.locator('.qbDrawPanel').evaluate(n=>n.inert),true);
  await p.locator('.qbeLibraryItem').nth(1).click();await p.locator('.qbeLibraryItem').nth(0).click();
  assert.deepEqual(await p.locator('.qbeLibraryOrder').allTextContents(),['2','1']);await p.locator('.qbeUse').click();
  await waitItems(2);assert.equal(await p.locator('[data-tool=image]').getAttribute('aria-pressed'),'true');
  await p.keyboard.press('Meta+z');assert.equal(await p.evaluate(()=>sceneHistory.current.items.length),0);await p.keyboard.press('Meta+Shift+z');assert.equal(await p.evaluate(()=>sceneHistory.current.items.length),2);
- await menu('最近の画像から');await p.locator('.qbripItem').nth(1).waitFor();
+ await menu('最近のファイルから');await p.locator('.qbripItem').nth(1).waitFor();
  assert.equal(await p.locator('.qbripModal').evaluate(n=>!!n.parentElement.closest('.qbDrawModal')),true);
  assert.equal(await p.locator('.qbripUse').evaluate(n=>{const r=n.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.qbripModal')}),true);
  await p.locator('.qbripItem').nth(1).click();await p.locator('.qbripUse').click();await waitItems(3);

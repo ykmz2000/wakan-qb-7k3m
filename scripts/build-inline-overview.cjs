@@ -19,3 +19,10 @@ const licenseText=licenseNames.map(name=>{
 }).join('\n--------------------\n\n');
 fs.writeFileSync('inline-overview-v1.LICENSES.txt',licenseText);
 console.log('Inline overview bundle generated; dependencies are outside the Pages artifact.');
+
+// Ship the pinned legacy PDF display layer and worker from the same build.
+const pdfRoot=path.join(deps,'node_modules/pdfjs-dist'),pdfOut='vendor/pdfjs';
+fs.mkdirSync(pdfOut,{recursive:true});
+for(const name of ['pdf.mjs','pdf.worker.mjs'])fs.copyFileSync(path.join(pdfRoot,'legacy/build',name),path.join(pdfOut,name));
+for(const name of ['cmaps','standard_fonts','wasm'])fs.cpSync(path.join(pdfRoot,name),path.join(pdfOut,name),{recursive:true});
+fs.copyFileSync(path.join(pdfRoot,'LICENSE'),path.join(pdfOut,'LICENSE'));

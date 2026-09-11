@@ -16,9 +16,9 @@ async function authorize(c){
 function table(c){return c.bucket==='user-note-images'?'user_note_images':'question_images'}
 function scoped(c,query){query=query.eq('question_id',c.questionId);return c.userId?query.eq('user_id',c.userId):query}
 async function get(c,rowId){const r=await scoped(c,c.sb.from(table(c)).select('*').eq('id',rowId)).maybeSingle();if(r.error)throw r.error;if(!r.data)throw Error('画像が見つかりません。');return r.data}
-function ext(blob){return blob.type==='image/jpeg'?'jpg':blob.type==='image/webp'?'webp':blob.type==='image/gif'?'gif':blob.type==='image/heic'?'heic':blob.type==='image/heif'?'heif':'png'}
+function ext(blob){if(blob.type==='application/pdf')return 'pdf';return blob.type==='image/jpeg'?'jpg':blob.type==='image/webp'?'webp':blob.type==='image/gif'?'gif':blob.type==='image/heic'?'heic':blob.type==='image/heif'?'heif':'png'}
 function objectPath(c,blob){return c.userId?`${c.userId}/${c.questionId}/${c.noteId}/${crypto.randomUUID()}.${ext(blob)}`:`${c.questionId}/${c.placement}/${c.choiceId||'question'}/${crypto.randomUUID()}.${ext(blob)}`}
-async function upload(c,blob){if(!blob||blob.size>MAX_IMAGE_BYTES)throw Error('保存する画像は100MB以下にしてください。');const path=objectPath(c,blob),r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}
+async function upload(c,blob){if(window.QBFiles)blob=await QBFiles.validate(blob);if(!blob||blob.size>MAX_IMAGE_BYTES)throw Error('保存する画像は100MB以下にしてください。');const path=objectPath(c,blob),r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}
 async function discardUnreferenced(c,path){
   // A failed response can still have committed. Preserve every referenced image version.
   const checks=await Promise.all(['image_path','original_image_path','annotation_base_image_path'].map(column=>c.sb.from(table(c)).select('id').eq(column,path).limit(1)));

@@ -17,10 +17,10 @@ test('every editing bucket accepts the 100MiB boundary and rejects one byte abov
  for(const bucket of ['question-media','user-note-images']){
   const context={sb,bucket,questionId:'question',placement:'explanation_overview',host:{isConnected:true},...(bucket==='user-note-images'?{userId:'admin',noteId:'note'}:{})};
   for(const size of [20*1024*1024+1,50*1024*1024,100*1024*1024])await w.QBImageStore.add(context,{size,type:'image/png'});
-  const before=uploads.length;await assert.rejects(()=>w.QBImageStore.add(context,{size:100*1024*1024+1,type:'image/png'}),/100MB/);assert.equal(uploads.length,before);
+  const before=uploads.length;await assert.rejects(()=>w.QBImageStore.add(context,{size:100*1024*1024+1,type:'image/png'}),/100M(?:i)?B/);assert.equal(uploads.length,before);
  }
 });
 test('library accepts 100MiB and rejects larger inputs without a Storage write',async()=>{
  const {sb,uploads,window:w}=fixture();await w.QBImageLibraryStore.add(sb,{size:100*1024*1024,type:'image/png',name:'large.png'});assert.equal(uploads.at(-1).size,100*1024*1024);
- await assert.rejects(()=>w.QBImageLibraryStore.add(sb,{size:100*1024*1024+1,type:'image/png'}),/100MB/);assert.equal(uploads.length,1);
+ await assert.rejects(()=>w.QBImageLibraryStore.add(sb,{size:100*1024*1024+1,type:'image/png'}),/100M(?:i)?B/);assert.equal(uploads.length,1);
 });
