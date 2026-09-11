@@ -56,7 +56,7 @@ const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap()
 const META='explanation_formatting',STEM_META='stem_formatting';
 const QUESTION_FIELDS={overview:'explanation_overview',intent:'examiner_intent',summary:'exam_summary',verify:'medical_verification_note'};
 const CHOICE_FIELDS={cexp:'explanation',ccorr:'correction_text',calt:'correct_for_other_context',cdist:'examiner_distinction'};
-const LABELS={stem:'問題文',explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しく直すと',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
+const LABELS={stem:'問題文',explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しくすると',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
 const current=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=q=>String(q?.id||q?.dbId||'');
 async function load(id,force=false){
@@ -103,7 +103,7 @@ function prepareEditor(ed,q){
   if(!defs.length)return;
   const target=choice||q,id=qid(q),expected={},initial={};
   for(const d of defs){if(!d.ta)return;expected[d.field]=target[d.field]??null;initial[d.field]=d.ta.value}
-  if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct}
+  if(choice){expected.choice_text=choice.choice_text;expected.is_correct=choice.is_correct;expected.statement_is_true=choice.statement_is_true??null}
   const state={id,table:choice?'choices':'questions',targetId:String(target.id||target.dbId),metaField:isStem?STEM_META:META,expected,fields:[],error:null,ready:null};editors.set(ed,state);
   state.ready=(async()=>{try{const meta=await load(id,true);if(!ed.isConnected)return;const map=isStem?{stem:meta[STEM_META]}:choice?(meta.choices||[]).find(c=>String(c.id)===String(choice.id))?.[META]:meta[META];for(const d of defs)state.fields.push(choice&&window.QBInlineOverview?.mountField&&new URLSearchParams(location.search).get('editor')!=='classic'?window.QBInlineOverview.mountField(d.ta,d.field,map?.[d.field],d.ta.value,LABELS[d.field]):mount(d.ta,d.field,map?.[d.field],initial[d.field]))}catch(e){state.error=e;const m=ed.querySelector('.adeStatus');if(m)m.textContent='装飾情報の取得に失敗しました。編集を開き直してください。'}})();
 }

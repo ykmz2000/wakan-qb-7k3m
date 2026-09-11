@@ -35,7 +35,8 @@ function css(){
 #view .choice.good,#view .choice.bad{opacity:1!important;color:var(--text)!important;-webkit-text-fill-color:currentColor}
 #view .choice.good{border-color:var(--ok)!important;background:color-mix(in srgb,var(--ok) 10%,var(--card))!important}
 #view .choice.bad{border-color:var(--bad)!important;background:color-mix(in srgb,var(--bad) 10%,var(--card))!important}
-#view .choice[data-qb-choice-feedback]::after{content:attr(data-qb-choice-feedback);display:block;margin-top:6px;font-size:12px;font-weight:700;color:var(--ok);white-space:normal}
+#view .choice[data-qb-choice-feedback]::after{content:attr(data-qb-choice-feedback);display:block;margin-top:6px;font-size:12px;font-weight:700;color:var(--text);white-space:normal}
+#view .choice.good[data-qb-choice-feedback]::after{color:var(--ok)}
 #view .choice.bad[data-qb-choice-feedback]::after{color:var(--bad)}
 .badge:not(.gray){background:var(--accent-soft)!important;color:var(--accent)!important}
 .resultcard.review{border-color:var(--accent)!important;background:var(--accent-soft)!important}

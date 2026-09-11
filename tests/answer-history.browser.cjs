@@ -13,7 +13,7 @@ async function boot(browser,seed=null,userId='u1'){
   await p.goto('https://qb-history.test/');
   await p.evaluate(({seed,userId})=>{
     const copy=x=>JSON.parse(JSON.stringify(x));
-    const question=(id,mode,order)=>({id,subject_id:'s1',unit_id:'unit1',status:'published',study_order:order,answer_mode:mode,stem:mode==='fill_blank'?'入力 [A] [B]':'設問 '+id,explanation_overview:'ポイントの本文',examiner_intent:'意図',exam_summary:'まとめ',medical_verification_note:'確認',question_occurrences:[{id:'o-'+id,academic_year:2025,exam_type:'本試',original_question_number:String(order),official_answer:{A:'正答A',B:'正答B'}}],choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'選択肢a',is_correct:true,sort_order:0,explanation:'aの解説'},{id:id+'-b',choice_key:'b',choice_text:'選択肢b',is_correct:false,sort_order:1,explanation:'bの解説'}]});
+    const question=(id,mode,order)=>({id,subject_id:'s1',unit_id:'unit1',status:'published',study_order:order,answer_mode:mode,stem:mode==='fill_blank'?'入力 [A] [B]':'設問 '+id,explanation_overview:'ポイントの本文',examiner_intent:'意図',exam_summary:'まとめ',medical_verification_note:'確認',question_occurrences:[{id:'o-'+id,academic_year:2025,exam_type:'本試',original_question_number:String(order),official_answer:{A:'正答A',B:'正答B'}}],choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'選択肢a',is_correct:true,statement_is_true:true,sort_order:0,explanation:'aの解説'},{id:id+'-b',choice_key:'b',choice_text:'選択肢b',is_correct:false,statement_is_true:false,sort_order:1,explanation:'bの解説'}]});
     window.testUser=userId;window.testDelayAttempt=0;window.testFailRating=false;window.testFailHistory=false;window.testWrites=[];
     window.testDB=seed||{
       grades:[{id:'g1',code:'M4',name:'M4'}],subjects:[{id:'s1',grade_id:'g1',slug:'test',name:'検証科目',is_active:true}],units:[{id:'unit1',subject_id:'s1',name:'検証単元',is_active:true}],
@@ -89,17 +89,24 @@ async function run(browser,name){
    console.log(name+' PASS all occurrence years/types, grouping, deduplication, unknown source, navigation and responsive wrapping');
    const states=()=>p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({good:b.classList.contains('good'),bad:b.classList.contains('bad'),label:b.dataset.qbChoiceFeedback||''})));
    assert.deepEqual(await states(),[{good:false,bad:false,label:''},{good:false,bad:false,label:''}]);
-   await answer(p,[1]);assert.deepEqual(await states(),[{good:true,bad:false,label:'正解'},{good:false,bad:true,label:'× 自分の回答・不正解'}]);
+   await answer(p,[1]);assert.deepEqual(await states(),[{good:true,bad:false,label:'内容：正しい ／ 設問の正答'},{good:false,bad:true,label:'内容：誤り ／ あなたの選択'}]);
    const colors=await p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({bg:getComputedStyle(b).backgroundColor,opacity:getComputedStyle(b).opacity})));
    assert.notEqual(colors[0].bg,colors[1].bg);assert.ok(colors.every(x=>x.opacity==='1'));
    await p.locator('#answer').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
-   await answer(p,[0]);assert.equal((await states())[0].label,'✓ 自分の回答・正解');
+   await answer(p,[0]);assert.equal((await states())[0].label,'内容：正しい ／ 設問の正答 ／ あなたの選択');
    await p.locator('#answer').click();await p.locator('[data-c="1"]').click();await p.locator('#review').click();await ready(p);
-   assert.deepEqual(await states(),[{good:true,bad:false,label:'正解'},{good:false,bad:false,label:''}]);
+   assert.deepEqual(await states(),[{good:true,bad:false,label:'内容：正しい ／ 設問の正答'},{good:false,bad:true,label:'内容：誤り'}]);
    await p.locator('#next').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
    await answer(p,[0,1]);assert.equal((await states())[0].good,true);assert.equal((await states())[1].bad,true);
    await p.locator('#prev').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
-   await p.locator('#review').click();await ready(p);assert.equal((await states())[0].label,'正解');
+   await p.locator('#review').click();await ready(p);assert.equal((await states())[0].label,'内容：正しい ／ 設問の正答');
+   await p.locator('#answer').click();
+   await p.evaluate(()=>{const q=window.QB_QUESTIONS.find(q=>q.id==='q1');q.choices[0].statement_is_true=false;q.choices[0].correction_text='修正文';q.choices[1].statement_is_true=null;});
+   await answer(p,[0]);
+   assert.deepEqual(await states(),[{good:false,bad:true,label:'内容：誤り ／ 設問の正答 ／ あなたの選択'},{good:false,bad:false,label:''}]);
+   assert.match(await p.locator('.resultcard').textContent(),/正解/);
+   await p.waitForFunction(()=>document.querySelector('.qbChoiceCorrection')?.textContent.includes('正しくすると'));
+   assert.match(await p.locator('.qbChoiceCorrection').first().textContent(),/修正文/);
    assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS correct/wrong/missed answer colors, review-only, retry and question navigation reset');
   }
   let {p,errors}=await boot(browser);assert.equal(await p.locator('.qbAttemptPast').count(),0,'history hidden before answering');

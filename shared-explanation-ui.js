@@ -24,7 +24,7 @@ function addCard(root,title,body,cls='line'){
 }
 function detailRows(c){
   const rows=[];
-  if(c.correction_text)rows.push(['正しく直すと',c.correction_text,'qbChoiceCorrection']);
+  if(c.correction_text)rows.push(['正しくすると',c.correction_text,'qbChoiceCorrection']);
   if(c.correct_for_other_context)rows.push(['別の文脈では',c.correct_for_other_context,'qbChoiceOtherContext']);
   if(c.examiner_distinction)rows.push(['区別ポイント',c.examiner_distinction,'qbChoiceDistinction']);
   return rows;
@@ -38,7 +38,7 @@ function choiceBody(q){
   const ans=q.ans||choices.map((c,i)=>c.is_correct?i:null).filter(i=>i!==null);
   return choices.map((c,i)=>{
     const key=c.choice_key||String.fromCharCode(97+i),text=c.choice_text||String(c),ok=ans.includes(i),ex=c.explanation||'未登録';
-    return `<div class="exp"><b>${esc(key)}. ${ok?'○':'×'} ${esc(text)}</b>${choiceDetailHtml(c,true)}<div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
+    return `<div class="exp"><b>${esc(key)}. ${ok?'【設問の正答】':''} ${esc(text)}</b>${choiceDetailHtml(c,true)}<div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
   }).join('');
 }
 function enhanceExistingChoiceCard(root,q){
@@ -52,6 +52,17 @@ function enhanceExistingChoiceCard(root,q){
     const note=exp.querySelector(':scope > .qbPersonal'),media=exp.querySelector(':scope > .qbMediaHostV2');
     if(note&&media&&note.nextElementSibling!==media)exp.insertBefore(note,media);
     if(exp.dataset.qbInlineChoiceEditing)return;
+    const h=exp.querySelector(':scope > b');
+    const title=`${c.choice_key||String.fromCharCode(97+i)}. ${(q.ans||[]).includes(i)?'【設問の正答】 ':''}${c.choice_text||''}`;
+    if(h&&h.textContent!==title)h.textContent=title;
+    let status=exp.querySelector(':scope > .qbStatementStatus');
+    const truth=c.statement_is_true;
+    if(typeof truth==='boolean'){
+      if(!status){status=document.createElement('div');status.className='qbStatementStatus';h?.after(status)}
+      const label=truth?'内容：正しい':'内容：誤り';
+      if(status.textContent!==label)status.textContent=label;
+      const color=truth?'var(--ok)':'var(--bad)';if(status.style.color!==color)status.style.color=color;
+    }else status?.remove();
     const details=detailRows(c);
     for(const cls of ['qbChoiceCorrection','qbChoiceOtherContext','qbChoiceDistinction']){
       if(!details.some(d=>d[2]===cls))exp.querySelector(':scope > .'+cls)?.remove();
