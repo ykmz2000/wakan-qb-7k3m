@@ -128,7 +128,7 @@ async function open(src,{title='画像をトリミング',rotatable=true}={}){
           const blob=await encoder(width,height,ctx=>{ctx.save();ctx.scale(sx,sy);ctx.drawImage(source,-Number(data.x||0)/sx,-Number(data.y||0)/sy);ctx.restore();},p=>{status.textContent='元解像度トリミング '+p+'%';});
           close(blob);return;
         }
-        await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?close(blob,undefined,resolve):reject(new Error('画像を生成できませんでした。')),'image/png'));
+        canvas.toBlob(blob=>{if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/png');
       }catch(e){failed(e)}
     };
     img.onload=()=>{
