@@ -86,7 +86,7 @@ async function core(browser,name){
   await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
   assert.equal(await p.evaluate(()=>document.querySelector('#backgroundEditor').inert),false);
   console.log(name+' PASS letter default, hidden-paste-focus Command undo/redo, native undo, background isolation and wheel capture');
-  await launch(p);assert.equal(await p.locator('.qbDrawSwatch').count(),7);let map=await mapping(p);
+  await launch(p);assert.equal(await p.locator('.qbDrawSwatch').count(),9);let map=await mapping(p);
   await p.locator('[data-tool=rect]').click();map=await mapping(p);await drag(p,map,[[100,100],[340,220]]);
   await p.locator('[data-tool=lasso]').click();await drag(p,map,[[100,160],[180,200]]);
   await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();await p.getByRole('button',{name:'↷ やり直す',exact:true}).click();

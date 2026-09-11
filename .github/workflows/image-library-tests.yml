@@ -5,13 +5,26 @@ on:
       - 'image-library-*.js'
       - 'image-library-v1.css'
       - 'image-viewer.js'
+      - 'image-editor-source-picker-v1.js'
       - 'theme-coverage-v2.js'
       - 'index.html'
       - 'save-shortcut-input-guard-v1.js'
       - 'supabase/image-library-*.sql'
       - 'tests/image-library*'
-      - 'tests/image-annotation-undo.browser.cjs'
+      - 'tests/image-annotation*'
+      - 'tests/image-editor*'
+      - 'tests/image-gallery*'
+      - 'tests/image-upload*'
+      - 'tests/explanation-image-layout.browser.cjs'
+      - 'image-annotation-model-v1.js'
       - 'image-annotation-editor-v1.js'
+      - 'image-annotation-v1.css'
+      - 'image-crop-editor-v1.js'
+      - 'question-image-export-v1.js'
+      - 'qb-media-notes-v2.js'
+      - 'image-edit-storage-v1.js'
+      - 'official-edit-images.js'
+      - 'question-stem-images-v2.js'
       - '.github/workflows/image-library-tests.yml'
 permissions:
   contents: read
@@ -25,6 +38,8 @@ jobs:
     container: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - uses: actions/checkout@v4
+      - name: Archive tested source revision
+        run: git -c safe.directory="$GITHUB_WORKSPACE" archive HEAD > /tmp/qb-ui-tested-source.tar
       - name: Prepare existing editor and browser dependencies
         run: |
           mkdir -p /tmp/qb-inline-build
@@ -40,9 +55,32 @@ jobs:
           node --check image-library-store-v1.js
           node --check image-library-ui-v1.js
           node --check image-library-integration-v1.js
-          node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs
+          node --check image-editor-source-picker-v1.js
+          node --check image-annotation-model-v1.js
+          node --check image-annotation-editor-v1.js
+          node --check image-crop-editor-v1.js
+          node --check question-image-export-v1.js
+          node --check image-edit-storage-v1.js
+          node --check official-edit-images.js
+          node --check question-stem-images-v2.js
+          node --test tests/image-library.unit.cjs tests/image-annotation.unit.cjs tests/image-upload-limits.unit.cjs
           test_status=0
-          for test_file in tests/image-gallery.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
+          for test_file in tests/explanation-image-layout.browser.cjs tests/image-editor-native.browser.cjs tests/image-editor-sources.browser.cjs tests/image-annotation.browser.cjs tests/image-crop.browser.cjs tests/image-gallery.browser.cjs tests/image-editor-ux.browser.cjs tests/image-library-upload-edit.browser.cjs tests/image-annotation-counter.browser.cjs tests/image-library-navigation.browser.cjs tests/image-library-modes.browser.cjs tests/image-library-ime.browser.cjs tests/image-annotation-undo.browser.cjs tests/image-library.browser.cjs tests/image-library-add.browser.cjs tests/image-library-upload-review.browser.cjs tests/image-library-sets.browser.cjs tests/image-library-community.browser.cjs tests/recent-image-scope-preview.browser.cjs; do
             node "$test_file" || test_status=1
           done
           exit "$test_status"
+      - name: Preserve reproducible test inputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qb-ui-tested-source
+          path: /tmp/qb-ui-tested-source.tar
+          retention-days: 1
+      - name: Preserve UI verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qb-ui-screenshots
+          path: test-results/ui/
+          if-no-files-found: ignore
+          retention-days: 7

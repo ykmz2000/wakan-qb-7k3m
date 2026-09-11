@@ -1,6 +1,7 @@
 /* New objects + conditional row update. Never overwrite a shared storage object. */
 (()=>{
 'use strict';
+const MAX_IMAGE_BYTES=100*1024*1024;
 const id=q=>String(q?.id||q?.dbId||'');
 function currentId(){try{return id(window.pq?.())}catch{return''}}
 async function authorize(c){
@@ -17,7 +18,7 @@ function scoped(c,query){query=query.eq('question_id',c.questionId);return c.use
 async function get(c,rowId){const r=await scoped(c,c.sb.from(table(c)).select('*').eq('id',rowId)).maybeSingle();if(r.error)throw r.error;if(!r.data)throw Error('画像が見つかりません。');return r.data}
 function ext(blob){return blob.type==='image/jpeg'?'jpg':blob.type==='image/webp'?'webp':blob.type==='image/gif'?'gif':blob.type==='image/heic'?'heic':blob.type==='image/heif'?'heif':'png'}
 function objectPath(c,blob){return c.userId?`${c.userId}/${c.questionId}/${c.noteId}/${crypto.randomUUID()}.${ext(blob)}`:`${c.questionId}/${c.placement}/${c.choiceId||'question'}/${crypto.randomUUID()}.${ext(blob)}`}
-async function upload(c,blob){if(!blob||blob.size>20*1024*1024)throw Error('保存する画像は20MB以下にしてください。');const path=objectPath(c,blob),r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}
+async function upload(c,blob){if(!blob||blob.size>MAX_IMAGE_BYTES)throw Error('保存する画像は100MB以下にしてください。');const path=objectPath(c,blob),r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}
 async function discardUnreferenced(c,path){
   // A failed response can still have committed. Preserve every referenced image version.
   const checks=await Promise.all(['image_path','original_image_path','annotation_base_image_path'].map(column=>c.sb.from(table(c)).select('id').eq(column,path).limit(1)));

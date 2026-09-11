@@ -1,7 +1,7 @@
 /* Coordinates are in image pixels, independent of zoom, screen size and DPR. */
 (()=>{
 'use strict';
-const colors=Object.freeze([{name:'赤',value:'#e04444'},{name:'青',value:'#2463d3'},{name:'オレンジ',value:'#f28c28'},{name:'緑',value:'#23995a'},{name:'水色',value:'#22b8dc'},{name:'ピンク',value:'#ef476f'},{name:'黄色',value:'#ffd63d'}]);
+const colors=Object.freeze([{name:'赤',value:'#e04444'},{name:'青',value:'#2463d3'},{name:'オレンジ',value:'#f28c28'},{name:'緑',value:'#23995a'},{name:'水色',value:'#22b8dc'},{name:'ピンク',value:'#ef476f'},{name:'黄色',value:'#ffd63d'},{name:'黒',value:'#111111'},{name:'白',value:'#ffffff'}]);
 const copy=x=>JSON.parse(JSON.stringify(x));
 const rect=(a,b)=>({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)});
 function lineEnd(a,b,mode){return mode==='horizontal'?{...b,y:a.y}:mode==='vertical'?{...b,x:a.x}:{...b}}
@@ -16,7 +16,40 @@ function inside(p,polygon){let hit=false;for(let i=0,j=polygon.length-1;i<polygo
 function lasso(items,polygon){if(polygon.length<3)return[];return items.filter(item=>{const b=bounds(item),samples=item.points||[item.a,item.b].filter(Boolean);return(samples.length?samples:[{x:b.x,y:b.y},{x:b.x+b.w,y:b.y},{x:b.x,y:b.y+b.h},{x:b.x+b.w,y:b.y+b.h},{x:b.x+b.w/2,y:b.y+b.h/2}]).every(p=>inside(p,polygon))}).map(x=>x.id)}
 function transform(item,from,to){const out=copy(item),sx=to.w/Math.max(from.w,1),sy=to.h/Math.max(from.h,1),map=p=>({...p,x:to.x+(p.x-from.x)*sx,y:to.y+(p.y-from.y)*sy});if(out.points)out.points=out.points.map(map);else if(out.type==='arrow'){out.a=map(out.a);out.b=map(out.b)}else{Object.assign(out,map(out));out.w*=sx;out.h*=sy}if(out.width)out.width*=Math.sqrt(Math.abs(sx*sy));if(out.fontSize)out.fontSize*=Math.sqrt(Math.abs(sx*sy));return out}
 function distance(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)}
-function hit(item,p,tol){if(item.points){return item.points.some((b,i)=>distance(p,item.points[Math.max(0,i-1)],b)<=tol+item.width/2)}if(item.type==='arrow')return distance(p,item.a,item.b)<=tol+item.width*2;const b=bounds(item);if(item.type==='rect'){const corners=[{x:b.x,y:b.y},{x:b.x+b.w,y:b.y},{x:b.x+b.w,y:b.y+b.h},{x:b.x,y:b.y+b.h}];return corners.some((a,i)=>distance(p,a,corners[(i+1)%4])<=tol+(item.width||0)/2)}return p.x>=b.x-tol&&p.y>=b.y-tol&&p.x<=b.x+b.w+tol&&p.y<=b.y+b.h+tol}
+function hit(item,p,tol){if(item.points){return item.points.some((b,i)=>distance(p,item.points[Math.max(0,i-1)],b)<=tol+item.width/2)}if(item.type==='arrow')return distance(p,item.a,item.b)<=tol+item.width*2;const b=bounds(item);if(item.type==='rect'){const corners=[{x:b.x,y:b.y},{x:b.x+b.w,y:b.y},{x:b.x+b.w,y:b.y+b.h},{x:b.x,y:b.y+b.h}];return corners.some((a,i)=>distance(p,a,corners[(i+1)%4])<=tol+(item.width||0)/2)}if(item.type==='circle'||item.type==='ellipse'){const cx=b.x+b.w/2,cy=b.y+b.h/2,rx=b.w/2,ry=b.h/2,t=tol+(item.width||0)/2,outer=((p.x-cx)/(rx+t))**2+((p.y-cy)/(ry+t))**2,inner=rx>t&&ry>t?((p.x-cx)/(rx-t))**2+((p.y-cy)/(ry-t))**2:Infinity;return outer<=1&&inner>=1}return p.x>=b.x-tol&&p.y>=b.y-tol&&p.x<=b.x+b.w+tol&&p.y<=b.y+b.h+tol}
+function reorder(items,selectedIds,mode){
+  const selected=new Set(selectedIds||[]),out=(items||[]).map(copy);if(!selected.size)return out;
+  if(mode==='front'){const a=out.filter(i=>!selected.has(i.id)),b=out.filter(i=>selected.has(i.id));return [...a,...b]}
+  if(mode==='back'){const a=out.filter(i=>selected.has(i.id)),b=out.filter(i=>!selected.has(i.id));return [...a,...b]}
+  if(mode==='forward'){for(let i=out.length-2;i>=0;i--)if(selected.has(out[i].id)&&!selected.has(out[i+1].id))[out[i],out[i+1]]=[out[i+1],out[i]];return out}
+  if(mode==='backward'){for(let i=1;i<out.length;i++)if(selected.has(out[i].id)&&!selected.has(out[i-1].id))[out[i-1],out[i]]=[out[i],out[i-1]];return out}
+  return out;
+}
+function snapMove(items,selectedIds,dx,dy,sceneWidth,sceneHeight,zoom=1,thresholdPx=10){
+  const selected=new Set(selectedIds||[]),moving=(items||[]).filter(i=>selected.has(i.id)),box=union(moving);if(!box)return{dx,dy,guides:[]};
+  const threshold=Math.max(.01,thresholdPx/Math.max(.02,zoom)),others=(items||[]).filter(i=>!selected.has(i.id));
+  const xTargets={start:[0],center:[sceneWidth/2],end:[sceneWidth]},yTargets={start:[0],center:[sceneHeight/2],end:[sceneHeight]};
+  for(const item of others){const b=bounds(item);xTargets.start.push(b.x);xTargets.center.push(b.x+b.w/2);xTargets.end.push(b.x+b.w);yTargets.start.push(b.y);yTargets.center.push(b.y+b.h/2);yTargets.end.push(b.y+b.h)}
+  const xAnchors={start:box.x+dx,center:box.x+box.w/2+dx,end:box.x+box.w+dx},yAnchors={start:box.y+dy,center:box.y+box.h/2+dy,end:box.y+box.h+dy};
+  function best(anchors,targets){let found=null;for(const role of ['start','center','end'])for(const target of targets[role]){const delta=target-anchors[role],distance=Math.abs(delta);if(distance<=threshold&&(!found||distance<found.distance))found={delta,distance,value:target}}return found}
+  const sx=best(xAnchors,xTargets),sy=best(yAnchors,yTargets),guides=[];if(sx)guides.push({axis:'x',value:sx.value});if(sy)guides.push({axis:'y',value:sy.value});return{dx:dx+(sx?.delta||0),dy:dy+(sy?.delta||0),guides};
+}
+// Scene units are layout coordinates. Export density must cover the densest source.
+// Integer density keeps the original base pixel grid intact. Never silently downsample.
+function nativeExportPlan(scene,assetSize){
+  if(!scene||![scene.width,scene.height].every(n=>Number.isFinite(n)&&n>0))throw Error('画像サイズが不正です。');
+  let density=1;
+  for(const item of [scene.base,...(scene.items||[]).filter(i=>i.type==='image')].filter(Boolean)){
+    if(![item.x,item.y,item.w,item.h].every(Number.isFinite)||item.w<=0||item.h<=0)throw Error('追加画像のサイズが不正です。');
+    if(item.x>=scene.width||item.y>=scene.height||item.x+item.w<=0||item.y+item.h<=0)continue;
+    const original=assetSize(item.assetId);
+    if(!original||![original.width,original.height].every(n=>Number.isFinite(n)&&n>0))throw Error('元画像の解像度を確認できません。');
+    density=Math.max(density,original.width/item.w,original.height/item.h);
+  }
+  const scale=Math.ceil(density-1e-9),width=Math.ceil(scene.width*scale),height=Math.ceil(scene.height*scale);
+  if(!Number.isSafeInteger(width*height)||width>0x7fffffff||height>0x7fffffff)throw Error('元解像度で保存できる画像寸法を超えています。画像を分けて保存してください。');
+  return {width,height,scale};
+}
 function fitSize(w,h,maxPixels=12000000,maxSide=16384){if(!(w>0&&h>0&&Number.isFinite(w)&&Number.isFinite(h)))throw Error('画像サイズが不正です');const scale=Math.min(1,Math.sqrt(maxPixels/(w*h)),maxSide/w,maxSide/h);return{width:Math.max(1,Math.floor(w*scale)),height:Math.max(1,Math.floor(h*scale)),scale}}
 class History{
   constructor(state){this.past=[];this.future=[];this.current=copy(state)}
@@ -27,7 +60,6 @@ class History{
 function stabilize(previous,point,strength,zoom=1){const radius=Math.max(0,Math.min(100,Number(strength)||0))*.08/Math.max(.02,zoom);if(!radius)return{...point};const distance=Math.hypot(point.x-previous.x,point.y-previous.y),alpha=1-Math.exp(-distance/radius);return{...point,x:previous.x+(point.x-previous.x)*alpha,y:previous.y+(point.y-previous.y)*alpha}}
 function counterLabel(value,mode='number'){if(mode!=='letter')return String(value);let n=value,label='';while(n>0){n--;label=String.fromCharCode(97+n%26)+label;n=Math.floor(n/26)}return label}
 function counterValue(text,mode='number'){const t=String(text).trim();if(mode==='letter'){if(!/^[a-z]{1,4}$/.test(t))return null;return [...t].reduce((n,c)=>n*26+c.charCodeAt(0)-96,0)}return /^[1-9]\d{0,5}$/.test(t)?Number(t):null}
-const api={counterLabel,counterValue,colors,copy,rect,lineEnd,shapeRect,bounds,union,inside,lasso,transform,hit,fitSize,History,stabilize};
+const api={counterLabel,counterValue,colors,copy,rect,lineEnd,shapeRect,bounds,union,inside,lasso,transform,hit,reorder,snapMove,nativeExportPlan,fitSize,History,stabilize};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.QBImageModel=api;
 })();
-

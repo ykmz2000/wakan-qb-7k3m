@@ -31,8 +31,10 @@ async function render(Q,options={}){
   const choices=[...(Q.choices||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   if(choices.length){if(Q.answer_mode==='fill_blank')text('参考選択肢',24,true,14);for(const c of choices)text(`${c.choice_key}. ${c.choice_text}`,30,false,12)}
   y+=22;blocks.push({type:'line',y});y+=24;text('解答',28,true,12);text(answers(Q),30,false,0);y+=pad;
-  const scale=requestedWidth/width,dim=window.QBImageModel.fitSize(requestedWidth,y*scale,24000000);canvas.width=dim.width;canvas.height=dim.height;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
+  let scale=requestedWidth/width;if(options.native)for(const b of blocks)if(b.type==='image')scale=Math.max(scale,b.image.naturalWidth/b.w,b.image.naturalHeight/b.h);
+  const dim=options.native?{width:Math.ceil(width*scale),height:Math.ceil(y*scale)}:window.QBImageModel.fitSize(requestedWidth,y*scale,24000000);
   const theme=getComputedStyle(document.documentElement),accent=theme.getPropertyValue('--accent').trim()||'#126fb3',marker=theme.getPropertyValue('--accent-soft').trim()||'#eaf4fb';
+  const paint=ctx=>{ctx.imageSmoothingEnabled=!options.native;ctx.scale(dim.width/width,dim.height/y);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,y);ctx.textBaseline='top';
   for(const b of blocks){
     if(b.type==='image'){ctx.drawImage(b.image,b.x,b.y,b.w,b.h);continue}
     if(b.type==='line'){ctx.strokeStyle='#ccd3dd';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pad,b.y);ctx.lineTo(width-pad,b.y);ctx.stroke();continue}
@@ -46,7 +48,8 @@ async function render(Q,options={}){
       offset+=line.length;if(b.source[offset]==='\n')offset++;
     });
   }
-  const blob=await new Promise((resolve,reject)=>{canvas.toBlob(b=>b?resolve(b):reject(Error('画像の作成に失敗しました。')),'image/png')});canvas.width=canvas.height=1;
+  };
+  let blob;if(options.native){if(!window.QBImageEditor?.encodePng)throw Error('元解像度の画像出力機能を読み込めません。');blob=await window.QBImageEditor.encodePng(dim.width,dim.height,paint)}else{canvas.width=dim.width;canvas.height=dim.height;paint(ctx);blob=await new Promise((resolve,reject)=>{canvas.toBlob(b=>b?resolve(b):reject(Error('画像の作成に失敗しました。')),'image/png')});}canvas.width=canvas.height=1;
   return{blob,width:dim.width,height:dim.height,requestedWidth,adjusted:dim.width<requestedWidth,filename:`問題と解答-${id.slice(0,8)}.png`};
 }
 function close(){if(!menu)return;menu.remove();menu=null}
