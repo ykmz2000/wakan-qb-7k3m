@@ -11,6 +11,10 @@ async function run(browser,label){
  await p.addScriptTag({content:fs.readFileSync(path.join(root,'image-annotation-editor-v1.js'),'utf8')});
  await p.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=600;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,600);x.fillStyle='#000';x.fillRect(100,100,1,200);QBImageEditor.open(c.toDataURL(),{onSave:async(blob,dim)=>{window.savedBlob=blob;window.savedDimensions=dim}})});
  await p.locator('.qbDrawSave:enabled').waitFor();
+ await p.waitForFunction(()=>Number(document.querySelector('.qbDrawStage')?.dataset.zoom)>0);
+ const pinch=await p.locator('.qbDrawStage').evaluate(stage=>{const r=stage.getBoundingClientRect(),before=Number(stage.dataset.zoom),e=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-150,clientX:r.left+r.width/2,clientY:r.top+r.height/2});stage.dispatchEvent(e);return{before,prevented:e.defaultPrevented,width:r.width}});assert.equal(pinch.prevented,true);await p.waitForFunction(before=>Number(document.querySelector('.qbDrawStage').dataset.zoom)>before*1.5,pinch.before);
+ const native=await p.locator('.qbDrawStage').evaluate(stage=>{const before=Number(stage.dataset.zoom),r=stage.getBoundingClientRect();for(const [type,scale] of [['gesturestart',1],['gesturechange',1.5],['gestureend',1.5]]){const e=new Event(type,{bubbles:true,cancelable:true});Object.assign(e,{scale,clientX:r.left+r.width/2,clientY:r.top+r.height/2});window.dispatchEvent(e);if(!e.defaultPrevented)throw Error('Native pinch leaked to browser')}return before});await p.waitForFunction(before=>Number(document.querySelector('.qbDrawStage').dataset.zoom)>before*1.4,native);assert.equal((await p.locator('.qbDrawStage').boundingBox()).width,pinch.width);
+ await p.getByRole('button',{name:'全体表示',exact:true}).click();
  for(let n=0;n<3;n++)await p.getByRole('button',{name:'右に余白',exact:true}).click();
  await p.evaluate(async()=>{
    const c=document.createElement('canvas');c.width=1600;c.height=1200;const x=c.getContext('2d');x.fillStyle='white';x.fillRect(0,0,1600,1200);

@@ -37,6 +37,7 @@ async function run(browser,name){
   await p.route('**/*',r=>r.abort());
   await p.setContent('<!doctype html><html style="overflow:scroll"><head><style>:root{--accent:rgb(190,35,106);--card:#fff;--text:#172033;--line:#ddd}*{box-sizing:border-box}body{margin:0}</style></head><body><button id="opener">開く</button></body></html>');
   await install(p);
+  await launch(p);const trackpad=await p.locator('.qbCropStage').evaluate(stage=>{const cp=document.querySelector('.qbCropImage').cropper,r=stage.getBoundingClientRect(),before=cp.getCanvasData().width,e=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-150,clientX:r.left+r.width/2,clientY:r.top+r.height/2});stage.dispatchEvent(e);return{before,after:cp.getCanvasData().width,prevented:e.defaultPrevented}});assert.ok(trackpad.prevented&&trackpad.after>trackpad.before*1.5);await cancel(p);
   for(const [width,height] of [[1200,800],[600,3000],[2400,400],[80,60]]){
     await launch(p,width,height);const d=await data(p);near(d.x,0,'initial x');near(d.y,0,'initial y');near(d.width,width,'full width');near(d.height,height,'full height');await cancel(p);
   }

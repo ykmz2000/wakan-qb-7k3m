@@ -27,3 +27,12 @@ PDFカードは1ページ目とページ数を表示します。専用ビュー�
 `supabase/file-media-v1.sql` は既存コピーRPCの拡張子検査にPDFを追加し、対象3バケットの許可MIMEにapplication/pdfを追加します。公開状態、100MiB上限、RLSや所有者の条件、既存の問題・解答・画像紐付けを変更しません。
 
 新規ブラウザーテスト：`file-media.browser.cjs`、`library-file-batch.browser.cjs`、`image-crop-scene.browser.cjs`。ChromiumとWebKitの両方で検証します。実機iPad、OSからのPDFクリップボード、100MiB実ファイル通信は別途確認対象です。
+
+
+## PDF page reading and organization (2026-09-11)
+
+- Inline attachment PDFs expose every page in order. Each page is keyboard focusable and opens that exact page. Render near the viewport at display width × device pixel ratio (up to 3), bounded by 8 million pixels/8192 pixels per edge. Offscreen bitmaps are released. Library grid covers remain bounded.
+- Popup previous/next traverses pages, then adjacent attachments within the same media group. Reverse navigation into a PDF starts on its last page. Original row order and independent duplicate rows are retained.
+- PDF editor provides page selection, move earlier/later, and insertion after the current page from blank, image files, or PDF files. Source pages and editable overlays are remapped together; imported app PDFs retain their editable overlays. Page operations validate a replacement before committing it.
+- Viewer trackpad handling supports Ctrl/Meta wheel and native gesture events, with deduplication. Crop editor receives the same zoom input. Browser zoom shortcuts outside media surfaces remain unchanged.
+- Browser regressions cover inline page selection, mixed-media boundaries, PDF order and editable import persistence, wheel zoom and native gesture cancellation. Physical Mac trackpad behavior still requires a real-device check.
