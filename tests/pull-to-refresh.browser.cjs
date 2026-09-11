@@ -85,8 +85,9 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),true);assert.equal(await p.locator('.fbInput').first().inputValue(),'入力を保持');
  await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').waitFor();
  await p.evaluate(()=>{testDB.subjects[0].name='新しい科目名';window.scrollTo(0,0)});
+ assert.equal(await p.locator('.qbDataRefresh').count(),0);
  // Touch event delivery on both engines, including threshold and pinch cancellation.
- const gesture=async(distance,count=1)=>p.evaluate(({distance,count})=>{const target=document.querySelector('#view .title');const fire=(type,y,n)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count);fire('touchend',100+distance,0)},{distance,count});
+ const gesture=async(distance,count=1)=>p.evaluate(({distance,count})=>{const target=document.querySelector('#view .title');const fire=(type,y,n)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count);if(count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');}fire('touchend',100+distance,0)},{distance,count});
  await gesture(35);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100,2);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('新しい'));

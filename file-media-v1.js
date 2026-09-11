@@ -2,10 +2,10 @@
 (()=>{
 'use strict';
 const MAX=100*1024*1024;
-const isPDF=value=>typeof value==='string'?/\.pdf(?:[?#]|$)/i.test(value):value?.type==='application/pdf'||/\.pdf$/i.test(value?.name||'');
+const isPDF=value=>typeof value==='string'?/\.pdf(?:[?#]|$)/i.test(value):/^application\/(?:x-)?pdf$/i.test(value?.type||'')||/\.pdf$/i.test(value?.name||'');
 const supported=file=>isPDF(file)||/^image\//.test(file?.type||'');
 function filesFromPaste(e){const files=[...(e.clipboardData?.files||[])].filter(supported);return files.length?files:[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(supported)}
-async function clipboardFiles(){const files=[];if(!navigator.clipboard?.read)return files;for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>t==='application/pdf')||item.types.find(t=>t.startsWith('image/'));if(type)files.push(new File([await item.getType(type)],'貼り付け.'+(type==='application/pdf'?'pdf':type.split('/')[1]),{type}))}return files}
+async function clipboardFiles(){const files=[];if(!navigator.clipboard?.read)return files;for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>/^application\/(?:x-)?pdf$/i.test(t))||item.types.find(t=>t.startsWith('image/'));if(type)files.push(new File([await item.getType(type)],'貼り付け.'+(/pdf$/i.test(type)?'pdf':type.split('/')[1]),{type}))}return files}
 async function validate(file){if(!file?.size||file.size>MAX)throw Error('ファイルは100MiB以下にしてください。');if(!supported(file))throw Error('画像またはPDFを選択してください。');if(isPDF(file)){const header=new TextDecoder().decode(await file.slice(0,1024).arrayBuffer());if(!header.includes('%PDF-'))throw Error('PDFの内容を確認できません。');return new File([file],file.name||'資料.pdf',{type:'application/pdf'})}return file}
 let enginePromise;
 async function engine(){if(!enginePromise)enginePromise=import('./vendor/pdfjs/pdf.mjs').then(pdf=>{pdf.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.mjs',document.baseURI).href;return pdf}).catch(e=>{enginePromise=null;throw e});return enginePromise}
@@ -52,5 +52,5 @@ async function open(source,{pickPage=false}={}){
  return result;
 }
 function boot(){scan();new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)scan(n)}).observe(document.body,{childList:true,subtree:true})}
-window.QBFiles={isPDF,supported,validate,filesFromPaste,clipboardFiles,markup,present,open,previewPage};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.QBFiles={documentTask,isPDF,supported,validate,filesFromPaste,clipboardFiles,markup,present,open,previewPage};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
