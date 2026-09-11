@@ -88,7 +88,8 @@ async function run(type,name){
     assert.ok(result.imageSizes.some(s=>s.width===3600&&s.height===1200),'wide native picture must remain intact');
     assert.ok(result.imageSizes.some(s=>s.width===900&&s.height===1000),'JPEG normalization must keep native size');
     const imageRows=result.meta.flatMap(m=>m.items||[]).filter(i=>i.type==='imageRow');
-    assert.deepEqual(imageRows.map(r=>r.images.length),[3,3,3]);
+    // The wide seventh image keeps its own row; the two PDF pages stay together on the next row.
+    assert.deepEqual(imageRows.map(r=>r.images.length),[3,3,1,2]);
     imageRows.forEach(r=>r.images.forEach(i=>assert.ok(i.imageHeight/1123*297<=50.001)));
     for(const m of result.meta.filter(m=>m.items))for(const i of m.items)assert.ok(i.y>=86&&i.y+i.height<=1065,JSON.stringify(i));
     assert.deepEqual(result.meta.flatMap(m=>m.items||[]).flatMap(i=>i.images||[]).map(i=>i.imageId),['i1','i2','i3','i4','i5','i6','i7','pdf:pdf-page:1','pdf:pdf-page:2']);
