@@ -42,3 +42,6 @@ PDFカードは1ページ目とページ数を表示します。専用ビュー�
 Inline PDF pages keep their aspect ratio within 380 × 400 CSS pixels and available width, without a viewer backdrop. They still render from the PDF at display density. In PDF and image viewers, one-finger horizontal swipes navigate even while zoomed; two fingers pan/pinch. Lifting one finger after a pinch cannot trigger a swipe. Single-finger double-tap zoom is disabled; zoom buttons and trackpad gestures remain available.
 
 PDF annotation dialogs provide previous/next page buttons. Navigation applies the current editable overlay to the pending document and opens the next page directly; returning restores editable items. The final PDF save persists the document. Recent-file PDF cards are passive previews: a tap selects and a long press opens details.
+
+PDF page organization uses a dedicated thumbnail dialog: drag handles reorder, thumbnail taps select multiple pages, delete keeps at least one page, and undo/cancel preserve the draft. Apply remaps original pages and editable overlays together.
+Eraser removes whole strokes or annotation objects while skipping image objects; selected photos remain deletable with Delete. Erasing is undoable.

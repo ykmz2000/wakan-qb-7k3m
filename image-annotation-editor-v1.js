@@ -88,7 +88,7 @@ async function open(source,options={}){
   let done;const result=new Promise(resolve=>{done=resolve});current={modal};
   let scene=null,resetScene=null,history=null,selection=[],tool='pen',color=M.colors[0].value,zoom=1,ox=0,oy=0,frame=0,closed=false,busy=false,subDialog=false,changed=false,gesture=null,lassoPoints=null,penDown=false,textStart=null,snapGuides=[];
   const pointers=new Map();let textHistory=null,textComposing=false;let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=-Infinity,lastPoint=null;
-  if(['lasso','pen','marker','text','arrow','rect','circle','ellipse','counter','image'].includes(preferences.tool))tool=preferences.tool;
+  if(['eraser','lasso','pen','marker','text','arrow','rect','circle','ellipse','counter','image'].includes(preferences.tool))tool=preferences.tool;
   if(M.colors.some(c=>c.value===preferences.color))color=preferences.color;
   if([2,5,10].includes(preferences.size))size.value=preferences.size;
   if([16,24,32,48,64,96].includes(preferences.font))font.value=preferences.font;
@@ -107,7 +107,7 @@ async function open(source,options={}){
   function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textHistory=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
   function useTool(next){if(busy||subDialog||gesture)return;commitText();tool=next;snapGuides=[];remember();selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
   function select(ids){commitText();selection=ids;const item=scene.items.find(i=>ids.length===1&&i.id===ids[0]);if(item){color=item.color||color;if(item.type==='text'){textInput.value=item.text;font.value=String(item.fontSize)}}update()}
-  const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['text','文字'],['counter','連番'],['arrow','矢印'],['rect','四角い枠'],['circle','正円の枠'],['ellipse','楕円の枠']];
+  const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['eraser','消しゴム'],['text','文字'],['counter','連番'],['arrow','矢印'],['rect','四角い枠'],['circle','正円の枠'],['ellipse','楕円の枠']];
   for(const [name,label] of toolsList){const b=btn(label,'',()=>useTool(name));b.dataset.tool=name;b.setAttribute('aria-pressed',String(tool===name));tools.append(b)}
   const fileInput=el('input');fileInput.type='file';fileInput.accept='image/*,application/pdf';fileInput.multiple=true;fileInput.hidden=true;fileInput.onchange=()=>{addImages([...fileInput.files]);fileInput.value=''};
   const imageButton=btn('画像追加','',()=>chooseImageSource());imageButton.dataset.tool='image';imageButton.setAttribute('aria-pressed',String(tool==='image'));tools.append(imageButton,fileInput);
@@ -234,6 +234,7 @@ async function open(source,options={}){
   }
   function abortGesture(){if(gesture?.before)scene=gesture.before;gesture=null;lassoPoints=null;snapGuides=[];requestDraw()}
   function touchPair(){const p=[...pointers.values()].filter(x=>x.type==='touch');return p.length>=2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,dist:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)}:null}
+  function eraseAt(p){const hit=[...scene.items].reverse().find(i=>i.type!=='image'&&M.hit(i,p,10/zoom));if(hit){scene.items=scene.items.filter(i=>i.id!==hit.id);selection=selection.filter(id=>id!==hit.id);requestDraw()}}
   const directTypes=new Set(['image','rect','circle','ellipse','counter','arrow','text']);
   listen(canvas,'pointerdown',e=>{
     if(!scene||busy||subDialog||e.button>0)return;e.preventDefault();try{canvas.setPointerCapture(e.pointerId)}catch{}const l=local(e);pointers.set(e.pointerId,{...l,type:e.pointerType});
@@ -249,6 +250,7 @@ async function open(source,options={}){
     }
     if(tool==='text'&&selection.length){select([]);return}
     if(e.pointerType==='touch'&&!finger.checked&&tool!=='counter'){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
+    if(tool==='eraser'){gesture={kind:'erase',before:M.copy(scene),last:p,id:e.pointerId};eraseAt(p);return}
     if(tool==='lasso'){select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return}
     if(p.x<0||p.y<0||p.x>scene.width||p.y>scene.height)return;
     if(tool==='image')return;
@@ -260,7 +262,8 @@ async function open(source,options={}){
     lastPoint=local(e);if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
     const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){if(pinch){const ratio=pair.dist/Math.max(1,pinch.dist);zoomAt(ratio,pinch);ox+=pair.x-pinch.x;oy+=pair.y-pinch.y;requestDraw()}pinch=pair;return}
     if(pinch||!gesture||gesture.id!==e.pointerId)return;const g=gesture,p=point(e);
-    if(g.kind==='counter'){const l=local(e);if(Math.hypot(l.x-g.start.x,l.y-g.start.y)>6)g.moved=true;if(g.moved){ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}}
+    if(g.kind==='erase'){const steps=Math.max(1,Math.ceil(Math.hypot(p.x-g.last.x,p.y-g.last.y)*zoom/5));for(let n=1;n<=steps;n++)eraseAt({x:g.last.x+(p.x-g.last.x)*n/steps,y:g.last.y+(p.y-g.last.y)*n/steps});g.last=p}
+    else if(g.kind==='counter'){const l=local(e);if(Math.hypot(l.x-g.start.x,l.y-g.start.y)>6)g.moved=true;if(g.moved){ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}}
     else if(g.kind==='pan'){const l=local(e);ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}
     else if(g.kind==='draw'){if(g.item.straight){g.item.points=[g.start,straightEnd(g,p)]}else if(g.item.points){const events=e.getCoalescedEvents?.()||[e];for(const ev of events.length?events:[e]){const last=g.item.points.at(-1),n=M.stabilize(last,point(ev),g.correction,g.strokeZoom);if(Math.hypot(n.x-last.x,n.y-last.y)>=.6/zoom)g.item.points.push(n)}}else if(['rect','circle','ellipse'].includes(g.item.type))Object.assign(g.item,M.shapeRect(g.start,p,g.item.type));else g.item.b=p}
     else if(g.kind==='lasso')lassoPoints.push(p);
