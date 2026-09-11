@@ -24,7 +24,7 @@ function addCard(root,title,body,cls='line'){
 }
 function detailRows(c){
   const rows=[];
-  if(c.correction_text)rows.push(['正しくすると',c.correction_text,'qbChoiceCorrection']);
+  if(String(c.correction_text||'').trim()&&!/^未登録[。.]?$/.test(String(c.correction_text).trim()))rows.push(['正しくすると',c.correction_text,'qbChoiceCorrection']);
   if(c.correct_for_other_context)rows.push(['別の文脈では',c.correct_for_other_context,'qbChoiceOtherContext']);
   if(c.examiner_distinction)rows.push(['区別ポイント',c.examiner_distinction,'qbChoiceDistinction']);
   return rows;

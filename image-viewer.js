@@ -199,8 +199,16 @@ function previewSize(img){
   if(!img?.matches?.('#ans .qbMediaHostV2>.qbPublicImageWrap>.qbMediaImg')||!img.naturalWidth||!img.naturalHeight)return;
   const ratio=img.naturalWidth/img.naturalHeight;img.parentElement.dataset.qbWide=String(ratio>=2);img.parentElement.style.setProperty('--qb-preview-width',Math.min(380,Math.max(220,Math.min(img.naturalWidth,400*ratio)))+'px');
 }
+// Transformation services may reject a valid, large original. Retry that same
+// edited original once; never fall back to the pre-edit image.
+function recoverPreview(img){
+  if(!img?.matches?.(TARGET)||!img.dataset.originalSrc)return;
+  const original=img.dataset.originalSrc;
+  if(img.getAttribute('src')===original)return;
+  img.removeAttribute('srcset');img.src=original;
+}
 function boot(){
-  css();document.addEventListener('load',e=>previewSize(e.target),true);
+  css();document.addEventListener('error',e=>recoverPreview(e.target),true);document.querySelectorAll(TARGET).forEach(img=>{if(img.complete&&!img.naturalWidth)recoverPreview(img)});document.addEventListener('load',e=>previewSize(e.target),true);
   document.querySelectorAll('.qbMediaImg').forEach(previewSize);
   new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)if(n instanceof Element){previewSize(n);n.querySelectorAll('.qbMediaImg').forEach(previewSize)}}).observe(document.body,{childList:true,subtree:true});document.addEventListener('click',e=>{
     const img=e.target?.closest?.('img');if(!img?.matches(TARGET)||active)return;

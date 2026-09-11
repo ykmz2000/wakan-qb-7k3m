@@ -16,6 +16,13 @@ async function run(browser,label){
  const mobile=await page.locator('#wide img').boundingBox();assert.ok(mobile.width>300&&mobile.width<390);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  const small=await page.locator('#portraits img').evaluateAll(xs=>xs.map(i=>i.getBoundingClientRect().top));assert.ok(small[1]>small[0]);
  await page.locator('#wide img').click();await page.waitForFunction(()=>document.querySelector('.qbImageLightboxStage img')?.naturalWidth===4000);await page.locator('.qbImageLightboxClose').click();
+ // Oversized transformed previews fail with 400 while the edited original is valid.
+ let previewRequests=0,originalRequests=0;
+ await page.route('https://media.test/**',r=>{if(r.request().url().includes('/render/')){previewRequests++;return r.fulfill({status:400,body:'source image resolution is too large'})}originalRequests++;return r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="300"><rect width="800" height="300" fill="red"/></svg>'})});
+ await page.evaluate(()=>{const i=document.querySelector('#wide img');i.dataset.originalSrc='https://media.test/edited.png';i.src='https://media.test/render/edited.png'});
+ await page.waitForFunction(()=>{const i=document.querySelector('#wide img');return i.src==='https://media.test/edited.png'&&i.complete&&i.naturalWidth===800});
+ assert.equal(previewRequests,1);assert.equal(originalRequests,1);
+ await page.locator('#wide img').click();await page.waitForFunction(()=>document.querySelector('.qbImageLightboxStage img')?.src==='https://media.test/edited.png'&&document.querySelector('.qbImageLightboxStage img')?.naturalWidth===800);await page.locator('.qbImageLightboxClose').click();
  assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS 760px wide-image allowance, 400px portrait cap, horizontal flow, mobile wrapping and native enlargement');
 }
 (async()=>{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,label)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
