@@ -1,0 +1,50 @@
+name: Test and apply PR25 WebKit Blob decode fix
+on:
+  push:
+    branches: ['feat/image-editor-ux-and-large-images']
+    paths: ['.github/workflows/pr25-webkit-blob-fix.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Patch Blob decoding without changing source pixels
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          def sha(p): return subprocess.check_output(['git','hash-object',str(p)],text=True).strip()
+          p=Path('image-annotation-editor-v1.js')
+          assert sha(p)=='81064767d41cf1ee502b0fe59be89e811e6be897', 'Editor changed; inspect first'
+          s=p.read_text()
+          old="  const asset=async input=>{if(input instanceof Blob&&input.size>MAX_IMAGE_BYTES)throw Error('追加する画像は100MB以下にしてください。');const url=input instanceof Blob?URL.createObjectURL(input):String(input);if(input instanceof Blob)urls.push(url);const img=await loadImage(url),id='asset-'+(++sequence);assets.set(id,{img,url});return id};"
+          new="  const asset=async input=>{const isBlob=input instanceof Blob;if(isBlob&&input.size>MAX_IMAGE_BYTES)throw Error('追加する画像は100MB以下にしてください。');const url=isBlob?URL.createObjectURL(input):String(input);if(isBlob)urls.push(url);let img;if(isBlob&&typeof createImageBitmap==='function'){try{img=await createImageBitmap(input)}catch{img=await loadImage(url)}}else img=await loadImage(url);const id='asset-'+(++sequence);assets.set(id,{img,url});return id};"
+          assert s.count(old)==1
+          s=s.replace(old,new)
+          old="  function close(value){if(closed)return;remember();closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();background.forEach(([n,inert])=>n.inert=inert);document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}"
+          new="  function close(value){if(closed)return;remember();closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());for(const a of assets.values())a.img?.close?.();urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();background.forEach(([n,inert])=>n.inert=inert);document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}"
+          assert s.count(old)==1
+          p.write_text(s.replace(old,new))
+          PY
+          node --check image-annotation-editor-v1.js
+          git diff --check
+      - name: Run source-route regression in Chromium and WebKit
+        shell: bash
+        run: |
+          npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0
+          NODE_PATH=/tmp/qb-browser-tests/node_modules node tests/image-editor-sources.browser.cjs
+      - name: Commit only after both engines pass
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add image-annotation-editor-v1.js
+          git commit -m 'Decode imported image Blobs directly on WebKit'
+          git push origin HEAD:refs/heads/feat/image-editor-ux-and-large-images
