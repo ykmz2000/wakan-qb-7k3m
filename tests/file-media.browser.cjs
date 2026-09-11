@@ -29,7 +29,7 @@ async function run(browser,label,url){
  await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
  assert.equal(await p.locator('#origin').evaluate(n=>n.inert),true);
- const color=()=>p.locator('.qbPdfPage').evaluate(c=>Array.from(c.getContext('2d').getImageData(10,10,1,1).data));
+ const color=async()=>{const handle=await p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage');if(!c||c.width<=10||c.height<=10)return false;const pixel=Array.from(c.getContext('2d').getImageData(10,10,1,1).data);return pixel[3]===255&&pixel});return handle.jsonValue()};
  assert.deepEqual(await color(),[255,0,0,255]);await p.getByRole('button',{name:'2ページを表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);
  await p.getByRole('button',{name:'＋',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);await p.waitForFunction(()=>document.querySelectorAll('.qbPdfPageStrip canvas').length===3);await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
  await p.getByRole('button',{name:'閉じる',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});assert.equal(await p.locator('#origin').evaluate(n=>n.inert),false);

@@ -45,3 +45,4 @@ PDF annotation dialogs provide previous/next page buttons. Navigation applies th
 
 PDF page organization uses a dedicated thumbnail dialog: drag handles reorder, thumbnail taps select multiple pages, delete keeps at least one page, and undo/cancel preserve the draft. Apply remaps original pages and editable overlays together.
 Eraser removes whole strokes or annotation objects while skipping image objects; selected photos remain deletable with Delete. Erasing is undoable.
+Photo long-press, stationary two-finger tap, or context click opens Delete/Copy/Save. Moving cancels the menu gesture. Copy retains source and crop metadata, with a local paste action if system clipboard writing is unavailable. Saving writes native-resolution PNG plus editable metadata.

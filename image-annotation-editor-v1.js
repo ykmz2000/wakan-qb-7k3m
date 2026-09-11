@@ -1,7 +1,7 @@
 /* Editable sources and scene are persisted separately from the display preview. */
 (()=>{
 'use strict';
-let current=null;
+let current=null,photoClipboard=null;
 const M=window.QBImageModel;
 const MAX_IMAGE_BYTES=100*1024*1024,WARN_IMAGE_BYTES=50*1024*1024;
 const settingsKey='qb-image-editor-settings-v1';
@@ -9,7 +9,7 @@ let sessionSettings={};
 function readSettings(){try{return JSON.parse(localStorage.getItem(settingsKey)||'null')||sessionSettings}catch{return sessionSettings}}
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
 const btn=(label,cls,fn)=>{const b=el('button',cls,label);b.type='button';b.onclick=fn;return b};
-function filesFromPaste(e){if(window.QBFiles)return QBFiles.filesFromPaste(e);const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
+function filesFromPaste(e){if(photoClipboard&&e.clipboardData?.getData('text/plain')===photoClipboard.token)return [photoClipboard.blob];if(window.QBFiles)return QBFiles.filesFromPaste(e);const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
 function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();if(/^https?:/i.test(String(source)))img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}
 // Encode a single lossless PNG without allocating a full-size output canvas.
 // PNG scanlines share one zlib stream; IDAT boundaries are independent of tiles.
@@ -274,6 +274,50 @@ async function open(source,options={}){
   const end=e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(e.pointerType==='pen')penDown=false;if(pinch){if(!pointers.size)pinch=null;return}if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;if(e.type==='pointercancel'){abortGesture();return}if(g.kind==='draw'&&g.item.points){const p=point(e),last=g.item.points.at(-1);if(g.item.straight)g.item.points=[g.start,straightEnd(g,p)];else if(Math.hypot(p.x-last.x,p.y-last.y)>.01)g.item.points.push(p)}if(g.kind==='draw'&&['rect','circle','ellipse'].includes(g.item.type))Object.assign(g.item,M.shapeRect(g.start,point(e),g.item.type));if(g.kind==='counter'){if(!g.moved&&Math.hypot(local(e).x-g.start.x,local(e).y-g.start.y)<=6){const mode=counterMode.value,n=scene.counters[mode],d=Number(counterSize.value),p=g.point;scene.items.push({id:crypto.randomUUID(),type:'counter',label:M.counterLabel(n,mode),color,x:p.x-d/2,y:p.y-d/2,w:d,h:d});scene.counters[mode]=n+1;checkpoint()}}else if(g.kind==='lasso'){selection=M.lasso(scene.items,lassoPoints);lassoPoints=null}else if(g.kind!=='pan'){if(g.kind==='draw'&&['rect','circle','ellipse'].includes(g.item.type)&&(g.item.w<1||g.item.h<1))scene=g.before;checkpoint()}gesture=null;snapGuides=[];update();if(g.kind==='move'&&!g.moved&&g.textId){const item=scene.items.find(i=>i.id===g.textId);if(item)editText(item)}};listen(canvas,'pointerup',end);listen(canvas,'pointercancel',end);
   listen(canvas,'lostpointercapture',e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(gesture?.id===e.pointerId)abortGesture();if(!pointers.size){pinch=null;penDown=false}});
   listen(window,'blur',()=>{abortGesture();pointers.clear();pinch=null;penDown=false;nativeGesture=null});
+  // Photo menus observe pointer gestures before drawing; moving cancels a tap/hold.
+  let photoHold=null,photoTap=null;const photoContacts=new Map();
+  const photoAt=p=>[...scene.items].reverse().find(i=>i.type==='image'&&M.hit(i,p,0))||(!options.pdfPage&&scene.base&&M.hit(scene.base,p,0)?{...scene.base,id:'base-photo',type:'image'}:null);
+  const clearPhotoHold=()=>{clearTimeout(photoHold);photoHold=null};
+  function photoMenu(item){
+    if(closed||busy||subDialog)return;clearPhotoHold();photoTap=null;photoContacts.clear();abortGesture();pointers.clear();pinch=null;penDown=false;commitText();
+    const actual=item.id==='base-photo'?scene.base:scene.items.find(i=>i.id===item.id);if(!actual)return;
+    childMode(true);const cover=el('div','qbDrawPhotoMenu'),menu=el('section','qbDrawPhotoMenuPanel');menu.setAttribute('role','dialog');menu.setAttribute('aria-modal','true');menu.setAttribute('aria-label','写真の操作');cover.append(menu);modal.append(cover);
+    const dismiss=()=>{cover.remove();childMode(false);canvas.focus({preventScroll:true})};
+    const note=el('div','qbDrawPhotoMenuStatus');note.setAttribute('role','status');
+    async function photoFile(){
+      const a=assets.get(actual.assetId),iw=a.nested?.scene.width||a.img.width,ih=a.nested?.scene.height||a.img.height,r=actual.sourceRect||{x:0,y:0,w:iw,h:ih};
+      const image={...M.copy(actual),id:crypto.randomUUID(),type:'image',x:0,y:0,w:r.w,h:r.h};
+      const s={width:r.w,height:r.h,base:null,items:[image],counters:{number:1,letter:1}};
+      const raw=await tiledPng(Math.ceil(r.w),Math.ceil(r.h),ctx=>QBEditableMedia.paint(ctx,s,assets));
+      const reset=M.copy(s);reset.width=iw;reset.height=ih;reset.items[0]={...image,w:iw,h:ih};delete reset.items[0].sourceRect;
+      return QBEditableMedia.write(raw,{scene:s,reset,assets:new Map([[actual.assetId,a.blob]])});
+    }
+    menu.append(el('b','','写真の操作'),btn('削除','',()=>{if(item.id==='base-photo')scene.base=null;else scene.items=scene.items.filter(i=>i.id!==item.id);selection=[];dismiss();checkpoint()}),
+      btn('コピー','',async()=>{
+        const promise=photoFile(),token='qb-photo:'+crypto.randomUUID();let system=false;
+        try{if(navigator.clipboard?.write&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({'image/png':promise,'text/plain':new Blob([token],{type:'text/plain'})})]);system=true}}catch{}
+        try{photoClipboard={blob:await promise,token};pastePhotoButton.hidden=false;note.textContent=system?'コピーしました。貼り付けて使えます。':'コピーしました。編集画面の「コピーした写真を貼り付け」から使えます。'}catch(e){note.textContent='コピーできませんでした：'+e.message}
+      }),btn('画像を保存','',async()=>{try{note.textContent='画像を準備中…';const blob=await photoFile();QBEditableMedia.download(blob,'写真.png');note.textContent='画像を書き出しました。'}catch(e){note.textContent='保存できませんでした：'+e.message}}),btn('閉じる','',dismiss),note);
+    cover.addEventListener('click',e=>{if(e.target===cover)dismiss()});
+    cover.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dismiss()}if(e.key==='Tab'){e.preventDefault();const all=[...menu.querySelectorAll('button')],i=all.indexOf(document.activeElement);all[(i+(e.shiftKey?-1:1)+all.length)%all.length].focus()}});
+    menu.querySelector('button').focus();
+  }
+  const pastePhotoButton=btn('コピーした写真を貼り付け','qbDrawPastePhoto',()=>{if(photoClipboard)addImages([photoClipboard.blob])});pastePhotoButton.hidden=!photoClipboard;tools.append(pastePhotoButton);
+  listen(canvas,'pointerdown',e=>{
+    if(!scene||busy||subDialog||e.pointerType==='pen'||e.button!==0)return;
+    const p=local(e);photoContacts.set(e.pointerId,p);clearPhotoHold();
+    if(photoContacts.size===1){const item=photoAt(point(e));photoTap={item,start:performance.now(),moved:false,two:false,zoom,ox,oy};if(item)photoHold=setTimeout(()=>{if(photoTap&&!photoTap.moved&&photoContacts.size===1)photoMenu(item)},550)}
+    else if(photoContacts.size===2&&photoTap){photoTap.two=true;const points=[...photoContacts.values()],center={x:(points[0].x+points[1].x)/2,y:(points[0].y+points[1].y)/2};photoTap.item=photoAt({x:(center.x-ox)/zoom,y:(center.y-oy)/zoom})}
+    else if(photoTap)photoTap.moved=true;
+  },true);
+  listen(canvas,'pointermove',e=>{const p=photoContacts.get(e.pointerId);if(p&&photoTap&&Math.hypot(local(e).x-p.x,local(e).y-p.y)>8){photoTap.moved=true;clearPhotoHold()}},true);
+  for(const kind of ['pointerup','pointercancel','lostpointercapture'])listen(canvas,kind,e=>{
+    clearPhotoHold();if(!photoContacts.has(e.pointerId))return;photoContacts.delete(e.pointerId);if(kind!=='pointerup'&&photoTap)photoTap.moved=true;
+    if(!photoContacts.size){const tap=photoTap;photoTap=null;if(tap?.two&&!tap.moved&&tap.item&&performance.now()-tap.start<350){e.preventDefault();e.stopImmediatePropagation();zoom=tap.zoom;ox=tap.ox;oy=tap.oy;photoMenu(tap.item)}}
+  },true);
+  listen(canvas,'contextmenu',e=>{if(!scene||busy||subDialog)return;const item=photoAt(point(e));if(item){e.preventDefault();photoMenu(item)}});
+  listeners.push(()=>{clearPhotoHold();photoContacts.clear()});
+
   function mountReference(img){
     const bar=el('div','qbDrawReferenceControls'),view=el('div','qbDrawReferenceViewport');view.tabIndex=0;view.setAttribute('aria-label','問題・解答の拡大表示');img.draggable=false;view.append(img);reference.replaceChildren(bar,view);
     let scale=1,x=0,y=0,nativeScale=null,lastNative=0;const contacts=new Map();

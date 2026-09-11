@@ -15,6 +15,19 @@ async function run(browser,label,url){
  assert.equal(await p.locator('.qbPdfModal').isVisible(),false);assert.equal(await p.getByRole('button',{name:'全体をトリミング',exact:true}).count(),0);
  await p.getByRole('button',{name:'四角い枠',exact:true}).click();await p.getByRole('button',{name:'全体表示',exact:true}).click();const box=await p.locator('.qbDrawStage').boundingBox(),z=Math.min((box.width-32)/400,(box.height-32)/600),at=(x,y)=>({x:box.x+(box.width-400*z)/2+x*z,y:box.y+(box.height-600*z)/2+y*z}),a=at(100,100),b=at(250,350);await p.mouse.move(a.x,a.y);await p.mouse.down();await p.mouse.move(b.x,b.y,{steps:4});await p.mouse.up();
  await p.getByRole('button',{name:'消しゴム',exact:true}).click();await p.mouse.click(a.x,a.y);await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();
+ // Photo menu: two-finger tap, independent editable copy, native-resolution save, explicit deletion.
+ const photoPNG=await p.evaluate(()=>{const c=document.createElement('canvas');c.width=120;c.height=80;c.getContext('2d').fillRect(0,0,120,80);return c.toDataURL().split(',')[1]});
+ await p.locator('.qbDrawModal input[type=file]').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:Buffer.from(photoPNG,'base64')});
+ await p.waitForFunction(()=>document.querySelector('.qbDrawStatus')?.textContent==='画像を追加しました');
+ await p.getByRole('button',{name:'全体表示',exact:true}).click();
+ await p.evaluate(()=>{const c=document.querySelector('.qbDrawCanvas'),r=document.querySelector('.qbDrawStage').getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;const fire=(type,id,dx)=>c.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',clientX:x+dx,clientY:y,bubbles:true,button:0}));fire('pointerdown',81,-3);fire('pointerdown',82,3);fire('pointerup',81,-3);fire('pointerup',82,3);window.photoDownload=null;QBEditableMedia.download=b=>window.photoDownload=b;Object.defineProperty(navigator,'clipboard',{configurable:true,value:{write:async()=>{}}})});
+ const photoMenu=p.getByRole('dialog',{name:'写真の操作',exact:true});await photoMenu.waitFor();
+ await photoMenu.getByRole('button',{name:'コピー',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbDrawPhotoMenuStatus')?.textContent.startsWith('コピーしました'));
+ await photoMenu.getByRole('button',{name:'画像を保存',exact:true}).click();await p.waitForFunction(()=>photoDownload instanceof Blob);
+ assert.deepEqual(await p.evaluate(async()=>{const r=await QBEditableMedia.read(photoDownload);return [r.scene.width,r.scene.height,r.assets.size]}),[120,80,1]);
+ await photoMenu.getByRole('button',{name:'閉じる',exact:true}).click();
+ await p.getByRole('button',{name:'コピーした写真を貼り付け',exact:true}).click();await p.waitForFunction(()=>!document.querySelector('.qbDrawSave').disabled);
+ for(let i=0;i<2;i++){await p.getByRole('button',{name:'全体表示',exact:true}).click();const r=await p.locator('.qbDrawStage').boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();await photoMenu.waitFor();await p.mouse.up();await photoMenu.getByRole('button',{name:'削除',exact:true}).click()}
  await p.locator('.qbDrawPageNavigation[data-page-delta="1"]').click();
  await p.waitForFunction(()=>document.querySelector('.qbDrawPanel')?.getAttribute('aria-label')==='PDF編集 · 2 / 3ページ'&&!document.querySelector('.qbDrawSave').disabled);
  assert.equal(await p.locator('.qbPdfModal').isVisible(),false);
