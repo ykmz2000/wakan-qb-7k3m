@@ -1,0 +1,26 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),M=require('../pdf-collage-model-v1.js');
+
+test('mixed row counts keep equal widths inside each row and top-align items',()=>{
+  const rows=[[{aspect:1},{aspect:2}],[{aspect:.5},{aspect:1},{aspect:3}]],layout=M.calculate(rows,{mode:'fit',margin:18,gap:8});
+  assert.equal(layout.placements.length,5);
+  const first=layout.placements.filter(p=>p.row===0),second=layout.placements.filter(p=>p.row===1);
+  assert.equal(first[0].width,first[1].width);assert.equal(second[0].width,second[1].width);assert.ok(first[0].width>second[0].width);
+  assert.equal(first[0].top,first[1].top);assert.equal(second[0].top,second[2].top);
+  assert.ok(first[0].height>first[1].height);assert.ok(second[0].height>second[2].height);
+});
+
+test('empty cells remain valid while only populated cells are drawn',()=>{
+  const marker={aspect:4/3},layout=M.calculate([[marker,null],[null,null,marker]],{mode:'fit'});
+  assert.equal(layout.placements.length,2);assert.deepEqual(layout.placements.map(p=>[p.row,p.column]),[[0,0],[1,2]]);assert.ok(layout.height>0);
+});
+
+test('content-fit grows vertically and A4 modes stay fixed',()=>{
+  const rows=[[{aspect:.5},{aspect:.5}],[{aspect:.5},{aspect:.5}]],fit=M.calculate(rows,{mode:'fit'}),portrait=M.calculate(rows,{mode:'portrait'}),landscape=M.calculate(rows,{mode:'landscape'});
+  assert.equal(fit.width,595.28);assert.ok(fit.height>841.89);assert.deepEqual([portrait.width,portrait.height],M.A4.portrait);assert.deepEqual([landscape.width,landscape.height],M.A4.landscape);assert.ok(portrait.scale<1);assert.ok(landscape.scale<1);
+});
+
+test('layout is bounded for extreme source ratios',()=>{
+  const rows=Array.from({length:6},()=>Array.from({length:4},()=>({aspect:.001}))),layout=M.calculate(rows,{mode:'fit'});
+  assert.ok(layout.height<=5000);assert.ok(layout.scale<1);for(const p of layout.placements){assert.ok(p.x>=0);assert.ok(p.top-p.height>=0);assert.ok(p.x+p.width<=layout.width)}
+});
