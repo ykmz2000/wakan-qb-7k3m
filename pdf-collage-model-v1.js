@@ -1,0 +1,47 @@
+/* Deterministic collage geometry shared by the browser editor and unit tests. */
+((root,factory)=>{
+  const api=factory();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  if(root)root.QBPDFCollageModel=api;
+})(typeof window!=='undefined'?window:null,()=>{
+  'use strict';
+  const A4={portrait:[595.28,841.89],landscape:[841.89,595.28]};
+  const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+  function normalizeRows(rows){
+    if(!Array.isArray(rows)||!rows.length)return[[null,null]];
+    return rows.slice(0,6).map(row=>Array.isArray(row)?row.slice(0,4):[]).filter(row=>row.length).map(row=>row.length?row:[null]);
+  }
+  function aspect(item){
+    const value=Number(item?.aspect);
+    return Number.isFinite(value)&&value>0?clamp(value,.08,12):4/3;
+  }
+  function calculate(rows,{mode='fit',margin=18,gap=8,pageWidth=595.28,maxHeight=5000}={}){
+    rows=normalizeRows(rows);margin=clamp(Number(margin)||0,0,72);gap=clamp(Number(gap)||0,0,48);
+    const fixed=A4[mode],baseWidth=fixed?fixed[0]:clamp(Number(pageWidth)||595.28,144,2000);
+    const inner=Math.max(36,baseWidth-margin*2),raw=[];
+    let contentHeight=0;
+    for(const row of rows){
+      const cellWidth=Math.max(12,(inner-gap*(row.length-1))/row.length);
+      const heights=row.map(item=>item?cellWidth/aspect(item):0);
+      const rowHeight=Math.max(cellWidth*.45,...heights);
+      raw.push({row,cellWidth,rowHeight,heights});contentHeight+=rowHeight;
+    }
+    contentHeight+=gap*Math.max(0,raw.length-1);
+    const availableHeight=fixed?Math.max(36,fixed[1]-margin*2):Math.max(36,maxHeight-margin*2);
+    const scale=Math.min(1,availableHeight/contentHeight);
+    const width=fixed?fixed[0]:baseWidth;
+    const height=fixed?fixed[1]:Math.min(maxHeight,contentHeight*scale+margin*2);
+    const drawnWidth=inner*scale,offsetX=margin+(inner-drawnWidth)/2;
+    let top=height-margin;const placements=[];
+    raw.forEach((entry,rowIndex)=>{
+      entry.row.forEach((item,columnIndex)=>{
+        if(!item)return;
+        const itemHeight=entry.heights[columnIndex]*scale;
+        placements.push({item,row:rowIndex,column:columnIndex,x:offsetX+columnIndex*(entry.cellWidth+gap)*scale,top,width:entry.cellWidth*scale,height:itemHeight});
+      });
+      top-=entry.rowHeight*scale+gap*scale;
+    });
+    return{width,height,scale,margin,gap,contentHeight,placements};
+  }
+  return{A4,normalizeRows,calculate};
+});
