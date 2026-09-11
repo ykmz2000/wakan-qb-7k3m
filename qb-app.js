@@ -76,13 +76,14 @@ async function ensureQuestionDetail(id){
   id=String(id||'');if(!id)throw new Error('問題IDがありません');
   if(detailCache.has(id))return detailCache.get(id);
   if(detailPending.has(id))return detailPending.get(id);
+  const generation=detailGeneration;
   const task=(async()=>{
     const r=await sb.from('questions').select(DETAIL_SELECT).eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('問題データが見つかりません');
-    const q=normalizeDetailQuestion(r.data);detailCache.set(id,q);
+    const q=normalizeDetailQuestion(r.data);if(generation!==detailGeneration)return detailCache.get(id)||q;detailCache.set(id,q);
     const i=questions.findIndex(x=>String(x.id)===id);if(i>=0)questions[i]=q;
     window.QB_QUESTIONS=questions;return q
   })();
-  detailPending.set(id,task);try{return await task}finally{detailPending.delete(id)}
+  detailPending.set(id,task);try{return await task}finally{if(detailPending.get(id)===task)detailPending.delete(id)}
 }
 function prefetchQuestionDetail(id){id=String(id||'');if(!id||detailCache.has(id)||detailPending.has(id))return;ensureQuestionDetail(id).catch(e=>console.warn('question prefetch',e))}
 function render(){
@@ -163,6 +164,71 @@ H.onclick=()=>{if(screen==='subjects')return setScreen('grades');if(screen==='un
 window.qbGetScreen=()=>screen;window.qbOpenSubjects=()=>setScreen('subjects');window.qbOpenProblemList=()=>setScreen('problems');window.showGradeScreen=()=>setScreen('grades');window.qbRetryCurrent=retryCurrent;window.qbGetPracticeState=()=>({subjectId:subject?.id||null,unitId,questionIds:[...practice],currentIndex:pi,mode:practiceMode,sessionId});window.qbResumeSession=resumeSession;window.qbEnsureQuestionDetail=ensureQuestionDetail;
 window.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='practice')saveSession(false)});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
 window.addEventListener('qb-content-updated',e=>{const id=String(e.detail?.questionId||'');if(!id)return;detailCache.delete(id);detailPending.delete(id);const i=questions.findIndex(q=>String(q.id)===id);if(i>=0)questions[i]._detailLoaded=false});
+/* Fetch into a separate snapshot. Never submit an answer or write a session here. */
+let refreshTask=null,interactionVersion=0,detailGeneration=0;
+for(const name of ['click','input','change','keydown'])document.addEventListener(name,()=>interactionVersion++,true);
+async function refreshRows(table,columns,filters,order){
+  const rows=[];
+  for(let start=0;;start+=500){
+    let query=sb.from(table).select(columns);
+    for(const [key,value] of filters)query=query.eq(key,value);
+    if(order)query=query.order(order);
+    const r=await query.range(start,start+499);if(r.error)throw r.error;
+    rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;
+  }
+}
+function refreshCurrentScreen(){
+  if(refreshTask)return refreshTask;
+  if(!sb||!user)return Promise.reject(Error('ログイン情報を確認してください。'));
+  if(window.QBDataRefresh?.blocked())return Promise.reject(Error('編集中の内容を保存してから更新してください。'));
+  const before={screen,subjectId:subject?.id,unitId,id:String(current()?.id||''),version:interactionVersion};
+  refreshTask=(async()=>{
+    const filters=[['subject_id',before.subjectId],['status','published']];
+    const [nextSubjects,nextUnits,index,progress,list,detail]=await Promise.all([
+      refreshRows('subjects','id,slug,name,sort_order',[['grade_id',grade.id],['is_active',true]],'sort_order'),
+      before.subjectId?refreshRows('units','id,slug,name,sort_order',[['subject_id',before.subjectId],['is_active',true]],'sort_order'):null,
+      before.subjectId?refreshRows('questions','id,unit_id',filters,'id'):null,
+      before.subjectId?sb.rpc('get_subject_question_progress_v2',{p_subject_id:before.subjectId}):null,
+      ['problems','practice'].includes(before.screen)?refreshRows('questions',LIST_SELECT,filters.concat(before.unitId==='__all__'?[]:[['unit_id',before.unitId]]),'study_order'):null,
+      before.screen==='practice'?sb.from('questions').select(DETAIL_SELECT).eq('id',before.id).eq('status','published').maybeSingle():null
+    ]);
+    if(progress?.error)throw progress.error;if(detail?.error)throw detail.error;
+    if(screen!==before.screen||subject?.id!==before.subjectId||unitId!==before.unitId||interactionVersion!==before.version||window.QBDataRefresh?.blocked())throw Error('画面の操作があったため更新を中止しました。もう一度お試しください。');
+    const nextSubject=nextSubjects.find(s=>s.id===before.subjectId);
+    if(before.subjectId&&!nextSubject)throw Error('この科目を取得できませんでした。現在の画面を保持しています。');
+    if(before.screen==='practice'&&!detail?.data)throw Error('この問題を取得できませんでした。現在の画面を保持しています。');
+    const fresh=detail?.data?normalizeDetailQuestion(detail.data):null,old=current();
+    const choiceIds=[...sel].map(i=>old?.choices[i]?.id),nextSelection=new Set();
+    if(fresh){
+      if(fresh.answer_mode!==old.answer_mode)throw Error('回答形式が変更されています。演習を開き直してください。');
+      for(const id of choiceIds){const i=fresh.choices.findIndex(c=>c.id===id);if(i<0)throw Error('選択した回答が変更されています。現在の画面を保持しています。');nextSelection.add(i)}
+    }
+    const wasRevealed=!!V.querySelector('#ans:not(.hidden) .resultcard');
+    const fillState=window.QBFillBlankRefresh?.capture();
+    // Invalidate in-flight prefetches before publishing the new snapshot.
+    detailGeneration++;detailCache.clear();detailPending.clear();unitProgressToken++;
+    subjects=nextSubjects;if(nextSubject)subject=nextSubject;
+    if(nextUnits)units=nextUnits;if(index)unitQuestionIndex=index;
+    if(progress){qstate=Object.fromEntries((progress.data||[]).map(r=>[r.question_id,r]));unitProgressLoaded=true;unitProgressError=false}
+    if(list){
+      const allSelected=selected.size===questions.length;
+      questions=list.map(normalizeListQuestion);
+      if(fresh){const i=questions.findIndex(q=>q.id===fresh.id);if(i<0)questions.push(fresh);else questions[i]=fresh;detailCache.set(String(fresh.id),fresh);sel=nextSelection}
+      const available=new Set(questions.map(q=>String(q.id)));
+      selected=new Set(questions.filter(q=>allSelected||selected.has(String(q.id))).map(q=>String(q.id)));
+      if(before.screen==='practice'){practice=practice.filter(id=>available.has(String(id)));pi=practice.findIndex(id=>String(id)===before.id)}
+      window.QB_QUESTIONS=questions;
+    }
+    window.dispatchEvent(new CustomEvent('qb-data-refreshed',{detail:{questionId:before.screen==='practice'?before.id:null}}));
+    render();
+    if(fresh&&(wasRevealed||fillState)&&(fresh.answer_mode==='fill_blank'||!fresh.choices.length)){
+      if(fillState)await window.QBFillBlankRefresh.restore(fresh,fillState);
+      else drawTextAnswer(fresh,fresh.occ[0]?.official_answer);
+    }
+    emit();return true;
+  })().finally(()=>{refreshTask=null});return refreshTask;
+}
+window.qbRefreshCurrentScreen=refreshCurrentScreen;
 async function boot(){V.innerHTML='<div class="card"><div class="title">読み込み中…</div><div class="sub">科目情報を読み込んでいます。</div></div>';if(!(await waitSb()))return showErr(new Error('ログイン情報を確認できませんでした'));try{await loadSubjects();window.QB_DB_READY=true;setScreen('subjects');window.dispatchEvent(new CustomEvent('qb-app-ready'));window.dispatchEvent(new CustomEvent('qb-core-loaded'))}catch(e){showErr(e)}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
