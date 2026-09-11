@@ -278,6 +278,28 @@ async function open(source,options={}){
   let photoHold=null,photoTap=null;const photoContacts=new Map();
   const photoAt=p=>[...scene.items].reverse().find(i=>i.type==='image'&&M.hit(i,p,0))||(!options.pdfPage&&scene.base&&M.hit(scene.base,p,0)?{...scene.base,id:'base-photo',type:'image'}:null);
   const clearPhotoHold=()=>{clearTimeout(photoHold);photoHold=null};
+  async function pasteFromClipboard(){
+    let blobs=[];
+    try{
+      if(navigator.clipboard?.read){
+        const entries=await navigator.clipboard.read();
+        for(const entry of entries)for(const type of entry.types||[])if(/^image\//.test(type)){blobs.push(await entry.getType(type));break}
+      }
+    }catch{}
+    if(!blobs.length&&photoClipboard)blobs=[photoClipboard.blob];
+    if(!blobs.length)throw Error('画像をコピーしてから、もう一度「ペースト」を押してください。');
+    await addImages(blobs);
+  }
+  function canvasMenu(){
+    if(closed||busy||subDialog)return;clearPhotoHold();photoTap=null;photoContacts.clear();abortGesture();pointers.clear();pinch=null;penDown=false;commitText();
+    childMode(true);const cover=el('div','qbDrawPhotoMenu'),menu=el('section','qbDrawPhotoMenuPanel');menu.setAttribute('role','dialog');menu.setAttribute('aria-modal','true');menu.setAttribute('aria-label','貼り付け・追加');cover.append(menu);modal.append(cover);
+    const dismiss=()=>{cover.remove();childMode(false);canvas.focus({preventScroll:true})};
+    const note=el('div','qbDrawPhotoMenuStatus');note.setAttribute('role','status');
+    menu.append(el('b','','貼り付け・追加'),btn('ペースト','',async()=>{try{note.textContent='画像を確認中…';dismiss();await pasteFromClipboard()}catch(e){status.textContent=e.message||e}}),btn('画像を追加','',()=>{dismiss();chooseImageSource()}),btn('閉じる','',dismiss),note);
+    cover.addEventListener('click',e=>{if(e.target===cover)dismiss()});
+    cover.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dismiss()}if(e.key==='Tab'){e.preventDefault();const all=[...menu.querySelectorAll('button')],i=all.indexOf(document.activeElement);all[(i+(e.shiftKey?-1:1)+all.length)%all.length].focus()}});
+    menu.querySelector('button').focus();
+  }
   function photoMenu(item){
     if(closed||busy||subDialog)return;clearPhotoHold();photoTap=null;photoContacts.clear();abortGesture();pointers.clear();pinch=null;penDown=false;commitText();
     const actual=item.id==='base-photo'?scene.base:scene.items.find(i=>i.id===item.id);if(!actual)return;
@@ -297,7 +319,7 @@ async function open(source,options={}){
         const promise=photoFile(),token='qb-photo:'+crypto.randomUUID();let system=false;
         try{if(navigator.clipboard?.write&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({'image/png':promise,'text/plain':new Blob([token],{type:'text/plain'})})]);system=true}}catch{}
         try{photoClipboard={blob:await promise,token};pastePhotoButton.hidden=false;note.textContent=system?'コピーしました。貼り付けて使えます。':'コピーしました。編集画面の「コピーした写真を貼り付け」から使えます。'}catch(e){note.textContent='コピーできませんでした：'+e.message}
-      }),btn('画像を保存','',async()=>{try{note.textContent='画像を準備中…';const blob=await photoFile();QBEditableMedia.download(blob,'写真.png');note.textContent='画像を書き出しました。'}catch(e){note.textContent='保存できませんでした：'+e.message}}),btn('閉じる','',dismiss),note);
+      }),btn('複製','',()=>{const copy={...M.copy(actual),id:crypto.randomUUID(),type:'image'};scene.items.push(copy);selection=[copy.id];tool='image';dismiss();checkpoint();status.textContent='写真を編集可能なまま複製しました。'}),btn('画像を保存','',async()=>{try{note.textContent='画像を準備中…';const blob=await photoFile();QBEditableMedia.download(blob,'写真.png');note.textContent='画像を書き出しました。'}catch(e){note.textContent='保存できませんでした：'+e.message}}),btn('閉じる','',dismiss),note);
     cover.addEventListener('click',e=>{if(e.target===cover)dismiss()});
     cover.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dismiss()}if(e.key==='Tab'){e.preventDefault();const all=[...menu.querySelectorAll('button')],i=all.indexOf(document.activeElement);all[(i+(e.shiftKey?-1:1)+all.length)%all.length].focus()}});
     menu.querySelector('button').focus();
@@ -307,16 +329,16 @@ async function open(source,options={}){
     if(e.pointerType==='pen'||penDown){clearPhotoHold();photoTap=null;photoContacts.clear();return}
     if(!scene||busy||subDialog||e.button!==0)return;
     const p=local(e);photoContacts.set(e.pointerId,p);clearPhotoHold();
-    if(photoContacts.size===1){const item=photoAt(point(e));photoTap={item,start:performance.now(),moved:false,two:false,zoom,ox,oy};if(item)photoHold=setTimeout(()=>{if(photoTap&&!photoTap.moved&&photoContacts.size===1)photoMenu(item)},550)}
+    if(photoContacts.size===1){const item=photoAt(point(e));photoTap={item,start:performance.now(),moved:false,two:false,zoom,ox,oy};photoHold=setTimeout(()=>{if(photoTap&&!photoTap.moved&&photoContacts.size===1)(item?photoMenu(item):canvasMenu())},550)}
     else if(photoContacts.size===2&&photoTap){photoTap.two=true;const points=[...photoContacts.values()],center={x:(points[0].x+points[1].x)/2,y:(points[0].y+points[1].y)/2};photoTap.item=photoAt({x:(center.x-ox)/zoom,y:(center.y-oy)/zoom})}
     else if(photoTap)photoTap.moved=true;
   },true);
   listen(canvas,'pointermove',e=>{const p=photoContacts.get(e.pointerId);if(p&&photoTap&&Math.hypot(local(e).x-p.x,local(e).y-p.y)>8){photoTap.moved=true;clearPhotoHold()}},true);
   for(const kind of ['pointerup','pointercancel','lostpointercapture'])listen(canvas,kind,e=>{
     clearPhotoHold();if(!photoContacts.has(e.pointerId))return;photoContacts.delete(e.pointerId);if(kind!=='pointerup'&&photoTap)photoTap.moved=true;
-    if(!photoContacts.size){const tap=photoTap;photoTap=null;if(tap?.two&&!tap.moved&&tap.item&&performance.now()-tap.start<350){e.preventDefault();e.stopImmediatePropagation();zoom=tap.zoom;ox=tap.ox;oy=tap.oy;photoMenu(tap.item)}}
+    if(!photoContacts.size){const tap=photoTap;photoTap=null;if(tap?.two&&!tap.moved&&performance.now()-tap.start<350){e.preventDefault();e.stopImmediatePropagation();zoom=tap.zoom;ox=tap.ox;oy=tap.oy;tap.item?photoMenu(tap.item):canvasMenu()}}
   },true);
-  listen(canvas,'contextmenu',e=>{if(!scene||busy||subDialog)return;const item=photoAt(point(e));if(item){e.preventDefault();photoMenu(item)}});
+  listen(canvas,'contextmenu',e=>{if(!scene||busy||subDialog)return;e.preventDefault();const item=photoAt(point(e));item?photoMenu(item):canvasMenu()});
   listeners.push(()=>{clearPhotoHold();photoContacts.clear()});
 
   function mountReference(img){
