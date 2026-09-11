@@ -79,7 +79,7 @@ function open(origin,{savedBlob=null}={}){
     if(prepared&&renderCanvas){const dpr=Math.min(devicePixelRatio||1,2);renderCanvas.width=Math.max(1,Math.ceil(box.width*dpr));renderCanvas.height=Math.max(1,Math.ceil(box.height*dpr));const ctx=renderCanvas.getContext('2d');ctx.scale(dpr,dpr);ctx.translate(box.width/2+x-width*scale/2,box.height/2+y-height*scale/2);ctx.scale(width*scale/prepared.scene.width,height*scale/prepared.scene.height);prepared.draw(ctx)}
     stage.dataset.zoomed=String(scale>1.01);
     zoomOut.disabled=!ready||scale<=1;zoomIn.disabled=!ready||scale>=6;reset.disabled=!ready;
-    get('.qbImageLightboxHint').textContent='1本指で左右にページ送り · 2本指で移動・拡大縮小';
+    get('.qbImageLightboxHint').textContent='1本指ドラッグで移動 · 端まで送る横フリックで前後へ · 2本指で移動・拡大縮小';
   }
   function fit(){
     if(!ready||!img)return;
@@ -121,7 +121,8 @@ function open(origin,{savedBlob=null}={}){
     if(pointers.size>2){blocked=true;gesture=null;return}
     if(pointers.size===2){blocked=true;beginPinch();return}
     if(blocked)return;
-    gesture={kind:'swipe',start:point(e),x,y,time:performance.now(),axis:null,moved:false};
+    const start=point(e),box=stage.getBoundingClientRect(),limitX=Math.max(0,(width*scale-box.width)/2);
+    gesture={kind:'drag',start,x,y,time:performance.now(),axis:null,moved:false,panned:false,edgePrev:x>=limitX-2,edgeNext:x<=-limitX+2};
   });
   stage.addEventListener('pointermove',e=>{
     if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,point(e));
@@ -134,8 +135,9 @@ function open(origin,{savedBlob=null}={}){
     const p=point(e),dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;
     if(Math.hypot(dx,dy)>10)gesture.moved=true;
 
-    if(!gesture.axis&&gesture.moved)gesture.axis=Math.abs(dx)>Math.abs(dy)*1.25?'x':'y';
-    if(scale<=1.01&&gesture.axis==='x'&&images.length>1&&!(window.visualViewport?.scale>1.01)){
+    if(!gesture.axis&&gesture.moved)gesture.axis=Math.abs(dx)>Math.abs(dy)*1.35?'x':'y';
+    if(scale>1.01){const beforeX=x,beforeY=y;x=gesture.x+dx;y=gesture.y+dy;paint();if(Math.hypot(x-beforeX,y-beforeY)>1)gesture.panned=true;return}
+    if(gesture.axis==='x'&&images.length>1&&!(window.visualViewport?.scale>1.01)){
       const edge=dx>0?index===0:index===images.length-1;
       if(renderCanvas)renderCanvas.style.transform=`translateX(${dx*(edge?.18:.8)}px)`;else img.style.transform=`translate(-50%,-50%) translateX(${dx*(edge ? .18 : .8)}px)`;
     }
@@ -150,7 +152,8 @@ function open(origin,{savedBlob=null}={}){
     gesture=null;blocked=false;paint();
     if(!g||wasBlocked||cancelled){lastTap=null;return}
     const dx=p.x-g.start.x,dy=p.y-g.start.y;
-    if(g.kind==='swipe'&&g.axis==='x'&&Math.abs(dx)>=Math.max(44,Math.min(100,stage.clientWidth*.12))&&Math.abs(dx)>Math.abs(dy)*1.4&&performance.now()-g.time<1000&&!(window.visualViewport?.scale>1.01)){
+    const elapsed=Math.max(1,performance.now()-g.time),outward=dx<0?g.edgeNext:g.edgePrev;
+    if(g.kind==='drag'&&g.axis==='x'&&!g.panned&&outward&&Math.abs(dx)>=Math.max(52,Math.min(110,stage.clientWidth*.12))&&Math.abs(dx)>Math.abs(dy)*1.55&&Math.abs(dx)/elapsed>.22&&elapsed<750&&!(window.visualViewport?.scale>1.01)){
       go(dx<0?1:-1);lastTap=null;return;
     }
     lastTap=null;

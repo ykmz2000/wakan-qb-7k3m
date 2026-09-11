@@ -24,10 +24,11 @@ async function run(browser,label,url){
  });
  assert.ok(gesture.expanded>gesture.initial*3);assert.equal(gesture.after,gesture.before);
  await p.waitForTimeout(300);assert.ok(await p.locator('.qbPdfPage').evaluate(c=>c.getBoundingClientRect().width)>gesture.initial*3);
- await p.locator('.qbPdfViewingStage').evaluate(stage=>{const r=stage.getBoundingClientRect(),x=r.left+r.width*.7,y=r.top+r.height/2;for(const [type,px] of [['pointerdown',x],['pointermove',x-130],['pointerup',x-130]])stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:55,pointerType:'touch',clientX:px,clientY:y,button:0}))});
- await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');
- await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
+ const oneFingerPan=await p.locator('.qbPdfViewingStage').evaluate(stage=>{const r=stage.getBoundingClientRect(),x=r.left+r.width*.7,y=r.top+r.height/2,before=stage.scrollLeft;for(const [type,px] of [['pointerdown',x],['pointermove',x-130],['pointerup',x-130]])stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:55,pointerType:'touch',clientX:px,clientY:y,button:0}));return{before,after:stage.scrollLeft}});
+ assert.ok(oneFingerPan.after>oneFingerPan.before);assert.equal(await p.locator('.qbPdfStatus').textContent(),'1 / 3ページ');
  await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
+ await p.locator('.qbPdfViewingStage').evaluate(stage=>{const r=stage.getBoundingClientRect(),x=r.left+r.width*.7,y=r.top+r.height/2;for(const [type,px] of [['pointerdown',x],['pointermove',x-130],['pointerup',x-130]])stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:56,pointerType:'touch',clientX:px,clientY:y,button:0}))});
+ await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  assert.equal(await p.locator('#origin').evaluate(n=>n.inert),true);
  const color=async()=>{const handle=await p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage');if(!c||c.width<=10||c.height<=10)return false;const pixel=Array.from(c.getContext('2d').getImageData(10,10,1,1).data);return pixel[3]===255&&pixel});return handle.jsonValue()};
  assert.deepEqual(await color(),[255,0,0,255]);await p.getByRole('button',{name:'2ページを表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);

@@ -71,19 +71,21 @@ async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
   const center=pts.length>1?{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}:pts[0];
   gesture={center,zoom,width:rect.width,height:rect.height,u:(center.x-rect.left)/rect.width,v:(center.y-rect.top)/rect.height,distance:pts.length>1?Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y):0,left:stage.scrollLeft,top:stage.scrollTop};
  }
- stage.addEventListener('pointerdown',e=>{if(!currentCanvas||e.button>0)return;e.preventDefault();e.stopPropagation();clearTimeout(gestureTimer);sequence++;renderTask?.cancel();if(!pointers.size){swipe={x:e.clientX,y:e.clientY,time:performance.now()};multiTouch=false}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>1)multiTouch=true;try{stage.setPointerCapture(e.pointerId)}catch{}startGesture()});
+ stage.addEventListener('pointerdown',e=>{if(!currentCanvas||e.button>0)return;e.preventDefault();e.stopPropagation();clearTimeout(gestureTimer);sequence++;renderTask?.cancel();if(!pointers.size){const maxX=Math.max(0,stage.scrollWidth-stage.clientWidth);swipe={x:e.clientX,y:e.clientY,time:performance.now(),panned:false,edgePrev:stage.scrollLeft<=2,edgeNext:stage.scrollLeft>=maxX-2};multiTouch=false}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>1)multiTouch=true;try{stage.setPointerCapture(e.pointerId)}catch{}startGesture()});
  stage.addEventListener('pointermove',e=>{
   if(!pointers.has(e.pointerId)||!gesture)return;e.preventDefault();e.stopPropagation();pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const pts=[...pointers.values()];
   if(pts.length>1&&gesture.distance){
    const center={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};zoom=Math.max(.5,Math.min(4,gesture.zoom*Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)/gesture.distance));
    currentCanvas.style.width=gesture.width*zoom/gesture.zoom+'px';currentCanvas.style.height=gesture.height*zoom/gesture.zoom+'px';const r=currentCanvas.getBoundingClientRect();stage.scrollLeft+=r.left+gesture.u*r.width-center.x;stage.scrollTop+=r.top+gesture.v*r.height-center.y;
+  }else if(pts.length===1&&swipe&&!multiTouch){
+   const beforeLeft=stage.scrollLeft,beforeTop=stage.scrollTop,p=pts[0];stage.scrollLeft=gesture.left-(p.x-gesture.center.x);stage.scrollTop=gesture.top-(p.y-gesture.center.y);if(Math.hypot(stage.scrollLeft-beforeLeft,stage.scrollTop-beforeTop)>1)swipe.panned=true;
   }
  });
  function endGesture(e){
   if(!pointers.has(e.pointerId))return;const cancelled=e.type!=='pointerup';pointers.delete(e.pointerId);if(cancelled)multiTouch=true;
   if(pointers.size){startGesture();return}
   const start=swipe,wasMulti=multiTouch;gesture=null;swipe=null;multiTouch=false;clearTimeout(gestureTimer);
-  if(!cancelled&&!wasMulti&&start){const dx=e.clientX-start.x,dy=e.clientY-start.y;if(Math.abs(dx)>=Math.max(44,Math.min(100,stage.clientWidth*.12))&&Math.abs(dx)>Math.abs(dy)*1.4&&performance.now()-start.time<1000){void go(dx<0?1:-1);return}}
+  if(!cancelled&&!wasMulti&&start){const dx=e.clientX-start.x,dy=e.clientY-start.y,elapsed=Math.max(1,performance.now()-start.time),outward=dx<0?start.edgeNext:start.edgePrev;if(!start.panned&&outward&&Math.abs(dx)>=Math.max(52,Math.min(110,stage.clientWidth*.12))&&Math.abs(dx)>Math.abs(dy)*1.55&&Math.abs(dx)/elapsed>.22&&elapsed<750){void go(dx<0?1:-1);return}}
   if(wasMulti)gestureTimer=setTimeout(()=>{if(!closed)void show(pageNumber,true)},100);
  }
  for(const type of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(type,endGesture);
