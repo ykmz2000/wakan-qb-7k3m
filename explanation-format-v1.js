@@ -56,7 +56,7 @@ const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap()
 const META='explanation_formatting',STEM_META='stem_formatting';
 const QUESTION_FIELDS={overview:'explanation_overview',intent:'examiner_intent',summary:'exam_summary',verify:'medical_verification_note'};
 const CHOICE_FIELDS={cexp:'explanation',ccorr:'correction_text',calt:'correct_for_other_context',cdist:'examiner_distinction'};
-const LABELS={stem:'問題文',explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しく直すと',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
+const LABELS={stem:'問題文',explanation_overview:'問題文のポイント',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification_note:'医学的検証メモ',explanation:'選択肢の解説',correction_text:'正しくすると',correct_for_other_context:'別の文脈では',examiner_distinction:'区別ポイント'};
 const current=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=q=>String(q?.id||q?.dbId||'');
 async function load(id,force=false){
