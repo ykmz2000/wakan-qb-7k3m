@@ -102,7 +102,20 @@ async function run(browser,name){
    await p.locator('#review').click();await ready(p);assert.equal((await states())[0].label,'設問の正答');
    await p.locator('#answer').click();
    await p.evaluate(()=>{const q=window.QB_QUESTIONS.find(q=>q.id==='q1');q.choices[0].statement_is_true=false;q.choices[0].correction_text='修正文';q.choices[1].statement_is_true=null;});
+   await p.evaluate(()=>{
+    const q=testDB.questions.find(q=>q.id==='q1');
+    q.stem_formatting={version:1,source_text:q.stem,ranges:[{kind:'underline',start:0,end:2}]};
+    q.choices[0].explanation_formatting={correction_text:{version:1,source_text:'修正文',ranges:[{kind:'accent',start:0,end:1},{kind:'bold',start:0,end:1},{kind:'underline',start:1,end:2}]}};
+    testDB.question_images=[{id:'image1',question_id:'q1',placement:'explanation_overview',choice_id:null,image_path:'fixture.png',sort_order:0}];
+    qbSupabase.storage={from:()=>({getPublicUrl:()=>({data:{publicUrl:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}})})};
+   });
+   for(const f of ['current-question-identity-v1.js','qb-media-notes-v2.js','explanation-format-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
    await answer(p,[0]);
+   await p.waitForFunction(()=>document.querySelector('.qbInlineCorrectionText .qbFmt-accent')&&document.querySelector('.qbMediaHostV2 img')?.naturalWidth>0&&document.querySelector('.qtext .qbFmt-underline'));
+   assert.equal(await p.evaluate(()=>qbCurrentQuestionId()),'q1');
+   assert.equal(await p.locator('.qbInlineCorrectionText').innerHTML(),await p.locator('.qbChoiceCorrection .qbFmtDetailText').innerHTML());
+   assert.equal(await p.locator('.qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).color),'rgb(0, 0, 0)');
+   assert.equal(await p.locator('.qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).display),'inline');
    assert.deepEqual(await states(),[{good:true,bad:false,label:'設問の正答 ／ あなたの選択'},{good:false,bad:false,label:''}]);
    assert.match(await p.locator('.resultcard').textContent(),/正解/);
    await p.waitForFunction(()=>document.querySelector('.qbChoiceCorrection')?.textContent.includes('正しくすると'));
