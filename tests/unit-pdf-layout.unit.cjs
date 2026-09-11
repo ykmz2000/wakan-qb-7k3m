@@ -32,6 +32,15 @@ test('full explanations keep correction, choice and associated pictures in one g
   assert.ok(!L.buildGroups(ctx,q,[],'questions').some(g=>g.id==='answer'));assert.ok(!L.buildGroups(ctx,q,[],'answers').some(g=>g.id==='explanation_overview'));
   assert.throws(()=>L.buildGroups(ctx,q,[{...imgs[0],placement:'unknown'}]),/配置/);
 });
+test('question stem, choices and question images use larger type inside one bounded box',()=>{
+  const q={stem:'問題文',instruction:'2つ選べ。',choices:[{id:'a',choice_key:'a',choice_text:'選択肢'}]};
+  const images=[{id:'question-image',placement:'question',choice_id:null,image:{width:900,height:1000},caption:''}];
+  const groups=L.buildGroups(ctx,q,images,'questions'),pages=L.paginate(groups),items=pages[0].items;
+  const stem=groups.find(g=>g.id==='stem'),prompt=groups.find(g=>g.id==='prompt-a');
+  assert.equal(stem.items[0].lines[0].size,18);assert.equal(stem.items[1].lines[0].size,18);assert.equal(stem.items[2].lines[0].size,16);assert.equal(prompt.items[0].lines[0].size,17);
+  assert.equal(stem.items.at(-1).cells[0].imageId,'question-image');
+  const box=L.questionBoxBounds(items);assert.ok(box);assert.ok(box.x<L.PAGE.left);assert.ok(box.y<=items[0].y);assert.ok(box.y+box.height>=items.at(-1).y+items.at(-1).height);
+});
 test('each call for a new question starts a fresh page, including a short final section',()=>{
   const one=L.paginate([{id:'one',items:[{height:35}]}]),two=L.paginate([{id:'two',items:[{height:35}]}]);
   assert.equal(one.length+two.length,2);assert.equal(two[0].items[0].y,L.PAGE.top);

@@ -1,4 +1,4 @@
-/* Shared file library and picker. Text reading is explicitly requested. */
+/* Shared file library and picker. PDFs are read automatically after import. */
 (()=>{
 'use strict';
 const C=window.QBImageLibraryCore,S=window.QBImageLibraryStore;
@@ -166,8 +166,8 @@ async function open({context=null}={}){
    header.append(el('strong','','追加したファイルを確認'));box.append(header,content,footer);modal.append(box);overlay.append(modal);panel.inert=true;
    const intro=el('div','qbLibraryStatus','画像は登録済みです。必要な情報だけ編集し、そのままでも「確定」できます。');content.append(intro);
    const navigation=el('div','qbLibraryTools'),position=el('span'),host=el('div');content.append(navigation,host);
-   const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,ocrTimer=null,ocrStopped=false;
-   function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
+   const drafts=rows.map(row=>({row,fields:{},view:el('div')}));let index=0,saving=false,finished=false,worker=null,workerPromise=null,ocrTimer=null,ocrStopped=false,ocrRunning=false;
+   function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);workerPromise=null;if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage'),initialPath=draft.row.object_path;im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,initialPath).then(url=>{if(im.isConnected&&draft.row.object_path===initialPath)media(im,url)}).catch(()=>{if(draft.row.object_path===initialPath)im.alt='画像を読み込めませんでした'});
     const imageActions=el('div','qbLibraryTools');if(owns(draft.row))imageActions.append(btn(pdf(draft.row)?'PDF編集':'画像編集',()=>editUploaded(draft,im,'annotation')));
@@ -221,29 +221,37 @@ async function open({context=null}={}){
      if(e.key==='Tab'){const nodes=[...box.querySelectorAll('button,input,select,textarea,summary')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===modal)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
     });modal.addEventListener('paste',e=>e.stopPropagation());display();confirmButton.focus();
     // Local OCR never blocks confirmation or overwrites a field the user has touched.
-    async function readDrafts(){
-     const targets=drafts.filter(d=>!d.ocrTouched);if(!targets.length)return;
+    async function readDrafts(requested=drafts){
+     const targets=requested.filter(d=>!d.ocrTouched);if(!targets.length||ocrRunning)return;ocrRunning=true;
      targets.forEach(d=>d.ocrStatus.textContent='簡易OCRを準備中… 待たずに確定できます。');
      let stopped=false;
-     ocrTimer=setTimeout(()=>{stopped=true;stopOCR();targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを終了しました。未入力でも確定できます。')},60000);
+     ocrTimer=setTimeout(()=>{stopped=true;stopOCR();targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを終了しました。未入力でも確定できます。')},300000);
      const alive=()=>!finished&&!saving&&!stopped&&!closed&&!ocrStopped;
+     async function getWorker(){
+      if(worker)return worker;if(workerPromise)return workerPromise;
+      workerPromise=(async()=>{const engine=await loadUploadOCR();if(!alive())throw new DOMException('中止しました','AbortError');const created=await engine.createWorker(['jpn','eng'],1,{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',errorHandler:()=>{}});if(!alive()){await created.terminate();throw new DOMException('中止しました','AbortError')}return worker=created})();
+      try{return await workerPromise}finally{workerPromise=null}
+     }
      try{
-      const engine=await loadUploadOCR();if(!alive())return;
-      const created=await engine.createWorker(['jpn','eng'],1,{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',errorHandler:()=>{}});
-      if(!alive()){await created.terminate();return}worker=created;
       for(const d of targets){
        if(!alive())return;if(d.ocrTouched){d.ocrStatus.textContent='入力した本文を保持しています。';continue}
-       d.ocrStatus.textContent='簡易OCRで読み取り中… 待たずに確定できます。';
+       d.ocrStatus.textContent=pdf(d.row)?'PDFから文字を読み取り中… 待たずに確定できます。':'簡易OCRで読み取り中… 待たずに確定できます。';
        const blob=await S.download(sb,d.row);if(!alive())return;
-       const result=await created.recognize(blob,{}, {text:true,blocks:false,hocr:false,tsv:false});if(!alive())return;
-       const text=(result.data?.text||'').trim();
+       let text='';
+       if(pdf(d.row)){
+        if(!window.QBPDFTextReading?.read)await import('./pdf-text-reading-v1.js');
+        if(!window.QBPDFTextReading?.read)throw Error('PDFの文字抽出機能を読み込めません。画面を再読み込みしてください。');
+        text=await QBPDFTextReading.read(blob,{documentTask:QBFiles.documentTask,alive,onProgress:({page,total,phase})=>{d.ocrStatus.textContent=`PDF ${page} / ${total}ページを${phase==='ocr'?'OCR':'読み取り'}中… 待たずに確定できます。`},recognize:async source=>{const created=await getWorker(),result=await created.recognize(source,{}, {text:true,blocks:false,hocr:false,tsv:false});return (result.data?.text||'').trim()}});
+       }else{const created=await getWorker(),result=await created.recognize(blob,{}, {text:true,blocks:false,hocr:false,tsv:false});text=(result.data?.text||'').trim()}
+       if(!alive())return;
        if(d.ocrTouched){d.ocrStatus.textContent='入力した本文を保持しています。';continue}
-       if(text){d.ocrInput.value=text;d.ocrApplied=true;if(!d.analysisTouched)d.analysisInput.value='needs_review';d.ocrStatus.textContent='簡易OCRの仮読み取りです。必要なら修正して確定してください。文脈による補完・分類は行っていません。'}else d.ocrStatus.textContent='文字を読み取れませんでした。未入力でも確定できます。';
+       if(text){d.ocrInput.value=text;d.ocrApplied=true;if(!d.analysisTouched)d.analysisInput.value='needs_review';d.ocrStatus.textContent=(pdf(d.row)?'PDFの文字を読み取りました。':'簡易OCRの仮読み取りです。')+' 必要なら修正して確定してください。文脈による補完・分類は行っていません。'}else d.ocrStatus.textContent='文字を読み取れませんでした。未入力でも確定できます。';
       }
      }catch{if(alive())targets.filter(d=>!d.ocrApplied).forEach(d=>d.ocrStatus.textContent='OCRを利用できませんでした。未入力でも確定できます。')}
-     finally{stopOCR()}
+     finally{ocrRunning=false;stopOCR()}
     }
-    if(rows.every(r=>!pdf(r)))footer.append(btn('画像の文字を読み取る',()=>{ocrStopped=false;void readDrafts()}));
+    footer.append(btn(rows.some(r=>pdf(r))?'文字をもう一度読み取る':'画像の文字を読み取る',()=>{ocrStopped=false;void readDrafts()}));
+    const pdfDrafts=drafts.filter(d=>pdf(d.row));if(pdfDrafts.length)queueMicrotask(()=>{if(!finished){ocrStopped=false;void readDrafts(pdfDrafts)}});
    });
   }
   uploadInput.onchange=()=>register([...uploadInput.files],f=>S.add(sb,f));

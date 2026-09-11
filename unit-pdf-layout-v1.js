@@ -56,7 +56,7 @@ function textAtoms(ctx,text,options={}){
   for(const line of lines){if(chunk.reduce((s,l)=>s+l.height,0)+line.height>capacity-80)flush();chunk.push(line);if(!line.runs.length)flush()}
   flush();return atoms;
 }
-function heading(ctx,text){const lines=textLines(ctx,text,{size:16,bold:true});return{type:'heading',lines,height:lines.length*25.6+10,keepNext:true}}
+function heading(ctx,text,{size=16}={}){const lines=textLines(ctx,text,{size,bold:true});return{type:'heading',lines,height:lines.reduce((sum,line)=>sum+line.height,0)+10,keepNext:true}}
 function buildGroups(ctx,Q,images,mode='full'){
   // Verification-only attachments are intentionally omitted from the study PDF.
   images=images.filter(row=>row.placement!=='medical_verification');
@@ -84,12 +84,13 @@ function buildGroups(ctx,Q,images,mode='full'){
   function group(id,title,items){if(items.length)groups.push({id,items:[...(title?[heading(ctx,title)]:[]),...items]})}
   const noChoice=row=>!row.choice_id;
   const rows=(placement,choiceId=null)=>images.filter(r=>r.placement===placement&&(choiceId?String(r.choice_id)===String(choiceId):noChoice(r)));
-  group('stem','問題',[
-    ...textAtoms(ctx,Q.stem,{format:Q.stem_formatting}),
-    ...(Q.instruction?textAtoms(ctx,Q.instruction,{size:14}):[]),...media(rows('question'))
+  group('stem','',[
+    heading(ctx,'問題',{size:18}),
+    ...textAtoms(ctx,Q.stem,{size:18,format:Q.stem_formatting}),
+    ...(Q.instruction?textAtoms(ctx,Q.instruction,{size:16}):[]),...media(rows('question'))
   ]);
   for(const c of choices)group('prompt-'+c.id,'',[
-    ...textAtoms(ctx,`${c.choice_key}. ${c.choice_text}`),...media(rows('question',c.id))
+    ...textAtoms(ctx,`${c.choice_key}. ${c.choice_text}`,{size:17}),...media(rows('question',c.id))
   ]);
   if(mode==='questions')return groups;
   group('answer','解答',textAtoms(ctx,answerText(Q)));
@@ -140,13 +141,22 @@ function drawLines(ctx,lines,x,y,theme){
     if(active.includes('underline')||active.includes('strike')){ctx.fillStyle=active.includes('accent')?theme.accent:'#172033';if(active.includes('underline'))ctx.fillRect(rx,y+line.size*1.25,run.width,1);if(active.includes('strike'))ctx.fillRect(rx,y+line.size*.65,run.width,1)}
   }y+=line.height}return y;
 }
-function drawItems(ctx,items,theme,{images=true}={}){for(const item of items){
+function questionBoxBounds(items){
+  const questionItems=items.filter(item=>item.group==='stem'||String(item.group).startsWith('prompt-'));
+  if(!questionItems.length)return null;
+  const top=Math.max(PAGE.top-4,Math.min(...questionItems.map(item=>item.y))-8),bottom=Math.min(PAGE.bottom+8,Math.max(...questionItems.map(item=>item.y+item.height))+8);
+  return{x:PAGE.left-10,y:top,width:PAGE.width-PAGE.left-PAGE.right+20,height:bottom-top};
+}
+function drawItems(ctx,items,theme,{images=true}={}){
+  const box=questionBoxBounds(items);
+  if(box){ctx.save();ctx.fillStyle='#f8fafc';ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1.5;ctx.fillRect(box.x,box.y,box.width,box.height);ctx.strokeRect(box.x,box.y,box.width,box.height);ctx.restore()}
+  for(const item of items){
   if(item.type==='imageRow'){
     for(const cell of item.cells){if(images)ctx.drawImage(cell.image,cell.x,item.y,cell.width,cell.imageHeight);drawLines(ctx,cell.caption,cell.captionX,item.y+cell.imageHeight+6,theme)}
   }
   else if(item.type==='image'){const x=(PAGE.width-item.width)/2;ctx.drawImage(item.image,x,item.y,item.width,item.imageHeight);drawLines(ctx,item.caption,PAGE.left,item.y+item.imageHeight+6,theme)}
   else drawLines(ctx,item.lines,PAGE.left,item.y+(item.type==='heading'?3:0),theme);
 }}
-const api={PAGE,FONT,rangesFor,textLines,textAtoms,heading,paginate,buildGroups,answerText,drawLines,drawItems};
+const api={PAGE,FONT,rangesFor,textLines,textAtoms,heading,paginate,buildGroups,answerText,questionBoxBounds,drawLines,drawItems};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.QBPDFLayout=api;
 })(typeof window!=='undefined'?window:globalThis);
