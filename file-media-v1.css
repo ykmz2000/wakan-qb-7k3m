@@ -32,10 +32,12 @@
 
 /* Inline documents follow the attachment width without a viewer backdrop. */
 .qbPdfCard.qbPdfInline{display:block;width:100%;max-width:100%;padding:0;border:0;background:transparent;overflow:hidden;min-height:0}
-.qbPdfInline .qbPdfPoster{display:flex;flex-direction:column;gap:12px;width:100%}
-.qbPdfInlinePage{display:block;position:relative;width:100%;min-width:0;overflow:hidden;background:#fff;cursor:zoom-in;touch-action:pan-y}
+.qbPdfInline .qbPdfPoster{display:flex;flex-direction:column;gap:12px;width:100%;align-items:flex-start}
+.qbPdfInlinePage{display:block;position:relative;width:min(100%,var(--qb-page-width,380px));max-height:400px;min-width:0;overflow:hidden;background:#fff;cursor:zoom-in;touch-action:pan-y}
 .qbPdfInline .qbPdfInlinePage canvas{display:block;width:100%!important;height:auto!important;max-height:none;max-width:100%;pointer-events:none}
 .qbPdfInline .qbPdfCaption{padding:6px 0;text-align:center;color:var(--text,#172033)}
 .qbPdfInlinePage:focus-visible{outline:3px solid #126fb3;outline-offset:-3px}
 
 .qbPdfEditorPages{margin-top:8px}.qbPdfEditorPages button{min-height:44px;flex-basis:48px}
+
+.qbPdfOrganizer .qbPdfPanel{max-width:1000px;background:#fff;color:#172033;color-scheme:light}.qbPdfOrganizeHint{margin:4px 16px 12px;font-size:14px}.qbPdfOrganizeActions{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px;align-items:center}.qbPdfOrganizeActions [role=status]{flex:1;min-width:140px}.qbPdfOrganizer button{font:inherit;min-height:44px;color:#172033;background:#fff;border:1px solid #aab4c0;border-radius:8px;padding:8px}.qbPdfOrganizeGrid{overflow:auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;padding:16px;align-content:start;background:#f5f7fb}.qbPdfOrganizeCard{min-width:0;border:2px solid transparent;border-radius:10px}.qbPdfOrganizeCard[data-selected=true]{border-color:var(--accent,#126fb3)}.qbPdfOrganizeCard[data-drop=true]{outline:3px solid var(--accent,#126fb3)}.qbPdfOrganizeCard[data-dragging=true]{opacity:.5}.qbPdfOrganizeSelect{display:flex;flex-direction:column;gap:6px;align-items:center;width:100%}.qbPdfOrganizeThumb{height:160px;display:flex;align-items:center;justify-content:center;max-width:100%;pointer-events:none}.qbPdfOrganizeThumb canvas{max-height:160px;max-width:100%;width:auto;height:auto}.qbPdfOrganizeOriginal{font-size:11px;color:#526174}.qbPdfOrganizeHandle{width:100%;font-size:12px!important;touch-action:none;cursor:grab}.qbPdfOrganizer button:disabled{opacity:.45}

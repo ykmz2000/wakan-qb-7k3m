@@ -8,12 +8,32 @@ const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http:
 async function run(browser,label,url){
  const p=await browser.newPage({viewport:{width:1100,height:850}}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(25000);await p.goto(url);
  for(const name of ['file-media-v1.css','image-annotation-v1.css'])await p.addStyleTag({url:url+name});
- for(const name of ['file-media-v1.js','image-annotation-model-v1.js','editable-media-v1.js','image-annotation-editor-v1.js','pdf-editor-v1.js'])await p.addScriptTag({url:url+name});
+ for(const name of ['file-media-v1.js','image-annotation-model-v1.js','editable-media-v1.js','image-annotation-editor-v1.js','pdf-page-organizer-v1.js','pdf-editor-v1.js'])await p.addScriptTag({url:url+name});
  await p.evaluate(async()=>{window.original=await(await fetch('/fixture.pdf')).blob();window.saved=null;QBPDFEditor.open(original,{onSave:async b=>window.saved=b})});
  await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();
  assert.equal(await p.locator('.qbPdfModal').isVisible(),false);assert.equal(await p.getByRole('button',{name:'全体をトリミング',exact:true}).count(),0);
  await p.getByRole('button',{name:'四角い枠',exact:true}).click();await p.getByRole('button',{name:'全体表示',exact:true}).click();const box=await p.locator('.qbDrawStage').boundingBox(),z=Math.min((box.width-32)/400,(box.height-32)/600),at=(x,y)=>({x:box.x+(box.width-400*z)/2+x*z,y:box.y+(box.height-600*z)/2+y*z}),a=at(100,100),b=at(250,350);await p.mouse.move(a.x,a.y);await p.mouse.down();await p.mouse.move(b.x,b.y,{steps:4});await p.mouse.up();
+ await p.getByRole('button',{name:'消しゴム',exact:true}).click();await p.mouse.click(a.x,a.y);await p.getByRole('button',{name:'↶ 元に戻す',exact:true}).click();
+ // Photo menu: two-finger tap, independent editable copy, native-resolution save, explicit deletion.
+ const photoPNG=await p.evaluate(()=>{const c=document.createElement('canvas');c.width=120;c.height=80;c.getContext('2d').fillRect(0,0,120,80);return c.toDataURL().split(',')[1]});
+ await p.locator('.qbDrawModal input[type=file]').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:Buffer.from(photoPNG,'base64')});
+ await p.waitForFunction(()=>document.querySelector('.qbDrawStatus')?.textContent==='画像を追加しました');
+ await p.getByRole('button',{name:'全体表示',exact:true}).click();
+ await p.evaluate(()=>{const c=document.querySelector('.qbDrawCanvas'),r=document.querySelector('.qbDrawStage').getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;const fire=(type,id,dx)=>c.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',clientX:x+dx,clientY:y,bubbles:true,button:0}));fire('pointerdown',81,-3);fire('pointerdown',82,3);fire('pointerup',81,-3);fire('pointerup',82,3);window.photoDownload=null;QBEditableMedia.download=b=>window.photoDownload=b;Object.defineProperty(navigator,'clipboard',{configurable:true,value:{write:async()=>{}}})});
+ const photoMenu=p.getByRole('dialog',{name:'写真の操作',exact:true});await photoMenu.waitFor();
+ await photoMenu.getByRole('button',{name:'コピー',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbDrawPhotoMenuStatus')?.textContent.startsWith('コピーしました'));
+ await photoMenu.getByRole('button',{name:'画像を保存',exact:true}).click();await p.waitForFunction(()=>photoDownload instanceof Blob);
+ assert.deepEqual(await p.evaluate(async()=>{const r=await QBEditableMedia.read(photoDownload);return [r.scene.width,r.scene.height,r.assets.size]}),[120,80,1]);
+ await photoMenu.getByRole('button',{name:'閉じる',exact:true}).click();
+ await p.getByRole('button',{name:'コピーした写真を貼り付け',exact:true}).click();await p.waitForFunction(()=>!document.querySelector('.qbDrawSave').disabled);
+ for(let i=0;i<2;i++){await p.getByRole('button',{name:'全体表示',exact:true}).click();const r=await p.locator('.qbDrawStage').boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();await photoMenu.waitFor();await p.mouse.up();await photoMenu.getByRole('button',{name:'削除',exact:true}).click()}
+ await p.locator('.qbDrawPageNavigation[data-page-delta="1"]').click();
+ await p.waitForFunction(()=>document.querySelector('.qbDrawPanel')?.getAttribute('aria-label')==='PDF編集 · 2 / 3ページ'&&!document.querySelector('.qbDrawSave').disabled);
+ assert.equal(await p.locator('.qbPdfModal').isVisible(),false);
+ await p.locator('.qbDrawPageNavigation[data-page-delta="-1"]').click();
+ await p.waitForFunction(()=>document.querySelector('.qbDrawPanel')?.getAttribute('aria-label')==='PDF編集 · 1 / 3ページ'&&!document.querySelector('.qbDrawSave').disabled);
+ assert.equal(await p.locator('.qbDrawPageNavigation[data-page-delta="-1"]').isDisabled(),true);
  await p.getByRole('button',{name:'このページに適用',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});assert.equal(await p.evaluate(()=>saved),null);
  await p.getByRole('button',{name:'次のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('2 / 3'));await p.getByRole('button',{name:'前のページ',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('1 / 3'));
  await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.waitForFunction(()=>saved instanceof Blob);await p.locator('.qbPdfModal').waitFor({state:'detached'});
@@ -22,14 +42,30 @@ async function run(browser,label,url){
  await p.evaluate(()=>{QBPDFEditor.open(saved,{onSave:async b=>window.saved=b})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();await p.getByRole('button',{name:'このページに適用',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  // Page edits must move with their original page and survive imports/save/reopen.
  await p.evaluate(()=>{window.beforeImport=saved;QBPDFEditor.open(saved,{onSave:async b=>window.saved=b})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
- await p.getByRole('button',{name:'このページを後ろへ移動',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('2 / 3'));
+ await p.getByRole('button',{name:'ページを並べ替え・削除',exact:true}).click();
+ const organizer=p.locator('.qbPdfOrganizer');
+ await organizer.locator('.qbPdfOrganizeThumb canvas').first().waitFor();
+ await organizer.getByRole('button',{name:'すべて選択',exact:true}).click();assert.equal(await organizer.getByRole('button',{name:'選択したページを削除',exact:true}).isDisabled(),true);
+ await organizer.getByRole('button',{name:'選択を解除',exact:true}).click();
+ for(const n of [1,3])await organizer.getByRole('button',{name:'元の'+n+'ページを選択',exact:true}).click();
+ await organizer.getByRole('button',{name:'選択したページを削除',exact:true}).click();assert.equal(await organizer.locator('.qbPdfOrganizeCard').count(),1);
+ await organizer.getByRole('button',{name:'元に戻す',exact:true}).click();assert.equal(await organizer.locator('.qbPdfOrganizeCard').count(),3);
+ const source=await organizer.getByRole('button',{name:'元の1ページを移動',exact:true}).boundingBox(),dest=await organizer.locator('[data-page-id="1"]').boundingBox();
+ await p.mouse.move(source.x+source.width/2,source.y+source.height/2);await p.mouse.down();await p.mouse.move(dest.x+dest.width/2,dest.y+dest.height/2,{steps:8});await p.mouse.up();
+ assert.deepEqual(await organizer.locator('.qbPdfOrganizeCard').evaluateAll(nodes=>nodes.map(n=>n.dataset.pageId)),['1','0','2']);
+ await organizer.getByRole('button',{name:'変更を適用',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('2 / 3'));
  const png=await p.evaluate(()=>{const c=document.createElement('canvas');c.width=320;c.height=200;c.getContext('2d').fillRect(0,0,320,200);return c.toDataURL().split(',')[1]});
  const editedPDF=Buffer.from(await p.evaluate(async()=>[...new Uint8Array(await beforeImport.arrayBuffer())]));
  await p.locator('[data-import]').setInputFiles([{name:'new-image.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')},{name:'extra.pdf',mimeType:'application/pdf',buffer:editedPDF}]);await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('3 / 7'));
+ await p.getByRole('button',{name:'ページを並べ替え・削除',exact:true}).click();
+ await p.locator('.qbPdfOrganizer').getByRole('button',{name:'元の7ページを選択',exact:true}).click();
+ await p.locator('.qbPdfOrganizer').getByRole('button',{name:'選択したページを削除',exact:true}).click();
+ await p.locator('.qbPdfOrganizer').getByRole('button',{name:'変更を適用',exact:true}).click();
+ await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('3 / 6'));
  await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  const order=await p.evaluate(async()=>{const t=await QBFiles.documentTask(saved),d=await t.promise,r=JSON.parse(new TextDecoder().decode(await d.getAttachmentContent('qb-page-edits-v1.json'))),colors=[];for(let n=1;n<=d.numPages;n++){const page=await d.getPage(n),v=page.getViewport({scale:.2}),c=document.createElement('canvas');c.width=v.width;c.height=v.height;await page.render({canvasContext:c.getContext('2d'),viewport:v}).promise;colors.push([...c.getContext('2d').getImageData(1,1,1,1).data].slice(0,3))}await t.destroy();return{colors,keys:Object.keys(r.edits),items:r.edits[2].editable.scene.items.length}});
- assert.deepEqual(order.colors,[[0,255,0],[255,0,0],[0,0,0],[255,0,0],[0,255,0],[0,0,255],[0,0,255]]);assert.deepEqual(order.keys,['2','4']);assert.equal(order.items,1);
- await p.evaluate(()=>{QBPDFEditor.open(saved,{onSave:async b=>window.saved=b})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 7ページ');await p.getByRole('button',{name:'2ページを編集表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 7ページ');await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();await p.getByRole('button',{name:'このページに適用',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
+ assert.deepEqual(order.colors,[[0,255,0],[255,0,0],[0,0,0],[255,0,0],[0,255,0],[0,0,255]]);assert.deepEqual(order.keys,['2','4']);assert.equal(order.items,1);
+ await p.evaluate(()=>{QBPDFEditor.open(saved,{onSave:async b=>window.saved=b})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 6ページ');await p.getByRole('button',{name:'2ページを編集表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 6ページ');await p.getByRole('button',{name:'このページを編集',exact:true}).click();await p.locator('.qbDrawSave:enabled').waitFor();await p.getByRole('button',{name:'このページに適用',exact:true}).click();await p.locator('.qbDrawModal').waitFor({state:'detached'});await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS editable multi-page PDF, original retained, transparent overlays, no whole crop, save and reopen');
 }
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,label,`http://127.0.0.1:${server.address().port}/`)}finally{await b.close()}}}finally{server.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,7 +1,7 @@
 /* Editable sources and scene are persisted separately from the display preview. */
 (()=>{
 'use strict';
-let current=null;
+let current=null,photoClipboard=null;
 const M=window.QBImageModel;
 const MAX_IMAGE_BYTES=100*1024*1024,WARN_IMAGE_BYTES=50*1024*1024;
 const settingsKey='qb-image-editor-settings-v1';
@@ -9,7 +9,7 @@ let sessionSettings={};
 function readSettings(){try{return JSON.parse(localStorage.getItem(settingsKey)||'null')||sessionSettings}catch{return sessionSettings}}
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
 const btn=(label,cls,fn)=>{const b=el('button',cls,label);b.type='button';b.onclick=fn;return b};
-function filesFromPaste(e){if(window.QBFiles)return QBFiles.filesFromPaste(e);const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
+function filesFromPaste(e){if(photoClipboard&&e.clipboardData?.getData('text/plain')===photoClipboard.token)return [photoClipboard.blob];if(window.QBFiles)return QBFiles.filesFromPaste(e);const items=[...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'&&/^image\//.test(i.type)).map(i=>i.getAsFile()).filter(Boolean);return items.length?items:[...(e.clipboardData?.files||[])].filter(f=>/^image\//.test(f.type))}
 function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();if(/^https?:/i.test(String(source)))img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}
 // Encode a single lossless PNG without allocating a full-size output canvas.
 // PNG scanlines share one zlib stream; IDAT boundaries are independent of tiles.
@@ -88,7 +88,7 @@ async function open(source,options={}){
   let done;const result=new Promise(resolve=>{done=resolve});current={modal};
   let scene=null,resetScene=null,history=null,selection=[],tool='pen',color=M.colors[0].value,zoom=1,ox=0,oy=0,frame=0,closed=false,busy=false,subDialog=false,changed=false,gesture=null,lassoPoints=null,penDown=false,textStart=null,snapGuides=[];
   const pointers=new Map();let textHistory=null,textComposing=false;let pinch=null,editingTextId=null,nativeGesture=null,nativeEndedAt=-Infinity,lastPoint=null;
-  if(['lasso','pen','marker','text','arrow','rect','circle','ellipse','counter','image'].includes(preferences.tool))tool=preferences.tool;
+  if(['eraser','lasso','pen','marker','text','arrow','rect','circle','ellipse','counter','image'].includes(preferences.tool))tool=preferences.tool;
   if(M.colors.some(c=>c.value===preferences.color))color=preferences.color;
   if([2,5,10].includes(preferences.size))size.value=preferences.size;
   if([16,24,32,48,64,96].includes(preferences.font))font.value=preferences.font;
@@ -102,12 +102,12 @@ async function open(source,options={}){
   listen(finger,'change',remember);
   function close(value){if(closed)return;remember();closed=true;cancelAnimationFrame(frame);resizeObserver.disconnect();listeners.forEach(f=>f());for(const a of assets.values()){a.img?.close?.();a.nested?.dispose()}urls.forEach(u=>URL.revokeObjectURL(u));modal.remove();background.forEach(([n,inert])=>n.inert=inert);document.body.style.overflow=oldOverflow;current=null;previous?.isConnected&&previous.focus?.({preventScroll:true});done(value)}
   function cancel(){if(busy||subDialog)return;commitText();if(changed&&!confirm('今回の画像編集を破棄しますか？'))return;close(null)}
-  function update(){updateCorrection();snapButton.textContent='スナップ '+(snapEnabled?'ON':'OFF');snapButton.setAttribute('aria-pressed',String(snapEnabled));if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!(textHistory?.past.length||history.past.length);redoButton.disabled=busy||!(editingTextId?textHistory?.future.length:history.future.length);saveButton.disabled=busy;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.hidden=selected.length!==1||selected[0].type!=='image';editSelectedButton.hidden=cropButton.hidden;uncropButton.hidden=cropButton.hidden||!selected[0].sourceRect;uncropAllButton.hidden=!!options.pdfPage||!scene.cropOrigin;cropButton.disabled=busy||subDialog;cropAllButton.disabled=busy||subDialog;[deleteButton,frontmostButton,forwardButton,backwardButton,backmostButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
+  function update(){updateCorrection();snapButton.textContent='スナップ '+(snapEnabled?'ON':'OFF');snapButton.setAttribute('aria-pressed',String(snapEnabled));if(!scene){panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=!(b.classList.contains('qbDrawClose')||b.textContent==='キャンセル'));return;}undoButton.disabled=busy||!(textHistory?.past.length||history.past.length);redoButton.disabled=busy||!(editingTextId?textHistory?.future.length:history.future.length);saveButton.disabled=busy;for(const b of pageButtons)b.disabled=busy||options.pageNumber+Number(b.dataset.pageDelta)<1||options.pageNumber+Number(b.dataset.pageDelta)>options.pageCount;const selected=scene.items.filter(i=>selection.includes(i.id));textInput.hidden=!editingTextId;cropButton.hidden=selected.length!==1||selected[0].type!=='image';editSelectedButton.hidden=cropButton.hidden;uncropButton.hidden=cropButton.hidden||!selected[0].sourceRect;uncropAllButton.hidden=!!options.pdfPage||!scene.cropOrigin;cropButton.disabled=busy||subDialog;cropAllButton.disabled=busy||subDialog;[deleteButton,frontmostButton,forwardButton,backwardButton,backmostButton].forEach(b=>b.disabled=busy||!selected.length);palette.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color)));tools.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===tool)));requestDraw()}
   function checkpoint(){history.push(scene);changed=history.past.length>0;update()}
   function commitText(){const hadText=!!textStart;textStart=null;editingTextId=null;textHistory=null;textInput.hidden=true;if(hadText)checkpoint();else requestDraw()}
   function useTool(next){if(busy||subDialog||gesture)return;commitText();tool=next;snapGuides=[];remember();selection=[];textInput.value='';update();canvas.focus({preventScroll:true})}
   function select(ids){commitText();selection=ids;const item=scene.items.find(i=>ids.length===1&&i.id===ids[0]);if(item){color=item.color||color;if(item.type==='text'){textInput.value=item.text;font.value=String(item.fontSize)}}update()}
-  const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['text','文字'],['counter','連番'],['arrow','矢印'],['rect','四角い枠'],['circle','正円の枠'],['ellipse','楕円の枠']];
+  const toolsList=[['lasso','投げ縄'],['pen','ペン'],['marker','マーカー'],['eraser','消しゴム'],['text','文字'],['counter','連番'],['arrow','矢印'],['rect','四角い枠'],['circle','正円の枠'],['ellipse','楕円の枠']];
   for(const [name,label] of toolsList){const b=btn(label,'',()=>useTool(name));b.dataset.tool=name;b.setAttribute('aria-pressed',String(tool===name));tools.append(b)}
   const fileInput=el('input');fileInput.type='file';fileInput.accept='image/*,application/pdf';fileInput.multiple=true;fileInput.hidden=true;fileInput.onchange=()=>{addImages([...fileInput.files]);fileInput.value=''};
   const imageButton=btn('画像追加','',()=>chooseImageSource());imageButton.dataset.tool='image';imageButton.setAttribute('aria-pressed',String(tool==='image'));tools.append(imageButton,fileInput);
@@ -234,6 +234,7 @@ async function open(source,options={}){
   }
   function abortGesture(){if(gesture?.before)scene=gesture.before;gesture=null;lassoPoints=null;snapGuides=[];requestDraw()}
   function touchPair(){const p=[...pointers.values()].filter(x=>x.type==='touch');return p.length>=2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,dist:Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)}:null}
+  function eraseAt(p){const hit=[...scene.items].reverse().find(i=>i.type!=='image'&&M.hit(i,p,10/zoom));if(hit){scene.items=scene.items.filter(i=>i.id!==hit.id);selection=selection.filter(id=>id!==hit.id);requestDraw()}}
   const directTypes=new Set(['image','rect','circle','ellipse','counter','arrow','text']);
   listen(canvas,'pointerdown',e=>{
     if(!scene||busy||subDialog||e.button>0)return;e.preventDefault();try{canvas.setPointerCapture(e.pointerId)}catch{}const l=local(e);pointers.set(e.pointerId,{...l,type:e.pointerType});
@@ -249,6 +250,7 @@ async function open(source,options={}){
     }
     if(tool==='text'&&selection.length){select([]);return}
     if(e.pointerType==='touch'&&!finger.checked&&tool!=='counter'){gesture={kind:'pan',start:l,ox,oy,id:e.pointerId};return}
+    if(tool==='eraser'){gesture={kind:'erase',before:M.copy(scene),last:p,id:e.pointerId};eraseAt(p);return}
     if(tool==='lasso'){select([]);lassoPoints=[p];gesture={kind:'lasso',id:e.pointerId};return}
     if(p.x<0||p.y<0||p.x>scene.width||p.y>scene.height)return;
     if(tool==='image')return;
@@ -260,7 +262,8 @@ async function open(source,options={}){
     lastPoint=local(e);if(!pointers.has(e.pointerId)||busy||subDialog)return;e.preventDefault();pointers.set(e.pointerId,{...local(e),type:e.pointerType});if(e.pointerType==='touch'&&penDown)return;
     const pair=penDown||e.pointerType==='pen'?null:touchPair();if(pair){if(pinch){const ratio=pair.dist/Math.max(1,pinch.dist);zoomAt(ratio,pinch);ox+=pair.x-pinch.x;oy+=pair.y-pinch.y;requestDraw()}pinch=pair;return}
     if(pinch||!gesture||gesture.id!==e.pointerId)return;const g=gesture,p=point(e);
-    if(g.kind==='counter'){const l=local(e);if(Math.hypot(l.x-g.start.x,l.y-g.start.y)>6)g.moved=true;if(g.moved){ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}}
+    if(g.kind==='erase'){const steps=Math.max(1,Math.ceil(Math.hypot(p.x-g.last.x,p.y-g.last.y)*zoom/5));for(let n=1;n<=steps;n++)eraseAt({x:g.last.x+(p.x-g.last.x)*n/steps,y:g.last.y+(p.y-g.last.y)*n/steps});g.last=p}
+    else if(g.kind==='counter'){const l=local(e);if(Math.hypot(l.x-g.start.x,l.y-g.start.y)>6)g.moved=true;if(g.moved){ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}}
     else if(g.kind==='pan'){const l=local(e);ox=g.ox+l.x-g.start.x;oy=g.oy+l.y-g.start.y}
     else if(g.kind==='draw'){if(g.item.straight){g.item.points=[g.start,straightEnd(g,p)]}else if(g.item.points){const events=e.getCoalescedEvents?.()||[e];for(const ev of events.length?events:[e]){const last=g.item.points.at(-1),n=M.stabilize(last,point(ev),g.correction,g.strokeZoom);if(Math.hypot(n.x-last.x,n.y-last.y)>=.6/zoom)g.item.points.push(n)}}else if(['rect','circle','ellipse'].includes(g.item.type))Object.assign(g.item,M.shapeRect(g.start,p,g.item.type));else g.item.b=p}
     else if(g.kind==='lasso')lassoPoints.push(p);
@@ -271,6 +274,51 @@ async function open(source,options={}){
   const end=e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(e.pointerType==='pen')penDown=false;if(pinch){if(!pointers.size)pinch=null;return}if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;if(e.type==='pointercancel'){abortGesture();return}if(g.kind==='draw'&&g.item.points){const p=point(e),last=g.item.points.at(-1);if(g.item.straight)g.item.points=[g.start,straightEnd(g,p)];else if(Math.hypot(p.x-last.x,p.y-last.y)>.01)g.item.points.push(p)}if(g.kind==='draw'&&['rect','circle','ellipse'].includes(g.item.type))Object.assign(g.item,M.shapeRect(g.start,point(e),g.item.type));if(g.kind==='counter'){if(!g.moved&&Math.hypot(local(e).x-g.start.x,local(e).y-g.start.y)<=6){const mode=counterMode.value,n=scene.counters[mode],d=Number(counterSize.value),p=g.point;scene.items.push({id:crypto.randomUUID(),type:'counter',label:M.counterLabel(n,mode),color,x:p.x-d/2,y:p.y-d/2,w:d,h:d});scene.counters[mode]=n+1;checkpoint()}}else if(g.kind==='lasso'){selection=M.lasso(scene.items,lassoPoints);lassoPoints=null}else if(g.kind!=='pan'){if(g.kind==='draw'&&['rect','circle','ellipse'].includes(g.item.type)&&(g.item.w<1||g.item.h<1))scene=g.before;checkpoint()}gesture=null;snapGuides=[];update();if(g.kind==='move'&&!g.moved&&g.textId){const item=scene.items.find(i=>i.id===g.textId);if(item)editText(item)}};listen(canvas,'pointerup',end);listen(canvas,'pointercancel',end);
   listen(canvas,'lostpointercapture',e=>{if(!pointers.has(e.pointerId))return;pointers.delete(e.pointerId);if(gesture?.id===e.pointerId)abortGesture();if(!pointers.size){pinch=null;penDown=false}});
   listen(window,'blur',()=>{abortGesture();pointers.clear();pinch=null;penDown=false;nativeGesture=null});
+  // Photo menus observe pointer gestures before drawing; moving cancels a tap/hold.
+  let photoHold=null,photoTap=null;const photoContacts=new Map();
+  const photoAt=p=>[...scene.items].reverse().find(i=>i.type==='image'&&M.hit(i,p,0))||(!options.pdfPage&&scene.base&&M.hit(scene.base,p,0)?{...scene.base,id:'base-photo',type:'image'}:null);
+  const clearPhotoHold=()=>{clearTimeout(photoHold);photoHold=null};
+  function photoMenu(item){
+    if(closed||busy||subDialog)return;clearPhotoHold();photoTap=null;photoContacts.clear();abortGesture();pointers.clear();pinch=null;penDown=false;commitText();
+    const actual=item.id==='base-photo'?scene.base:scene.items.find(i=>i.id===item.id);if(!actual)return;
+    childMode(true);const cover=el('div','qbDrawPhotoMenu'),menu=el('section','qbDrawPhotoMenuPanel');menu.setAttribute('role','dialog');menu.setAttribute('aria-modal','true');menu.setAttribute('aria-label','写真の操作');cover.append(menu);modal.append(cover);
+    const dismiss=()=>{cover.remove();childMode(false);canvas.focus({preventScroll:true})};
+    const note=el('div','qbDrawPhotoMenuStatus');note.setAttribute('role','status');
+    async function photoFile(){
+      const a=assets.get(actual.assetId),iw=a.nested?.scene.width||a.img.width,ih=a.nested?.scene.height||a.img.height,r=actual.sourceRect||{x:0,y:0,w:iw,h:ih};
+      const image={...M.copy(actual),id:crypto.randomUUID(),type:'image',x:0,y:0,w:r.w,h:r.h};
+      const s={width:r.w,height:r.h,base:null,items:[image],counters:{number:1,letter:1}};
+      const raw=await tiledPng(Math.ceil(r.w),Math.ceil(r.h),ctx=>QBEditableMedia.paint(ctx,s,assets));
+      const reset=M.copy(s);reset.width=iw;reset.height=ih;reset.items[0]={...image,w:iw,h:ih};delete reset.items[0].sourceRect;
+      return QBEditableMedia.write(raw,{scene:s,reset,assets:new Map([[actual.assetId,a.blob]])});
+    }
+    menu.append(el('b','','写真の操作'),btn('削除','',()=>{if(item.id==='base-photo')scene.base=null;else scene.items=scene.items.filter(i=>i.id!==item.id);selection=[];dismiss();checkpoint()}),
+      btn('コピー','',async()=>{
+        const promise=photoFile(),token='qb-photo:'+crypto.randomUUID();let system=false;
+        try{if(navigator.clipboard?.write&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({'image/png':promise,'text/plain':new Blob([token],{type:'text/plain'})})]);system=true}}catch{}
+        try{photoClipboard={blob:await promise,token};pastePhotoButton.hidden=false;note.textContent=system?'コピーしました。貼り付けて使えます。':'コピーしました。編集画面の「コピーした写真を貼り付け」から使えます。'}catch(e){note.textContent='コピーできませんでした：'+e.message}
+      }),btn('画像を保存','',async()=>{try{note.textContent='画像を準備中…';const blob=await photoFile();QBEditableMedia.download(blob,'写真.png');note.textContent='画像を書き出しました。'}catch(e){note.textContent='保存できませんでした：'+e.message}}),btn('閉じる','',dismiss),note);
+    cover.addEventListener('click',e=>{if(e.target===cover)dismiss()});
+    cover.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();dismiss()}if(e.key==='Tab'){e.preventDefault();const all=[...menu.querySelectorAll('button')],i=all.indexOf(document.activeElement);all[(i+(e.shiftKey?-1:1)+all.length)%all.length].focus()}});
+    menu.querySelector('button').focus();
+  }
+  const pastePhotoButton=btn('コピーした写真を貼り付け','qbDrawPastePhoto',()=>{if(photoClipboard)addImages([photoClipboard.blob])});pastePhotoButton.hidden=!photoClipboard;tools.append(pastePhotoButton);
+  listen(canvas,'pointerdown',e=>{
+    if(e.pointerType==='pen'||penDown){clearPhotoHold();photoTap=null;photoContacts.clear();return}
+    if(!scene||busy||subDialog||e.button!==0)return;
+    const p=local(e);photoContacts.set(e.pointerId,p);clearPhotoHold();
+    if(photoContacts.size===1){const item=photoAt(point(e));photoTap={item,start:performance.now(),moved:false,two:false,zoom,ox,oy};if(item)photoHold=setTimeout(()=>{if(photoTap&&!photoTap.moved&&photoContacts.size===1)photoMenu(item)},550)}
+    else if(photoContacts.size===2&&photoTap){photoTap.two=true;const points=[...photoContacts.values()],center={x:(points[0].x+points[1].x)/2,y:(points[0].y+points[1].y)/2};photoTap.item=photoAt({x:(center.x-ox)/zoom,y:(center.y-oy)/zoom})}
+    else if(photoTap)photoTap.moved=true;
+  },true);
+  listen(canvas,'pointermove',e=>{const p=photoContacts.get(e.pointerId);if(p&&photoTap&&Math.hypot(local(e).x-p.x,local(e).y-p.y)>8){photoTap.moved=true;clearPhotoHold()}},true);
+  for(const kind of ['pointerup','pointercancel','lostpointercapture'])listen(canvas,kind,e=>{
+    clearPhotoHold();if(!photoContacts.has(e.pointerId))return;photoContacts.delete(e.pointerId);if(kind!=='pointerup'&&photoTap)photoTap.moved=true;
+    if(!photoContacts.size){const tap=photoTap;photoTap=null;if(tap?.two&&!tap.moved&&tap.item&&performance.now()-tap.start<350){e.preventDefault();e.stopImmediatePropagation();zoom=tap.zoom;ox=tap.ox;oy=tap.oy;photoMenu(tap.item)}}
+  },true);
+  listen(canvas,'contextmenu',e=>{if(!scene||busy||subDialog)return;const item=photoAt(point(e));if(item){e.preventDefault();photoMenu(item)}});
+  listeners.push(()=>{clearPhotoHold();photoContacts.clear()});
+
   function mountReference(img){
     const bar=el('div','qbDrawReferenceControls'),view=el('div','qbDrawReferenceViewport');view.tabIndex=0;view.setAttribute('aria-label','問題・解答の拡大表示');img.draggable=false;view.append(img);reference.replaceChildren(bar,view);
     let scale=1,x=0,y=0,nativeScale=null,lastNative=0;const contacts=new Map();
@@ -297,11 +345,15 @@ async function open(source,options={}){
   async function snapshot(){const blobs=new Map();for(const [id,a] of assets)blobs.set(id,a.blob||await(await fetch(a.url)).blob());return {scene:M.copy(scene),reset:M.copy(resetScene),assets:blobs}}
   async function exportImage(){if(!scene||busy||subDialog)return;commitText();busy=true;update();try{const d=M.nativeExportPlan(scene,id=>{const a=assets.get(id);return a?{width:a.nested?.scene.width||a.img.width,height:a.nested?.scene.height||a.img.height}:null});const output=await tiledPng(d.width,d.height,ctx=>{ctx.scale(d.scale,d.scale);paint(ctx,false)},p=>status.textContent=`PNGを書き出し中… ${p}%`);QBEditableMedia.download(output,'画像.png');status.textContent='PNGを書き出しました。編集内容の保存は「確定して保存」を押してください。'}catch(e){status.textContent=e.message}finally{busy=false;update()}}
   if(window.QBEditableMedia&&!options.pdfPage){navigation.append(btn('PNGを書き出す','qbDrawExport',exportImage),btn('PDFを書き出す','qbDrawExportPDF',async()=>{if(busy||subDialog)return;commitText();busy=true;update();try{const output=await QBEditableMedia.exportPDF(await snapshot());QBEditableMedia.download(output,'画像.pdf');status.textContent='PDFを書き出しました。'}catch(e){status.textContent=e.message}finally{busy=false;update()}}))}
-  async function save(){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';try{
+  const pageButtons=[];
+  if(options.pdfPage&&options.pageCount){
+    for(const [delta,label] of [[-1,'前のページ'],[1,'次のページ']]){const b=btn(label,'qbDrawPageNavigation',()=>save(delta));b.dataset.pageDelta=delta;pageButtons.push(b);navigation.append(b)}
+  }
+  async function save(pageDelta=0){if(!scene||busy||subDialog||gesture)return;commitText();busy=true;update();panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);status.textContent='保存中…';try{
     let output,meta;
     if(window.QBEditableMedia){const record=await snapshot(),preview=await QBEditableMedia.preview(scene,assets,!!options.pdfPage);if(options.pdfPage){output=preview;meta={width:scene.width,height:scene.height,editable:await QBEditableMedia.legacy(record)}}else{output=await QBEditableMedia.write(preview,record);meta={width:scene.width,height:scene.height,editable:true}}}
     else {const d=M.nativeExportPlan(scene,id=>{const img=assets.get(id)?.img;return img?{width:img.naturalWidth||img.width,height:img.naturalHeight||img.height}:null});if(d.width*d.height>200000000&&!confirm(`元解像度で保存すると ${d.width.toLocaleString()} × ${d.height.toLocaleString()}px になります。保存を続けますか？`))throw Error('保存を中止しました。編集内容は残っています。');output=await tiledPng(d.width,d.height,ctx=>{ctx.scale(d.scale,d.scale);paint(ctx,false,!!options.pdfPage)},p=>status.textContent=`元解像度PNG — ${p}%`);let editable=null;if(options.pdfPage){editable={scene:M.copy(scene),assets:{}};for(const id of new Set(scene.items.filter(i=>i.type==='image').map(i=>i.assetId))){editable.assets[id]=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(assets.get(id).blob)})}}meta={width:d.width,height:d.height,editable};}
-    if(output.size>MAX_IMAGE_BYTES)throw Error('保存ファイルが100MiBを超えました。');if(output.size>WARN_IMAGE_BYTES)status.textContent='大きなファイルを保存中…';await options.onSave?.(output,meta);close(output);
+    if(output.size>MAX_IMAGE_BYTES)throw Error('保存ファイルが100MiBを超えました。');if(output.size>WARN_IMAGE_BYTES)status.textContent='大きなファイルを保存中…';await options.onSave?.(output,{...meta,pageDelta});close(output);
   }catch(e){status.textContent='保存できませんでした：'+(e.message||e);busy=false;panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);update()}}
   listen(window,'paste',e=>{if(closed||subDialog)return;const files=filesFromPaste(e);if(!files.length){if(e.target===pasteTarget){e.preventDefault();e.stopImmediatePropagation();pasteTarget.value='';status.textContent='画像をコピーしてから貼り付けてください。';canvas.focus({preventScroll:true})}return}e.preventDefault();e.stopImmediatePropagation();pasteTarget.value='';if(!busy&&!gesture){canvas.focus({preventScroll:true});addImages(files)}},true);
   listen(window,'keydown',e=>{
@@ -325,7 +377,7 @@ async function open(source,options={}){
     if(record&&!options.pdfPage){options={...options,resetSource:null};const remap=Object.create(null);for(const [key,blob] of record.assets)remap[key]=await asset(blob);const mapScene=s=>{const out=M.copy(s);for(const i of [out.base,...out.items].filter(Boolean))if(i.assetId)i.assetId=remap[i.assetId];return out};scene=mapScene(record.scene);resetScene=mapScene(record.reset||record.scene);}
     else {const id=await asset(source);if(closed)return result;const img=assets.get(id).img;scene={width:img.width,height:img.height,base:{assetId:id,x:0,y:0,w:img.width,h:img.height},items:[],counters:{number:1,letter:1}};resetScene=M.copy(scene);
       if(options.pdfPage&&options.editable){const saved=M.copy(options.editable.scene);if(saved.width!==scene.width||saved.height!==scene.height||!Array.isArray(saved.items))throw Error('PDFの編集データとページサイズが一致しません。');const remap=Object.create(null);for(const [key,value] of Object.entries(options.editable.assets||{})){if(!/^data:image\/(png|jpeg|webp|gif|heic|heif);base64,/.test(value))throw Error('編集画像の形式が不正です。');remap[key]=await asset(value)}saved.base=scene.base;for(const item of saved.items)if(item.type==='image'){if(!remap[item.assetId])throw Error('編集画像が不足しています。');item.assetId=remap[item.assetId]}scene=saved;}}
-    history=new M.History(scene);panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);status.textContent=options.pdfPage?'このページの編集を適用してPDFに戻ります。':window.QBEditableMedia?'保存後も書き込みやトリミングを個別に編集できます。':'保存後は書き込みをまとめて1枚の画像にします。';if(options.pdfPage){for(const b of navigation.querySelectorAll('button'))if(b.textContent.includes('余白'))b.hidden=true;panel.querySelector('.qbDrawSave').textContent='このページに適用';}fit();update();if(options.initialImages?.length)await addImages(options.initialImages)}catch(e){status.textContent=e.message}
+    history=new M.History(scene);panel.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=false);status.textContent=options.pdfPage?'ページ移動時に編集を保持します。最後に「PDFを保存」で保存します。':window.QBEditableMedia?'保存後も書き込みやトリミングを個別に編集できます。':'保存後は書き込みをまとめて1枚の画像にします。';if(options.pdfPage){for(const b of navigation.querySelectorAll('button'))if(b.textContent.includes('余白'))b.hidden=true;panel.querySelector('.qbDrawSave').textContent='このページに適用';}fit();update();if(options.initialImages?.length)await addImages(options.initialImages)}catch(e){status.textContent=e.message}
   return result;
 }
 window.QBImageEditor={open,filesFromPaste,encodePng:tiledPng,isOpen:()=>!!current};

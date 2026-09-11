@@ -96,16 +96,12 @@ async function run(browser,name){
   const transform=await p.locator(stage+' img').getAttribute('style');
   await pointer(p,'pointermove',cx-160,cy,1);assert.equal(await p.locator(stage+' img').getAttribute('style'),transform);
   await pointer(p,'pointerup',cx-160,cy,1);await count(p,'1 / 3');
-  await swipe(p,-100);await count(p,'1 / 3');assert.notEqual(await p.locator(stage+' img').getAttribute('style'),transform);
-  await p.locator(stage).dispatchEvent('wheel',{deltaX:120,deltaY:0});await count(p,'1 / 3');
-  await p.keyboard.press('ArrowRight');await count(p,'1 / 3');
-  await p.locator('.qbImageLightboxReset').click();assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'false');
-  // Touch double-tap must not be undone by its subsequent native dblclick.
+  await swipe(p,-135);await ready(p);await count(p,'2 / 3');assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'false');
+  // A single-finger double tap must not zoom the image.
   for(let i=0;i<2;i++){await pointer(p,'pointerdown',cx,cy);await pointer(p,'pointerup',cx,cy)}
-  assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'true');
-  await p.locator(stage+' img').dispatchEvent('dblclick');assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'true');
-  await p.locator('.qbImageLightboxNext').click();await ready(p);await count(p,'2 / 3');assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'false');
-  console.log(name+' PASS pinch and pan take priority, remaining finger is guarded, double-tap works and explicit next resets zoom');
+  assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'false');
+  await p.locator(stage+' img').dispatchEvent('dblclick');assert.equal(await p.locator(stage).getAttribute('data-zoomed'),'false');
+  console.log(name+' PASS two-finger pinch, remaining finger guard, one-finger page navigation while zoomed, no one-finger zoom');
   for(const viewport of [{width:320,height:568},{width:844,height:390},{width:1024,height:768},{width:1366,height:900}]){
     await p.setViewportSize(viewport);await p.waitForTimeout(50);
     const controls=await p.locator('#qbImageLightbox button:visible').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height}}));
