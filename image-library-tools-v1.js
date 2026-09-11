@@ -10,7 +10,7 @@ async function recentFiles(sb,rows){
   const out=[];
   for(const row of rows){
     const d=await sb.storage.from(BUCKET).download(row.image_path);if(d.error)throw new Error(`元画像の取得に失敗: ${d.error.message}`);
-    const b=d.data,e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif'}[e]||'application/octet-stream');
+    const b=d.data,e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif','pdf':'application/pdf'}[e]||'application/octet-stream');
     out.push(new File([b],`recent-${crypto.randomUUID()}.${e}`,{type}));
   }
   return out;
@@ -25,10 +25,10 @@ async function chooseRecent(input,status,button){
   const sb=window.qbSupabase,picker=window.qbRecentImagePicker;if(!sb||!picker)return;
   try{
     button.disabled=true;if(status)status.textContent='最近のファイルを読み込んでいます…';
-    const rows=await picker.pick({sb,title:'最近アップロードした画像'});if(!rows.length){if(status)status.textContent='';return}
-    if(status)status.textContent='選択した画像を準備中…';
+    const rows=await picker.pick({sb,title:'最近アップロードしたファイル'});if(!rows.length){if(status)status.textContent='';return}
+    if(status)status.textContent='選択したファイルを準備中…';
     const files=await recentFiles(sb,rows);
-    if(!dispatchFiles(input,files))throw new Error('この端末では画像の受け渡しに失敗しました');
+    if(!dispatchFiles(input,files))throw new Error('この端末ではファイルの受け渡しに失敗しました');
   }catch(e){if(status)status.textContent='最近のファイルの追加失敗: '+(e?.message||e)}finally{setTimeout(()=>{if(button.isConnected)button.disabled=false},300)}
 }
 function cropModal(src){return window.QBImageCrop.open(src,{title:'問題画像をトリミング',rotatable:false})}
@@ -53,7 +53,7 @@ function css(){
   document.head.appendChild(s)
 }
 function enhanceStem(){
-  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(w.querySelector('[data-pdf-src]')||!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
+  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(window.QBImageEditor||w.querySelector('[data-pdf-src]')||!w.querySelector('.qsiDelete')||w.querySelector('.qsiCropTool'))return;const b=document.createElement('button');b.type='button';b.className='qsiCropTool';b.textContent='トリミング';b.onclick=()=>cropStem(b);w.appendChild(b)});
   document.querySelectorAll('.qsiEditor,.qsiInlineEditor').forEach(box=>{const actions=box.querySelector('.qsiActions'),input=box.querySelector('input[type=file]');if(!actions||!input||actions.querySelector('.qsiRecentBtn'))return;const b=document.createElement('button');b.type='button';b.className='qsiRecentBtn';b.textContent='最近のファイル';actions.appendChild(b);b.onclick=()=>chooseRecent(input,box.querySelector('.qsiStatus'),b)})
 }
 function enhanceOfficial(){

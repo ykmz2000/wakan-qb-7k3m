@@ -91,7 +91,7 @@ async function open({context=null}={}){
    members.forEach(row=>{const b=btn('',()=>toggleImages([row]),'qbLibraryMemberChoice'),im=el('img');b.dataset.pickIds=JSON.stringify([row.id]);im.alt=row.metadata?.name||'画像';b.append(im,el('span','',im.alt));items.append(b);S.signedURL(sb,row.object_path).then(url=>{if(im.isConnected)media(im,url)}).catch(()=>{});});syncSelection();
   }
   function preview(initial,isSet=false){
-   const prior=document.activeElement,modal=el('div','qbLibraryOverlay qbLibraryPreview'),box=el('section','qbLibraryPanel'),header=el('div','qbLibraryHeader'),content=el('div','qbLibraryBody'),title=el('strong','',isSet?initial.name:initial.metadata?.name||'画像の詳細');
+   const prior=document.activeElement,modal=el('div','qbLibraryOverlay qbLibraryPreview'),box=el('section','qbLibraryPanel'),header=el('div','qbLibraryHeader'),content=el('div','qbLibraryBody'),title=el('strong','',isSet?initial.name:initial.metadata?.name||'ファイルの詳細');
    modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','画像のプレビュー');modal.tabIndex=-1;header.append(title,btn('一覧に戻る',finish));box.append(header,content);modal.append(box);overlay.append(modal);panel.inert=true;
    function finish(){modal.remove();panel.inert=false;if(prior?.isConnected)prior.focus({preventScroll:true})}
    modal.addEventListener('click',e=>{e.stopPropagation();if(e.target===modal)finish()});modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish()}if((e.metaKey||e.ctrlKey)&&['s','z'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key==='Tab'){const all=[...box.querySelectorAll('button,summary')].filter(n=>n.getClientRects().length),first=all[0],last=all.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===modal)){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
@@ -108,7 +108,7 @@ async function open({context=null}={}){
   const searchForm=el('form','qbLibrarySearch'),searchInput=el('input');searchInput.type='search';searchInput.placeholder='ファイル名・テーマ・読み取り本文を検索';searchInput.setAttribute('aria-label','ファイルを検索');const searchButton=btn('検索',()=>load(true));searchForm.append(searchInput,searchButton);searchForm.onsubmit=e=>{e.preventDefault();if(!imeActive(searchInput))load(true)};function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(!composingFields.has(searchInput))load(true)},300)}searchInput.oninput=e=>{clearTimeout(searchTimer);if(!composingFields.has(searchInput)&&!e.isComposing)scheduleSearch()};
   const tools=el('div','qbLibraryTools'),uploadInput=el('input');uploadInput.type='file';uploadInput.accept='image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,application/pdf';uploadInput.multiple=true;uploadInput.hidden=true;
   const uploadStatus=el('div','qbLibraryStatus');uploadStatus.setAttribute('role','status');
-  const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードでファイルを貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへの画像貼り付け欄');
+  const pasteZone=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードでファイルを貼り付け');pasteZone.contentEditable='true';pasteZone.tabIndex=0;pasteZone.hidden=true;pasteZone.setAttribute('role','textbox');pasteZone.setAttribute('aria-label','ライブラリへのファイル貼り付け欄');
 
   const pasteButton=btn('ファイルをペースト',pasteImages),recentButton=btn('最近のファイル',chooseRecent);
   tools.append(btn('ファイルを追加',()=>uploadInput.click()),pasteButton,recentButton,uploadInput);if(access.admin)tools.append(btn('検索語・別名を管理',()=>showTerms(),'qbLibraryTextButton'),btn('科目・単元を管理',()=>showCatalog(),'qbLibraryTextButton'));
@@ -127,7 +127,7 @@ async function open({context=null}={}){
   }
   async function register(values,save){
    if(!values.length||busy||closed)return;setBusy(true);const mode=await uploadMode(values.length);if(!mode){uploadInput.value='';setBusy(false);return}let done=0,registered=[];
-   try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きな画像を保存中… 通信に時間がかかる場合があります。 ':'画像を登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(mode==='together'&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のカード',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
+   try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きなファイルを保存中… 通信に時間がかかる場合があります。 ':'ファイルを登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(mode==='together'&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のカード',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
    catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
    if(registered.length)await reviewUploads(registered);
@@ -246,7 +246,7 @@ async function open({context=null}={}){
   uploadInput.onchange=()=>register([...uploadInput.files],f=>S.add(sb,f));
   async function pasteImages(){
    if(busy)return;setBusy(true);let files=[];
-   try{if(navigator.clipboard?.read){const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(t=>t.startsWith('image/')||t==='application/pdf');if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付け画像.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* iPad and denied clipboard reads use an explicit paste target. */}
+   try{if(navigator.clipboard?.read){const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(t=>t==='application/pdf')||item.types.find(t=>t.startsWith('image/'));if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付けファイル.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* iPad and denied clipboard reads use an explicit paste target. */}
    finally{setBusy(false)}
    if(files.length){pasteZone.hidden=true;await register(files,f=>S.add(sb,f));return}
    pasteZone.hidden=false;pasteZone.focus();uploadStatus.textContent='ファイルをコピーして、貼り付け欄にペーストしてください。';
@@ -283,7 +283,7 @@ async function open({context=null}={}){
   async function load(reset){
    if(closed||(!reset&&loading))return;const retain=reset&&listView.hidden?state.offset:0;loading=true;autoPaused=false;clearTimeout(searchTimer);if(reset){state.query=searchInput.value;state.offset=0;generation++;grid.replaceChildren();suggest.replaceChildren();}
    const version=generation,offset=state.offset;status.textContent=reset?'検索中…':'続きを読み込み中…';more.hidden=true;more.disabled=true;searchButton.disabled=true;
-   try{const rows=await S.search(sb,{...state});await preloadAuthors(rows);if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=true;status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件の画像はありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
+   try{const rows=await S.search(sb,{...state});await preloadAuthors(rows);if(closed||version!==generation)return;if(reset)grid.replaceChildren();for(const row of rows)renderResult(row,version);state.offset=offset+rows.length;hasMore=rows.length===30&&state.offset<Number(rows[0]?.total_count||0);more.hidden=true;status.textContent=rows.length?`${rows[0].total_count}件 / ${state.offset}件を表示`:(reset?'この条件のファイルはありません。':'すべて表示しました。');if(reset&&!rows.length&&state.query){for(const word of C.suggestions(state.query,terms))suggest.append(btn('もしかして：'+word,()=>{searchInput.value=word;load(true)},'qbLibraryTextButton'))}syncSelection();}
    catch(e){if(!closed&&version===generation){report(status,e);autoPaused=true;more.hidden=false;more.textContent='再読み込み';}}
    finally{if(!closed&&version===generation){loading=false;more.disabled=false;searchButton.disabled=false;requestAnimationFrame(maybeLoadMore)}}
    while(!closed&&version===generation&&!autoPaused&&hasMore&&state.offset<retain)await load(false);
@@ -291,7 +291,7 @@ async function open({context=null}={}){
   function enterDetail(title){saveCurrent=null;detailPaste=null;detailGeneration++;if(!listView.hidden)listScroll=body.scrollTop;listView.hidden=true;navigationButton.textContent='一覧に戻る';selectModeButton.hidden=true;setButton.hidden=true;detailView.hidden=false;detailView.querySelectorAll('.qbLibraryAutoGrow').forEach(n=>fieldResize.unobserve(n));detailView.replaceChildren();heading.textContent=title;body.scrollTop=0}
   async function back(){if(busy)return;if(dirty()){if(!saveCurrent)return;await saveCurrent();if(dirty())return;}detailGeneration++;dirty=()=>false;saveCurrent=null;detailPaste=null;detailView.hidden=true;listView.hidden=false;navigationButton.textContent='閉じる';selectModeButton.hidden=true;setButton.hidden=true;syncSelection();heading.textContent=context?'ライブラリから選択':'ライブラリ';body.scrollTop=listScroll;navigationButton.focus({preventScroll:true});}
   async function showDetail(initial,editing=false){
-   if(busy)return;enterDetail('画像の詳細');const detailVersion=detailGeneration;const note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row;
+   if(busy)return;enterDetail('ファイルの詳細');const detailVersion=detailGeneration;const note=el('div','qbLibraryStatus','読み込み中…');note.setAttribute('role','status');detailView.append(note);let row;
    try{row=await S.get(sb,initial.id);if(closed||detailVersion!==detailGeneration)return;await drawDetail(row,note,editing)}catch(e){report(note,e)}
   }
   async function drawDetail(initial,note,editing){
@@ -299,12 +299,12 @@ async function open({context=null}={}){
    if(!editing||!owns(row)){
     dirty=()=>false;saveCurrent=null;note.textContent='';
     const actions=el('div','qbLibraryTools');if(owns(row))actions.append(btn('編集',()=>showDetail(row,true),'qbLibraryEditButton'));
-    if(selectionMode&&!row.archived){const pick=btn('この画像を選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
+    if(selectionMode&&!row.archived){const pick=btn('このファイルを選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
    top.append(...(!pdf(row)?[btn('画像編集',()=>editImage('annotation'))]:[]),btn('元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('このカードにファイルを追加',()=>showSetEditor(null,[row])));
-   if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'この画像を選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'この画像を選択';syncSelection()},'qbLibraryPrimary'));
+   if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'このファイルを選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'このファイルを選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
    const form=el('form','qbLibraryForm'),controls={};detailView.append(form);
    const fields=metadataForm(form,m);Object.assign(controls,fields.controls);const advanced=fields.advanced;
@@ -383,20 +383,20 @@ async function open({context=null}={}){
    })}
    drawMembers();note.textContent='各画像を確認して選択できます。カードから外しても画像はライブラリに残ります。';
    const addTools=el('div','qbLibraryTools'),addInput=el('input'),addPaste=el('div','qbLibraryPasteZone','ここを長押しして「ペースト」、またはキーボードでファイルを貼り付け');
-   addInput.type='file';addInput.accept=uploadInput.accept;addInput.multiple=true;addInput.hidden=true;addInput.setAttribute('aria-label','カードに追加する画像');
-   addPaste.contentEditable='true';addPaste.tabIndex=0;addPaste.hidden=true;addPaste.setAttribute('role','textbox');addPaste.setAttribute('aria-label','カードへの画像貼り付け欄');
+   addInput.type='file';addInput.accept=uploadInput.accept;addInput.multiple=true;addInput.hidden=true;addInput.setAttribute('aria-label','カードに追加するファイル');
+   addPaste.contentEditable='true';addPaste.tabIndex=0;addPaste.hidden=true;addPaste.setAttribute('role','textbox');addPaste.setAttribute('aria-label','カードへのファイル貼り付け欄');
    const alive=()=>!closed&&gen===detailGeneration;
    async function appendImages(values,save){
     if(busy||!alive()||!values.length)return;setBusy(true);let count=0,registered=[];
     try{for(const value of values){if(!alive())return;note.textContent=`ファイルを追加中… ${count}/${values.length}`;const image=await save(value);if(!alive())return;if(!members.some(r=>r.id===image.id))members.push(image);registered.push(image);count++;drawMembers();}note.textContent=`${count}枚を追加しました。「カードを保存」で確定してください。`;}
-    catch(e){note.textContent=`${count}枚を追加済み。`+(e.message||e)+' 追加できた画像は保持しています。';}
+    catch(e){note.textContent=`${count}枚を追加済み。`+(e.message||e)+' 追加できたファイルは保持しています。';}
     finally{addInput.value='';setBusy(false);if(alive()&&count)try{await load(true)}catch(e){report(note,e)}}
     if(alive()&&registered.length){const updated=await reviewUploads(registered);if(alive()&&updated){const byId=new Map(updated.map(r=>[r.id,r]));members=members.map(r=>byId.get(r.id)||r);drawMembers()}}
    }
    addInput.onchange=()=>appendImages([...addInput.files],f=>S.add(sb,f));
    async function pasteIntoSet(){
     if(busy)return;setBusy(true);let files=[];
-    try{if(navigator.clipboard?.read){for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>t.startsWith('image/')||t==='application/pdf');if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付け画像.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* Use the explicit paste field when clipboard access is unavailable. */}finally{setBusy(false)}
+    try{if(navigator.clipboard?.read){for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>t==='application/pdf')||item.types.find(t=>t.startsWith('image/'));if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付けファイル.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* Use the explicit paste field when clipboard access is unavailable. */}finally{setBusy(false)}
     if(!alive())return;if(files.length){addPaste.hidden=true;await appendImages(files,f=>S.add(sb,f));return}addPaste.hidden=false;addPaste.focus();note.textContent='ファイルをコピーして、貼り付け欄にペーストしてください。';
    }
    detailPaste=e=>{
@@ -407,13 +407,13 @@ async function open({context=null}={}){
    };
    const recentAdd=btn('最近のファイルから追加',async()=>{
     if(busy)return;const picker=window.qbRecentImagePicker;if(!picker){note.textContent='最近のファイルを読み込めません。画面を再読み込みしてください。';return}setBusy(true);panel.inert=true;let picked=[];
-    try{picked=await picker.pick({sb,title:'カードに追加する画像を選択',parent:overlay,context:null})}catch(e){report(note,e)}finally{panel.inert=false;setBusy(false);if(alive())recentAdd.focus({preventScroll:true})}
+    try{picked=await picker.pick({sb,title:'カードに追加するファイルを選択',parent:overlay,context:null})}catch(e){report(note,e)}finally{panel.inert=false;setBusy(false);if(alive())recentAdd.focus({preventScroll:true})}
     if(alive())await appendImages(picked,r=>S.addRecent(sb,r));
    });
-   addTools.append(btn('このカードにファイルを追加',()=>addInput.click()),btn('ファイルをペースト',pasteIntoSet),recentAdd);detailView.append(addTools,addInput,addPaste,el('div','qbLibraryStatus','追加した画像はすぐにライブラリへ登録されます。カードの構成は「カードを保存」で確定します。'));
+   addTools.append(btn('このカードにファイルを追加',()=>addInput.click()),btn('ファイルをペースト',pasteIntoSet),recentAdd);detailView.append(addTools,addInput,addPaste,el('div','qbLibraryStatus','追加したファイルはすぐにライブラリへ登録されます。カードの構成は「カードを保存」で確定します。'));
    const actions=el('div','qbLibraryTools');actions.append(btn('全部を選択',()=>{members.forEach(r=>selected.delete(r.id));members.filter(r=>!r.archived).forEach(r=>selected.set(r.id,r));drawMembers();syncSelection()}),btn('選択を解除',()=>{members.forEach(r=>selected.delete(r.id));drawMembers();syncSelection()}),btn('カードを保存',saveSet,'qbLibraryPrimary'));detailView.append(actions);saveCurrent=saveSet;
-   async function saveSet(){if(busy)return;if(!name.input.value.trim()||!members.length){note.textContent='カード名と1枚以上の画像が必要です。';return}setBusy(true);try{row=await S.setSave(sb,row,name.input.value,members.map(r=>r.id));baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);const picked=members.filter(r=>selected.has(r.id));members.forEach(r=>selected.delete(r.id));picked.forEach(r=>selected.set(r.id,r));syncSelection();note.textContent='カードを保存しました。';void load(true)}catch(e){report(note,e)}finally{setBusy(false)}}
-   if(row)actions.append(btn('カードを解除',async()=>{if(busy||!confirm('カードを解除しますか？各画像はライブラリに残ります。'))return;setBusy(true);try{await S.setSave(sb,row,row.name,row.image_ids,true);dirty=()=>false;await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}));
+   async function saveSet(){if(busy)return;if(!name.input.value.trim()||!members.length){note.textContent='カード名と1つ以上のファイルが必要です。';return}setBusy(true);try{row=await S.setSave(sb,row,name.input.value,members.map(r=>r.id));baseline=JSON.stringify([name.input.value,members.map(r=>r.id)]);const picked=members.filter(r=>selected.has(r.id));members.forEach(r=>selected.delete(r.id));picked.forEach(r=>selected.set(r.id,r));syncSelection();note.textContent='カードを保存しました。';void load(true)}catch(e){report(note,e)}finally{setBusy(false)}}
+   if(row)actions.append(btn('カードを解除',async()=>{if(busy||!confirm('カードを解除しますか？各ファイルはライブラリに残ります。'))return;setBusy(true);try{await S.setSave(sb,row,row.name,row.image_ids,true);dirty=()=>false;await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}));
    if(!initial){try{const existing=(await S.sets(sb)).filter(r=>!r.archived&&owns(r));if(closed||gen!==detailGeneration)return;const f=selectField('既存のカードに追加',[['','カードを選択'],...existing.map(r=>[r.id,r.name])]);detailView.append(f.host,btn('このカードに追加',async()=>{if(busy||!f.input.value)return;setBusy(true);try{const target=await S.setGet(sb,f.input.value);const ids=[...new Set([...target.image_ids,...members.map(r=>r.id)])];await S.setSave(sb,target,target.name,ids);dirty=()=>false;selected.clear();await load(true);setBusy(false);await back()}catch(e){report(note,e)}finally{setBusy(false)}}))}catch(e){report(note,e)}}
   }
   async function showCatalog(){

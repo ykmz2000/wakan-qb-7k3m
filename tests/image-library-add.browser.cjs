@@ -33,7 +33,7 @@ async function run(browser,name){
   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>{throw new DOMException('denied','NotAllowedError')}}});
  });
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryItem').first().waitFor();
- await p.locator('.qbLibraryPanel').getByRole('button',{name:'ファイルをペースト',exact:true}).click();await p.getByRole('textbox',{name:'ライブラリへの画像貼り付け欄'}).waitFor();
+ await p.locator('.qbLibraryPanel').getByRole('button',{name:'ファイルをペースト',exact:true}).click();await p.getByRole('textbox',{name:'ライブラリへのファイル貼り付け欄'}).waitFor();
  await p.locator('.qbLibraryPasteZone').evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['pasted pixels'],'clipboard.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
  await p.waitForFunction(()=>db.qb_image_library_items.length===3);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});assert.equal(await p.locator('.qbLibraryPasteZone').isVisible(),false);
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.at(-1).metadata.analysis_status),'unprocessed');

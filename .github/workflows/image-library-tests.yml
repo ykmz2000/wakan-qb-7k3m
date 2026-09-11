@@ -4,6 +4,8 @@ on:
     paths:
       - 'file-media-*'
       - 'tests/file-media*'
+      - 'tests/library-file-batch*'
+      - 'tests/pdf-fixture*'
       - 'tests/image-crop*'
       - 'scripts/build-inline-overview.cjs'
       - 'editor-build/package.json'

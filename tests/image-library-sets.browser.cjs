@@ -38,14 +38,14 @@ async function runAppend(browser,label){
  await p.locator('.qbLibraryEntry').click();await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);
  await p.getByRole('button',{name:'このカードにファイルを追加',exact:true}).click();
  await p.getByLabel('カード名',{exact:true}).fill('追加カード');
- await p.getByLabel('カードに追加する画像',{exact:true}).setInputFiles([{name:'new-a.png',mimeType:'image/png',buffer:Buffer.from('a')},{name:'new-b.png',mimeType:'image/png',buffer:Buffer.from('b')}]);
+ await p.getByLabel('カードに追加するファイル',{exact:true}).setInputFiles([{name:'new-a.png',mimeType:'image/png',buffer:Buffer.from('a')},{name:'new-b.png',mimeType:'image/png',buffer:Buffer.from('b')}]);
  await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===3&&!document.querySelector('.qbLibraryBody > div:last-child').inert);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  assert.equal(await p.evaluate(()=>db.qb_image_library_sets.length),0);
  await p.getByRole('button',{name:'カードを保存',exact:true}).click();await p.waitForFunction(()=>db.qb_image_library_sets.length===1);
  const original=await p.evaluate(()=>db.qb_image_library_sets[0].image_ids.slice());assert.equal(original[0],'i1');assert.equal(original.length,3);
  await p.getByRole('button',{name:'一覧に戻る',exact:true}).click();await p.locator('.qbLibrarySet .qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).click();
  await p.getByRole('button',{name:'ファイルをペースト',exact:true}).click();
- await p.getByRole('textbox',{name:'カードへの画像貼り付け欄',exact:true}).evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['paste'],'paste.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
+ await p.getByRole('textbox',{name:'カードへのファイル貼り付け欄',exact:true}).evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['paste'],'paste.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
  await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===4&&!document.querySelector('.qbLibraryBody > div:last-child').inert);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
  await p.getByRole('button',{name:'最近のファイルから追加',exact:true}).click();await p.locator('.qbripItem[data-id="r1"]').click();await p.locator('.qbripUse').click();
  await p.waitForFunction(()=>document.querySelectorAll('.qbLibrarySetMember').length===5&&!document.querySelector('.qbLibraryBody > div:last-child').inert);await p.getByRole('button',{name:'確定',exact:true}).click();await p.locator('.qbLibraryUploadReview').waitFor({state:'detached'});
