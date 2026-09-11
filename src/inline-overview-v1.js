@@ -215,14 +215,14 @@ function toggleImages(s,toggle){
   if(s.mode==='stem'){
     // Reuse already-bound question-stem-images controls in their existing host.
     const box=s.host.querySelector(':scope > .qsiHost .qsiEditor');
-    if(!box){status(s,'問題画像を読み込み中です。少し待ってから「画像を編集・追加」を押してください。');return}
+    if(!box){status(s,'問題画像を読み込み中です。少し待ってから「資料を追加・編集」を押してください。');return}
     const wasOpen=!box.classList.contains('qsiHidden');
     if(s.stemImagesWereOpen===undefined)s.stemImagesWereOpen=wasOpen;
     box.classList.toggle('qsiHidden',wasOpen);
-    toggle.textContent=wasOpen?'画像を編集・追加':'画像編集を閉じる';toggle.setAttribute('aria-expanded',String(!wasOpen));return;
+    toggle.textContent=wasOpen?'資料を追加・編集':'画像編集を閉じる';toggle.setAttribute('aria-expanded',String(!wasOpen));return;
   }
   const old=s.media.querySelector('.qbInlineImageManager'),media=s.host.querySelector(':scope > .qbMediaHostV2');
-  if(old){old.remove();media?.classList.remove('hidden');toggle.textContent='画像を編集・追加';toggle.setAttribute('aria-expanded','false');return}
+  if(old){old.remove();media?.classList.remove('hidden');toggle.textContent='資料を追加・編集';toggle.setAttribute('aria-expanded','false');return}
   const manager=el('div','adeEditor qbInlineImageManager');manager.dataset.adeEditor='overview';manager.dataset.qbQuestionId=s.id;s.media.append(manager);
   media?.classList.add('hidden');toggle.textContent='画像編集を閉じる';toggle.setAttribute('aria-expanded','true');
 }
@@ -253,8 +253,8 @@ function createView(s,rich,changed=updateState){
         view.input.lastIOSEnterFallbackTimeout=-1;
         view.dispatch(view.state.tr.insertText('\n').scrollIntoView());return true;
       }},
-      handlePaste(view,e){e.preventDefault();if(e.clipboardData?.files?.length){status(s,'画像は「画像を編集・追加」から追加してください。');return true}const text=e.clipboardData?.getData('text/plain')||'';if(text)view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g,'\n')).scrollIntoView());return true},
-      handleDrop(view,e){e.preventDefault();status(s,'画像は「画像を編集・追加」、文章はコピー＆ペーストをご利用ください。');return true}
+      handlePaste(view,e){e.preventDefault();if(e.clipboardData?.files?.length){status(s,'画像は「資料を追加・編集」から追加してください。');return true}const text=e.clipboardData?.getData('text/plain')||'';if(text)view.dispatch(view.state.tr.insertText(text.replace(/\r\n?/g,'\n')).scrollIntoView());return true},
+      handleDrop(view,e){e.preventDefault();status(s,'画像は「資料を追加・編集」、文章はコピー＆ペーストをご利用ください。');return true}
     });
 }
 const choiceFields=new Set();
@@ -331,8 +331,8 @@ async function open(host,q,mode='overview'){
     s.actions=el('div','qbInlineActions');s.status=el('span','qbInlineStatus');s.status.setAttribute('role','status');
     s.cancelButton=button('qbInlineCancel','キャンセル');s.saveButton=button('qbInlineSave','保存');s.saveButton.append(el('kbd','',mod+'S'));s.actions.append(s.status,s.cancelButton,s.saveButton);
     s.cancelButton.onclick=()=>{if(!s.saving)closeEditor(s)};s.saveButton.onclick=()=>save(s);
-    s.media=el('div','qbInlineMedia');const imageToggle=button('qbInlineImageToggle adeEditBtn','画像を編集・追加');imageToggle.setAttribute('aria-expanded','false');
-    const imageHint=el('div','qbInlineImageHint','画像操作は即時反映です。本文のキャンセルでは画像の追加・加工・削除・並べ替えは元に戻りません。');s.media.append(imageToggle,imageHint);
+    s.media=el('div','qbInlineMedia');const imageToggle=button('qbInlineImageToggle adeEditBtn','資料を追加・編集');imageToggle.setAttribute('aria-expanded','false');
+    const imageHint=el('div','qbInlineImageHint','資料の操作は即時反映です。本文のキャンセルでは画像の追加・加工・削除・並べ替えは元に戻りません。');s.media.append(imageToggle,imageHint);
     imageToggle.onclick=()=>toggleImages(s,imageToggle);
     created=s;body.dataset.qbInlineEditing=mode;host.classList.add(mode==='stem'?'qbInlineStemActive':'qbInlineActive');body.before(s.tools);body.replaceChildren();
     const rich=el('div','qbInlineRich');body.append(rich);

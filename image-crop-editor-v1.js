@@ -45,7 +45,7 @@ function css(){
 @media(max-width:1100px),(any-pointer:coarse){.qbCropModal{padding:0}.qbCropPanel{width:100%;height:100%;height:100dvh;border:0;border-radius:0}.qbCropHeader{padding-top:max(8px,env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}.qbCropFooter{padding-bottom:max(10px,env(safe-area-inset-bottom));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}}
 `;document.head.appendChild(style);
 }
-async function open(src,{title='画像をトリミング',rotatable=true}={}){
+async function open(src,{title='画像をトリミング',rotatable=true,selectionOnly=false}={}){
   if(currentDialog)throw new Error('開いているトリミング画面を閉じてください。');
   // Reserve before loading to prevent repeated taps from opening multiple dialogs.
   currentDialog=true;
@@ -54,7 +54,7 @@ async function open(src,{title='画像をトリミング',rotatable=true}={}){
   return new Promise((resolve,reject)=>{
     const modal=document.createElement('div');modal.className='qbCropModal';
     modal.innerHTML=`<section class="qbCropPanel" role="dialog" aria-modal="true" aria-labelledby="qbCropTitle" tabindex="-1"><header class="qbCropHeader"><div class="qbCropTitleRow"><h2 id="qbCropTitle"></h2><button type="button" class="qbCropClose" aria-label="トリミングを閉じる">×</button></div><p class="qbCropHint">1本指で枠を調整・2本指で画像を移動／拡大縮小。PCではドラッグして調整できます。</p></header><div class="qbCropStage"><div class="qbCropSurface"><img class="qbCropImage" alt="トリミング対象"></div></div><footer class="qbCropFooter"><div class="qbCropControls"><button type="button" class="qbCropFull">画像全体に戻す</button><button type="button" data-r="NaN" aria-pressed="true">自由</button><button type="button" data-r="1" aria-pressed="false">1:1</button><button type="button" data-r="1.3333333333333333" aria-pressed="false">4:3</button><button type="button" data-r="1.7777777777777777" aria-pressed="false">16:9</button>${rotatable?'<button type="button" data-rotate="-90">↶ 左へ90°</button><button type="button" data-rotate="90">↷ 右へ90°</button>':''}</div><div class="qbCropActions"><span class="qbCropStatus" role="status">読み込み中…</span><button type="button" class="qbCropCancel">キャンセル</button><button type="button" class="qbCropSave" disabled>この範囲で保存</button></div></footer></section>`;
-    modal.querySelector('h2').textContent=title;
+    modal.querySelector('h2').textContent=title;if(selectionOnly)modal.querySelector('.qbCropSave').textContent='この範囲を適用';
     const panel=modal.querySelector('.qbCropPanel'),stage=modal.querySelector('.qbCropStage'),surface=modal.querySelector('.qbCropSurface'),img=modal.querySelector('img'),saveButton=modal.querySelector('.qbCropSave'),status=modal.querySelector('.qbCropStatus');
     const focus=document.activeElement,htmlOverflow=document.documentElement.style.overflow,bodyOverflow=document.body.style.overflow;
     let cropper=null,closed=false,busy=false,ready=false,previousGesture=null,multiActive=false;
@@ -114,21 +114,24 @@ async function open(src,{title='画像をトリミング',rotatable=true}={}){
       busy=true;modal.querySelectorAll('button').forEach(b=>b.disabled=true);cropper.disable();status.textContent='画像を作成中…';
       const failed=e=>{busy=false;cropper.enable();modal.querySelectorAll('button').forEach(b=>b.disabled=false);status.textContent='保存できませんでした：'+(e.message||e)};
       try{
-        const data=cropper.getData(true),canvas=cropper.getCroppedCanvas({imageSmoothingEnabled:false});
-        if(!canvas||!canvas.width||!canvas.height)throw new Error('切り抜く範囲を選択してください。');
-        if(canvas.width<Math.floor(data.width)||canvas.height<Math.floor(data.height)){
-          // iPad/WebKit may reject an 11k-wide canvas even though the source
-          // image is valid. Encode the crop in scanline tiles instead of
-          // lowering the output resolution.
-          const encoder=window.QBImageEditor?.encodePng;
-          const rotated=Math.abs(Number(data.rotate||0))%360>0.01;
-          if(typeof encoder!=='function'||rotated)throw Error('この端末では元解像度のトリミング画像を生成できません。自動縮小は行いません。');
-          const width=Math.max(1,Math.round(data.width)),height=Math.max(1,Math.round(data.height));
-          const sx=Number(data.scaleX||1),sy=Number(data.scaleY||1),source=img;
-          const blob=await encoder(width,height,ctx=>{ctx.save();ctx.scale(sx,sy);ctx.drawImage(source,-Number(data.x||0)/sx,-Number(data.y||0)/sy);ctx.restore();},p=>{status.textContent='元解像度トリミング '+p+'%';});
+        const data=cropper.getData(true);
+        if(!(data.width>0&&data.height>0))throw Error('切り抜く範囲を選択してください。');
+        if(selectionOnly){close(data);return}
+        const encoder=window.QBImageEditor?.encodePng;
+        if(typeof encoder==='function'){
+          // Render directly into small tiles, including rotation. Do not first
+          // allocate the giant getCroppedCanvas that can fail on iPad Safari.
+          const source=cropper.image||img,info=cropper.getImageData(),w=info.naturalWidth,h=info.naturalHeight;
+          const angle=Number(data.rotate||0)*Math.PI/180,sx=Number(data.scaleX??1),sy=Number(data.scaleY??1);
+          const rw=Math.abs(w*sx*Math.cos(angle))+Math.abs(h*sy*Math.sin(angle)),rh=Math.abs(w*sx*Math.sin(angle))+Math.abs(h*sy*Math.cos(angle));
+          const blob=await encoder(Math.max(1,Math.round(data.width)),Math.max(1,Math.round(data.height)),ctx=>{
+            ctx.save();ctx.imageSmoothingEnabled=false;ctx.translate(rw/2-data.x,rh/2-data.y);ctx.rotate(angle);ctx.scale(sx,sy);ctx.drawImage(source,-w/2,-h/2,w,h);ctx.restore();
+          },p=>{status.textContent='元解像度トリミング '+p+'%';});
           close(blob);return;
         }
-        canvas.toBlob(blob=>{if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/png');
+        const canvas=cropper.getCroppedCanvas({imageSmoothingEnabled:false});
+        if(!canvas||canvas.width<Math.floor(data.width)||canvas.height<Math.floor(data.height))throw Error('元解像度で保存する機能を読み込めませんでした。編集内容を保持して再試行してください。');
+        canvas.toBlob(blob=>{canvas.width=canvas.height=1;if(blob)close(blob);else failed(new Error('画像を生成できませんでした。'))},'image/png');
       }catch(e){failed(e)}
     };
     img.onload=()=>{

@@ -16,7 +16,7 @@ function resolve(box){
 function scan(){
  if(!authorized||!window.QBImageLibrary)return;
  const cluster=document.querySelector('.qbAccountCluster'),account=document.getElementById('acctBtn');
- if(cluster&&account&&!cluster.querySelector('.qbLibraryEntry')){const b=document.createElement('button');b.type='button';b.className='qbLibraryEntry';b.setAttribute('aria-label','画像ライブラリ');b.title='画像ライブラリ';b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';b.onclick=()=>window.QBImageLibrary.open().catch(e=>alert(e.message||e));cluster.insertBefore(b,account)}
+ if(cluster&&account&&!cluster.querySelector('.qbLibraryEntry')){const b=document.createElement('button');b.type='button';b.className='qbLibraryEntry';b.setAttribute('aria-label','ライブラリ');b.title='ライブラリ';b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';b.onclick=()=>window.QBImageLibrary.open().catch(e=>alert(e.message||e));cluster.insertBefore(b,account)}
  for(const box of document.querySelectorAll('.qsiEditor,.qsiInlineEditor,.oeiBox')){
   const actions=box.querySelector('.qsiActions,.oeiActions');if(!actions||actions.querySelector('.qbLibraryAction'))continue;
   const b=document.createElement('button');b.type='button';b.className='qbLibraryAction';b.textContent='ライブラリ';actions.append(b);

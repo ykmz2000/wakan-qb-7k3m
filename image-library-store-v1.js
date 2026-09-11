@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 const BUCKET='qb-image-library',DESTINATION='question-media',C=root.QBImageLibraryCore,MAX_IMAGE_BYTES=100*1024*1024;
-const TYPES={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
+const TYPES={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
 const one=data=>Array.isArray(data)?data[0]:data;
 const unwrap=r=>{if(r.error)throw r.error;return r.data};
 async function available(sb){
@@ -15,9 +15,10 @@ async function authors(sb,ids){ids=[...new Set(ids.filter(Boolean))];const rows=
 function avatarURL(sb,path){return path?sb.storage.from('user-avatars').getPublicUrl(path).data.publicUrl:''}
 async function get(sb,id){const r=await sb.from('qb_image_library_items').select('*').eq('id',id).maybeSingle();const row=unwrap(r);if(!row)throw Error('画像が見つかりません。');return row}
 async function signedURL(sb,path){return unwrap(await sb.storage.from(BUCKET).createSignedUrl(path,1800)).signedUrl}
-function fileInfo(file){if(!file||!file.size||file.size>MAX_IMAGE_BYTES)throw Error('画像は100MB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('PNG・JPEG・WebP・GIF・HEIC・HEIFの画像を選んでください。');return {type,ext}}
+function fileInfo(file){if(!file||!file.size||file.size>MAX_IMAGE_BYTES)throw Error('ファイルは100MiB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('画像またはPDFを選んでください。');return {type,ext}}
 async function upload(sb,id,file){const {type,ext}=fileInfo(file),path=id+'/'+crypto.randomUUID()+'.'+ext;unwrap(await sb.storage.from(BUCKET).upload(path,file,{contentType:type,upsert:false,cacheControl:'3600'}));return path}
 async function add(sb,file){
+ if(window.QBFiles)file=await QBFiles.validate(file);
  await authorize(sb);const id=crypto.randomUUID(),path=await upload(sb,id,file);
  const payload={id,object_path:path,original_path:path,metadata:{name:file.name||'画像',subject_ids:[],unit_ids:[],topics:[],keywords:[],aspects:[],roles:[],aliases:[],related_keywords:[],notes:'',ocr_text:'',visual_summary:'',analysis_status:'unprocessed',classification_status:'unknown'}};
  // An ambiguous write may already have committed. Never remove the original on error.
@@ -37,7 +38,7 @@ async function addRecent(sb,row){
 async function save(sb,row,patch,options={}){
  await requireOwner(sb,row);C.validate(patch);const r=await sb.rpc('qb_library_save',{p_id:row.id,p_revision:row.revision,p_patch:patch,p_origin:options.origin||'manual',p_reason:options.reason||'情報を編集',p_archived:options.archived??null,p_object_path:options.objectPath||null});return one(unwrap(r));
 }
-async function replace(sb,row,file){await requireOwner(sb,row);const latest=await get(sb,row.id);if(latest.revision!==row.revision)throw Error('別の更新があります。最新の情報を確認してください。');const path=await upload(sb,row.id,file);return save(sb,row,{}, {objectPath:path,reason:'原本を新しい画像に差し替え'})}
+async function replace(sb,row,file){if(window.QBFiles)file=await QBFiles.validate(file);await requireOwner(sb,row);const latest=await get(sb,row.id);if(latest.revision!==row.revision)throw Error('別の更新があります。最新の情報を確認してください。');const path=await upload(sb,row.id,file);return save(sb,row,{}, {objectPath:path,reason:'原本を新しい画像に差し替え'})}
 async function search(sb,state={}){return unwrap(await sb.rpc('qb_library_search_v2',{p_query:state.query||'',p_subjects:state.subjects||[],p_aspect:state.aspect||'',p_analysis:state.analysis||'',p_classification:state.classification||'',p_used:state.used||'',p_related:!!state.related,p_archived:!!state.archived,p_offset:state.offset||0,p_limit:30,p_role:state.role||'',p_unit:state.unit||null,p_sort:state.sort||'recent',p_view:state.view||'all'}))||[]}
 async function catalog(sb,table){let rows=[];for(let n=0;;n+=200){const q=sb.from(table).select('*').order(table==='subjects'?'sort_order':table==='qb_image_library_sets'?'name':'canonical').range(n,n+199),batch=unwrap(await q)||[];rows.push(...batch);if(batch.length<200)return rows}}
 async function history(sb,id,offset=0){return unwrap(await sb.from('qb_image_library_history').select('*').eq('image_id',id).order('revision',{ascending:false}).range(offset,offset+49))||[]}

@@ -63,6 +63,9 @@ jobs:
           node tests/inline-enter.browser.cjs
           node tests/fill-blank-reference.browser.cjs
           node tests/question-image-add-theme.browser.cjs
+          node tests/file-media.browser.cjs
+          node tests/library-file-batch.browser.cjs
+          node tests/image-crop-scene.browser.cjs
           node tests/image-crop.browser.cjs
           node tests/image-gallery.browser.cjs
       - name: Setup Pages

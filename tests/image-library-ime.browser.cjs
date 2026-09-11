@@ -13,7 +13,7 @@ async function run(browser,name){
  assert.deepEqual(result,{prevented:false,same:true,value:'くも膜下'});assert.deepEqual(await p.evaluate(()=>searches),['']);
  await p.waitForFunction(()=>searches.length===2);assert.deepEqual(await p.evaluate(()=>searches),['','くも膜下']);assert.equal(await search.inputValue(),'くも膜下');
  await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).click();
- for(const label of ['画像名','テーマ','キーワード']){
+ for(const label of ['ファイル名','テーマ','キーワード']){
   const field=p.getByLabel(label,{exact:true});await field.fill('');await field.focus();
   const before=await field.evaluate(n=>n.style.height);
   await field.evaluate(n=>{window.originalIMEField=n;n.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));n.value='くも膜下';n.dispatchEvent(new InputEvent('input',{inputType:'insertCompositionText',data:'くも膜下',isComposing:true,bubbles:true}));n.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:229,isComposing:true,bubbles:true,cancelable:true}))});

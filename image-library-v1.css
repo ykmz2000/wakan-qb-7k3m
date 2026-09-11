@@ -114,3 +114,6 @@ body .qbLibraryPanel button.qbLibraryEditButton{display:inline-flex;align-items:
 .qbLibraryZoomImage{cursor:zoom-in}.qbLibraryZoomImage:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
 .qbLibraryUpdated{display:block;font-size:12px;color:var(--muted,#687280);margin:4px 0 12px}
+
+.qbLibraryCarousel{min-width:0;max-width:100%}.qbLibrarySlides .qbLibrarySlide{overflow:hidden}.qbLibrarySlide img{display:block;width:100%;height:min(55vh,520px);object-fit:contain}.qbLibrarySlide .qbPdfCard{margin:0 auto;max-width:100%}.qbLibrarySetMember .qbPdfCard{min-height:100px}.qbLibrarySetMember .qbPdfPoster canvas{max-height:120px}
+.qbLibraryUploadMode .qbLibraryPanel{height:auto;max-height:90dvh;width:min(540px,96vw)}.qbLibraryUploadChoice{display:block;width:100%;min-height:56px;text-align:left;font-weight:700;margin-top:16px}

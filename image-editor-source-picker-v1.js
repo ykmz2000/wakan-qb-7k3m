@@ -37,7 +37,7 @@ function choose({onDevice}={}){
   if(active)return Promise.resolve(null);
   return new Promise(resolve=>{
     const d=modalBase('画像を追加'),body=d.querySelector('.qbeSourceBody');
-    body.innerHTML='<div class="qbeSourceChoices"><button type="button" data-source="device">端末から選ぶ</button><button type="button" data-source="recent">最近の画像から</button><button type="button" data-source="library">画像ライブラリから</button><button type="button" data-source="question">この問題を画像化</button></div>';let closed=false;
+    body.innerHTML='<div class="qbeSourceChoices"><button type="button" data-source="device">ファイルを選択</button><button type="button" data-source="recent">最近のファイルから</button><button type="button" data-source="library">ライブラリから</button><button type="button" data-source="question">この問題を画像化</button></div>';let closed=false;
     function close(value=null){if(closed)return;closed=true;d.release();resolve(value)}
     d.querySelector('.qbeSourceClose').onclick=()=>close();
     d.addEventListener('click',e=>{const b=e.target.closest('[data-source]');if(b){const source=b.dataset.source;close(source);if(source==='device')onDevice?.()}else if(e.target===d)close()});
@@ -45,11 +45,11 @@ function choose({onDevice}={}){
   });
 }
 async function pickLibrary({sb=window.qbSupabase}={}){
-  const S=window.QBImageLibraryStore;if(!sb||!S)throw Error('画像ライブラリを利用できません。');if(active)return [];
+  const S=window.QBImageLibraryStore;if(!sb||!S)throw Error('ライブラリを利用できません。');if(active)return [];
   await S.authorize(sb);if(active)return [];
   return new Promise(resolve=>{
-    const d=modalBase('画像ライブラリから選択'),body=d.querySelector('.qbeSourceBody');
-    body.innerHTML='<div class="qbeSourceSearch"><input type="search" placeholder="タイトル・キーワードで検索" aria-label="画像ライブラリを検索"><button type="button" class="qbeSearchButton">検索</button><select aria-label="ライブラリの科目"><option value="">全科目</option></select></div><div class="qbeLibraryStatus" role="status">読み込み中…</div><div class="qbeLibraryGrid"></div><button type="button" class="qbeLibraryMore" hidden>さらに読み込む</button><div class="qbeLibraryFoot"><button type="button" class="qbeCancel">キャンセル</button><button type="button" class="qbeUse" disabled>選択した画像を追加</button></div>';
+    const d=modalBase('ライブラリから選択'),body=d.querySelector('.qbeSourceBody');
+    body.innerHTML='<div class="qbeSourceSearch"><input type="search" placeholder="タイトル・キーワードで検索" aria-label="ライブラリを検索"><button type="button" class="qbeSearchButton">検索</button><select aria-label="ライブラリの科目"><option value="">全科目</option></select></div><div class="qbeLibraryStatus" role="status">読み込み中…</div><div class="qbeLibraryGrid"></div><button type="button" class="qbeLibraryMore" hidden>さらに読み込む</button><div class="qbeLibraryFoot"><button type="button" class="qbeCancel">キャンセル</button><button type="button" class="qbeUse" disabled>選択した画像を追加</button></div>';
     const input=d.querySelector('input'),subject=d.querySelector('select'),grid=d.querySelector('.qbeLibraryGrid'),status=d.querySelector('.qbeLibraryStatus'),more=d.querySelector('.qbeLibraryMore'),use=d.querySelector('.qbeUse'),selected=new Map();
     let rows=[],offset=0,closed=false,generation=0,loading=false,composing=false,lastComposition=-Infinity;
     function close(value=[]){if(closed)return;closed=true;generation++;d.release();resolve(value)}
@@ -61,7 +61,7 @@ async function pickLibrary({sb=window.qbSupabase}={}){
     function addCard(row){
       const b=document.createElement('button');b.type='button';b.className='qbeLibraryItem';b.dataset.id=row.id;b.setAttribute('aria-pressed','false');const name=row.metadata?.name||'画像';
       b.innerHTML=`<img alt="${esc(name)}" loading="lazy"><span class="qbeLibraryName">${esc(name)}</span><span class="qbeLibraryOrder" hidden></span>`;grid.append(b);
-      S.signedURL(sb,row.object_path).then(url=>{if(!closed&&b.isConnected)b.querySelector('img').src=url}).catch(()=>{if(b.isConnected)b.title='プレビューの取得に失敗しました。検索で再読み込みしてください。'});
+      S.signedURL(sb,row.object_path).then(url=>{if(!closed&&b.isConnected&&b.querySelector('img'))window.QBFiles?QBFiles.present(b.querySelector('img'),url,false):b.querySelector('img').src=url}).catch(()=>{if(b.isConnected)b.title='プレビューの取得に失敗しました。検索で再読み込みしてください。'});
       b.onclick=()=>{selected.has(row.id)?selected.delete(row.id):selected.set(row.id,row);sync()};
     }
     async function load(reset=false){

@@ -87,7 +87,7 @@ async function currentScope(sb,q){
   const r=await sb.from('questions').select('subject_id,unit_id').eq('id',id).maybeSingle();
   if(r.error)throw r.error;return {subjectId:r.data?.subject_id||'',unitId:r.data?.unit_id||''};
 }
-async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードした画像',parent=document.body,context=currentQuestion()}={}){
+async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードしたファイル',parent=document.body,context=currentQuestion()}={}){
   if(!sb)throw new Error('Supabaseを取得できません');css();
   const pageSize=Math.max(10,Math.min(60,Number(limit)||DEFAULT_PAGE_SIZE));
   return new Promise(resolve=>{
@@ -112,7 +112,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       window.removeEventListener('blur',cancelPress);d.remove();document.documentElement.style.overflow=oldOverflow;
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
-    function openPreview(row,b,fromHold=false){
+    function openPreview(row,b,fromHold=false){if(window.QBFiles?.isPDF(row.image_path)){void QBFiles.open(publicUrl(sb,row.image_path));return}
       if(closed||preview)return;
       previewOrigin=b;previewScroll=panel.scrollTop;previewGuard=fromHold?Infinity:performance.now()+100;
       preview=document.createElement('div');preview.className='qbripPreview';preview.setAttribute('role','dialog');preview.setAttribute('aria-modal','true');preview.setAttribute('aria-label','画像の拡大表示');
@@ -130,7 +130,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}"><span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(publicUrl(sb,row.image_path)).replace('type="button"','type="button" data-pdf-passive="true"').replace(/<button/g,'<span').replace(/<\/button>/g,'</span>'):`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};

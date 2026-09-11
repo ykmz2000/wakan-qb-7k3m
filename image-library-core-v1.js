@@ -4,7 +4,7 @@
 const ARRAY_FIELDS=['subject_ids','unit_ids','topics','keywords','aspects','roles','aliases','related_keywords'];
 const TEXT_FIELDS=['name','notes','ocr_text','visual_summary'];
 const FIELDS=[...TEXT_FIELDS,...ARRAY_FIELDS,'analysis_status','classification_status'];
-const LABELS={name:'画像名',subject_ids:'科目',unit_ids:'単元',set_name:'セット名',topics:'テーマ',keywords:'キーワード',aspects:'内容の観点',roles:'画像の役割',aliases:'検索用の別名',related_keywords:'関連する内容',notes:'補足・学習意図',ocr_text:'読み取り本文',visual_summary:'図・写真の説明',analysis_status:'解析状況',classification_status:'分類状況'};
+const LABELS={name:'ファイル名',subject_ids:'科目',unit_ids:'単元',set_name:'セット名',topics:'テーマ',keywords:'キーワード',aspects:'内容の観点',roles:'画像の役割',aliases:'検索用の別名',related_keywords:'関連する内容',notes:'補足・学習意図',ocr_text:'読み取り本文',visual_summary:'図・写真の説明',analysis_status:'解析状況',classification_status:'分類状況'};
 function normalize(value){return String(value??'').normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/\s+/g,' ').trim()}
 function list(value){return [...new Set((Array.isArray(value)?value:String(value||'').split(/[\n、,]/)).map(x=>String(x).trim()).filter(Boolean))]}
 function changed(before,after){const patch={};for(const key of FIELDS)if(Object.hasOwn(after,key)&&JSON.stringify(before?.[key]??(ARRAY_FIELDS.includes(key)?[]:''))!==JSON.stringify(after[key]))patch[key]=after[key];return patch}

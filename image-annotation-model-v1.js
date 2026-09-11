@@ -44,7 +44,7 @@ function nativeExportPlan(scene,assetSize){
     if(item.x>=scene.width||item.y>=scene.height||item.x+item.w<=0||item.y+item.h<=0)continue;
     const original=assetSize(item.assetId);
     if(!original||![original.width,original.height].every(n=>Number.isFinite(n)&&n>0))throw Error('元画像の解像度を確認できません。');
-    density=Math.max(density,original.width/item.w,original.height/item.h);
+    density=Math.max(density,(item.sourceRect?.w||original.width)/item.w,(item.sourceRect?.h||original.height)/item.h);
   }
   const scale=Math.ceil(density-1e-9),width=Math.ceil(scene.width*scale),height=Math.ceil(scene.height*scale);
   if(!Number.isSafeInteger(width*height)||width>0x7fffffff||height>0x7fffffff)throw Error('元解像度で保存できる画像寸法を超えています。画像を分けて保存してください。');
