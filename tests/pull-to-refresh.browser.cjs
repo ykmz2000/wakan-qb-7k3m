@@ -73,6 +73,8 @@ async function run(browser,name){
  await p.evaluate(()=>{testDB.questions[0].explanation_overview='さらに最新';testWrites=[]});
  await p.evaluate(()=>QBDataRefresh.refresh());await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('さらに最新'));
  assert.equal(await p.evaluate(()=>testWrites.length),0,'refresh must never create attempts, ratings or sessions');
+ // The shared explanation is decorated asynchronously after the refreshed text appears.
+ await p.waitForFunction(()=>document.querySelector('#ans')?.dataset.qbExplanationReady==='q1'&&document.querySelector('#ans .qbSharedRating'));
  const old=await p.locator('#view').innerHTML();await p.evaluate(()=>testReadFail=true);
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('#view').innerHTML(),old);await p.evaluate(()=>testReadFail=false);
  await p.evaluate(()=>{const e=document.createElement('textarea');e.className='adeEditor';e.value='未保存';document.querySelector('#view').append(e)});
