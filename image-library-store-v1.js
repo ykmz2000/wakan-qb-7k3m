@@ -1,7 +1,8 @@
 (function(root){
 'use strict';
-const BUCKET='qb-image-library',DESTINATION='question-media',C=root.QBImageLibraryCore,MAX_IMAGE_BYTES=100*1024*1024;
+const BUCKET='qb-image-library',DESTINATION='question-media',C=root.QBImageLibraryCore,MAX_IMAGE_BYTES=100*1024*1024,RESUMABLE_PDF_BYTES=6*1024*1024;
 const TYPES={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
+let tusClientPromise=null;
 const one=data=>Array.isArray(data)?data[0]:data;
 const unwrap=r=>{if(r.error)throw r.error;return r.data};
 async function available(sb){
@@ -16,7 +17,26 @@ function avatarURL(sb,path){return path?sb.storage.from('user-avatars').getPubli
 async function get(sb,id){const r=await sb.from('qb_image_library_items').select('*').eq('id',id).maybeSingle();const row=unwrap(r);if(!row)throw Error('画像が見つかりません。');return row}
 async function signedURL(sb,path){return unwrap(await sb.storage.from(BUCKET).createSignedUrl(path,1800)).signedUrl}
 function fileInfo(file){if(!file||!file.size||file.size>MAX_IMAGE_BYTES)throw Error('ファイルは100MiB以下にしてください。');const type=(file.type||'').toLowerCase(),ext=TYPES[type];if(!ext)throw Error('画像またはPDFを選んでください。');return {type,ext}}
-async function upload(sb,id,file){const {type,ext}=fileInfo(file),path=id+'/'+crypto.randomUUID()+'.'+ext;unwrap(await sb.storage.from(BUCKET).upload(path,file,{contentType:type,upsert:false,cacheControl:'3600'}));return path}
+function loadTusClient(){
+ if(root.tus?.Upload)return Promise.resolve(root.tus);
+ if(!root.document)return Promise.reject(Error('大きなPDFのアップロード機能を読み込めません。'));
+ if(!tusClientPromise)tusClientPromise=new Promise((resolve,reject)=>{
+  const script=root.document.createElement('script');let settled=false;
+  const finish=error=>{if(settled)return;settled=true;script.onload=script.onerror=null;if(error){script.remove();tusClientPromise=null;reject(error)}else resolve(root.tus)};
+  script.src='https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js';script.onload=()=>finish(root.tus?.Upload?null:Error('大きなPDFのアップロード機能を準備できませんでした。'));script.onerror=()=>finish(Error('大きなPDFのアップロード機能を読み込めませんでした。通信を確認してください。'));root.document.head.append(script);
+ });return tusClientPromise;
+}
+async function resumableUpload(sb,path,file,type){
+ const client=await loadTusClient(),session=unwrap(await sb.auth.getSession())?.session,token=session?.access_token;
+ if(!token)throw Error('ログイン状態を確認できません。もう一度ログインしてください。');
+ const storageUrl=(sb.storageUrl||((sb.supabaseUrl||'').replace(/\/$/,'')+'/storage/v1')).replace(/\/$/,'');
+ if(!/^https?:\/\//.test(storageUrl))throw Error('アップロード先を確認できません。画面を再読み込みしてください。');
+ await new Promise((resolve,reject)=>{
+  const task=new client.Upload(file,{endpoint:storageUrl+'/upload/resumable',retryDelays:[0,3000,5000,10000,20000],headers:{authorization:'Bearer '+token,'x-upsert':'false'},uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,metadata:{bucketName:BUCKET,objectName:path,contentType:type,cacheControl:'3600'},onError:error=>reject(Error('PDFのアップロードに失敗しました。通信を確認して再試行してください。'+(error?.message?' '+error.message:''))),onSuccess:resolve});
+  task.start();
+ });return path;
+}
+async function upload(sb,id,file){const {type,ext}=fileInfo(file),path=id+'/'+crypto.randomUUID()+'.'+ext;if(type==='application/pdf'&&file.size>RESUMABLE_PDF_BYTES)return resumableUpload(sb,path,file,type);unwrap(await sb.storage.from(BUCKET).upload(path,file,{contentType:type,upsert:false,cacheControl:'3600'}));return path}
 async function add(sb,file){
  if(window.QBFiles)file=await QBFiles.validate(file);
  await authorize(sb);const id=crypto.randomUUID(),path=await upload(sb,id,file);
