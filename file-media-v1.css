@@ -27,3 +27,5 @@
 .qbPdfOrientation button{flex:1}.qbPdfOrientation button[aria-pressed=true]{border:2px solid var(--accent,#126fb3);background:var(--accent-soft,#eaf4fb);color:#172033;font-weight:700}
 .qbPdfCreate [data-do=create]{border:2px solid var(--accent,#126fb3);background:var(--accent-soft,#eaf4fb);color:#172033;font-weight:700}
 .qbPdfDimensions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.qbPdfDimensions label{min-width:0}
+
+.qbPdfViewingStage{padding:24px;background:#343740}.qbPdfPageFrame{display:flex;align-items:center;justify-content:center;width:max-content;min-width:100%;min-height:100%}.qbPdfViewingStage .qbPdfPage{flex:none;margin:0;box-shadow:0 3px 16px #0005}
