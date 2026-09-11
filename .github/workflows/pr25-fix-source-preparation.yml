@@ -1,4 +1,4 @@
-name: Apply verified PR25 source preparation fix
+name: Apply verified PR25 WebKit source import fix
 on:
   push:
     branches: ['feat/image-editor-ux-and-large-images']
@@ -8,12 +8,12 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - name: Apply exact tested edits
+      - name: Apply focused source-import fix
         shell: bash
         run: |
           python3 - <<'PY'
@@ -22,43 +22,26 @@ jobs:
           def sha(p):
               return subprocess.check_output(['git','hash-object',str(p)],text=True).strip()
           p=Path('image-annotation-editor-v1.js')
-          assert sha(p)=='c88087d93a25f757279722d65baf5947773f1774', 'Editor changed; do not overwrite'
+          assert sha(p)=='c5ad9491cd68ba170ec2ff395df04ebc0bc45702', 'Editor changed; inspect before overwriting'
           s=p.read_text()
-          a=s.index('  async function chooseImageSource(){')
-          b=s.index('  for(const c of M.colors)',a)
-          old=s[a:b]
-          new=old.replace("    try{\n      const source=", "    // Keep the editor locked through selection, authorization and downloading.\n    // Otherwise a pointer landing after a picker closes can start a gesture\n    // and silently prevent the prepared images from being added.\n    let blobs=[];busy=true;update();\n    try{\n      const source=")
-          new=new.replace('const auth=await authSnapshot(sb),blobs=[];', 'const auth=await authSnapshot(sb);')
-          new=new.replace("      if(blobs.length&&!closed)await addImages(blobs);\n    }catch(e){if(!closed)status.textContent='画像を追加できませんでした：'+(e.message||e)}\n  }", "    }catch(e){blobs=[];if(!closed)status.textContent='画像を追加できませんでした：'+(e.message||e)}\n    finally{busy=false;if(!closed)update()}\n    if(blobs.length&&!closed)await addImages(blobs);\n  }")
-          assert new!=old
-          p.write_text(s[:a]+new+s[b:])
-          assert sha(p)=='25a07783f2c758136a0c58b4d3002d4cf01b74e0', 'Editor output differs from tested file'
-          p=Path('tests/image-editor-sources.browser.cjs')
-          assert sha(p)=='5ae472108c4fdb953b3d90e27383d1d59b11e187', 'Source test changed; do not overwrite'
-          s=p.read_text()
-          anchor=" const draft=await p.evaluate(()=>JSON.stringify(sceneHistory.current));"
-          assert s.count(anchor)==1
-          extra=""" // Keep pending downloads locked: a closing picker must not leave a new canvas
-           // gesture which silently discards the selected images (also seen on WebKit).
-           const beforePending=await p.evaluate(()=>JSON.stringify(sceneHistory.current.items));
-           await p.evaluate(()=>{const from=qbSupabase.storage.from;qbSupabase.storage.from=bucket=>{const store=from(bucket),download=store.download;store.download=async path=>{if(bucket==='question-media'&&path==='q1/edited.png')await new Promise(r=>window.releaseSourceDownload=r);return download(path)};return store}});
-           await menu('最近の画像から');await p.locator('.qbripItem').first().waitFor();await p.locator('.qbripItem').first().click();await p.locator('.qbripUse:not(:disabled)').waitFor();await p.locator('.qbripUse').click();
-           await p.waitForFunction(()=>typeof releaseSourceDownload==='function');assert.equal(await p.locator('.qbDrawSave').isDisabled(),true);
-           const canvas=p.locator('.qbDrawCanvas'),box=await canvas.boundingBox();
-           for(const type of ['pointerdown','pointermove','pointerup'])await canvas.dispatchEvent(type,{pointerId:902,pointerType:'mouse',button:0,clientX:box.x+box.width/2+(type==='pointerdown'?0:45),clientY:box.y+box.height/2,bubbles:true,cancelable:true});
-           assert.equal(await p.evaluate(()=>JSON.stringify(sceneHistory.current.items)),beforePending);
-           await p.evaluate(()=>releaseSourceDownload());await p.waitForFunction(()=>sceneHistory.current.items.length===6);assert.equal(await p.evaluate(()=>JSON.stringify(sceneHistory.current.items.slice(0,5))),beforePending);assert.equal(await p.locator('.qbDrawSave').isEnabled(),true);
-          """
-          s=s.replace(anchor,extra+anchor)
-          s=s.replace('nested layers, cancelled draft and zero DB/Storage mutations','nested layers, pending-download pointer isolation, cancelled draft and zero DB/Storage mutations')
+          old="function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}"
+          new="function loadImage(source){return new Promise((resolve,reject)=>{const img=new Image();if(/^https?:/i.test(String(source)))img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けませんでした。PNG・JPEG・WebPなどの画像をお試しください。'));img.src=source})}"
+          assert s.count(old)==1
+          s=s.replace(old,new)
+          old="    const blobs=[];let complete=false;childMode(true);status.textContent='画像を準備中…';"
+          new="    const blobs=[];let complete=false;busy=true;childMode(true);update();status.textContent='画像を準備中…';"
+          assert s.count(old)==1
+          s=s.replace(old,new)
+          old="    }catch(e){status.textContent='画像を追加できませんでした：'+(e.message||e)}finally{childMode(false)}\n    if(complete&&blobs.length&&!closed)await addImages(blobs);"
+          new="    }catch(e){status.textContent='画像を追加できませんでした：'+(e.message||e)}finally{busy=false;childMode(false);if(!closed)update()}\n    if(complete&&blobs.length&&!closed)await addImages(blobs);"
+          assert s.count(old)==1
+          s=s.replace(old,new)
           p.write_text(s)
-          assert sha(p)=='26e4584de6fb088b8e995eaaeb84506a8ba1f0b5', 'Test output differs from tested file'
+          subprocess.run(['node','--check',str(p)],check=True)
+          subprocess.run(['git','diff','--check'],check=True)
           PY
-          node --check image-annotation-editor-v1.js
-          node --check tests/image-editor-sources.browser.cjs
-          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add image-annotation-editor-v1.js tests/image-editor-sources.browser.cjs
-          git commit -m 'Keep source preparation locked until downloaded images are ready'
+          git add image-annotation-editor-v1.js
+          git commit -m 'Fix WebKit blob image imports and lock source preparation'
           git push origin HEAD:refs/heads/feat/image-editor-ux-and-large-images
