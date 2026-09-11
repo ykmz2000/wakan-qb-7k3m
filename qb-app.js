@@ -164,7 +164,7 @@ M.addEventListener('click',e=>{if(e.target===M)M.classList.add('hidden')});
 H.onclick=()=>{if(screen==='subjects')return setScreen('grades');if(screen==='units')return setScreen('subjects');if(screen==='problems')return setScreen('units');return setScreen('subjects')};
 window.qbGetScreen=()=>screen;window.qbOpenSubjects=()=>setScreen('subjects');window.qbOpenProblemList=()=>setScreen('problems');window.showGradeScreen=()=>setScreen('grades');window.qbRetryCurrent=retryCurrent;window.qbGetPracticeState=()=>({subjectId:subject?.id||null,unitId,questionIds:[...practice],currentIndex:pi,mode:practiceMode,sessionId});window.qbResumeSession=resumeSession;window.qbEnsureQuestionDetail=ensureQuestionDetail;
 window.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='practice')saveSession(false)});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
-window.addEventListener('qb-content-updated',e=>{const id=String(e.detail?.questionId||'');if(!id)return;detailCache.delete(id);detailPending.delete(id);const i=questions.findIndex(q=>String(q.id)===id);if(i>=0)questions[i]._detailLoaded=false});
+window.addEventListener('qb-content-updated',e=>{const id=String(e.detail?.questionId||'');if(!id)return;detailCache.delete(id);detailPending.delete(id);const i=questions.findIndex(q=>String(q.id)===id);if(i>=0)questions[i]._detailLoaded=false;if(String(pq()?.id||'')===id)syncChoiceFeedback()});
 /* Fetch into a separate snapshot. Never submit an answer or write a session here. */
 let refreshTask=null,interactionVersion=0,detailGeneration=0;
 for(const name of ['click','input','change','keydown'])document.addEventListener(name,()=>interactionVersion++,true);
