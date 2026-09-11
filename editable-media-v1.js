@@ -3,7 +3,7 @@
  * One self-contained file makes every existing byte-copy route independent. */
 (()=>{
 'use strict';
-const LIMIT=100*1024*1024,META_LIMIT=8*1024*1024,TYPE='qbEd',SIGN=[137,80,78,71,13,10,26,10];
+const LIMIT=100*1024*1024,META_LIMIT=8*1024*1024,TYPE='qbED',SIGN=[137,80,78,71,13,10,26,10];
 const copy=x=>JSON.parse(JSON.stringify(x));
 const table=Uint32Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;return c});
 function crc(data){let c=0xffffffff;for(const b of data)c=table[(c^b)&255]^(c>>>8);return(c^0xffffffff)>>>0}

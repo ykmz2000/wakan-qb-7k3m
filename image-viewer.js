@@ -44,9 +44,10 @@ function groupImages(img){
   const index=images.findIndex(x=>x.node===img);
   return index<0?{images:[{node:img,src:img.currentSrc||img.src,alt:img.alt||''}],index:0}:{images,index};
 }
-function open(origin){
+function open(origin,{savedBlob=null}={}){
   if(active)return;
   const {images,index:startIndex}=groupImages(origin);if(!images[0]?.src)return;
+  const savedURL=savedBlob?URL.createObjectURL(savedBlob):null;if(savedURL)images[startIndex].src=savedURL;
   const focusBefore=document.activeElement;
   const mediaEditor=node=>{for(let n=node;n;n=n.parentElement)if(typeof n.qbEditMedia==='function')return n;return null};
   const locks=[document.documentElement,document.body].map(el=>({el,value:el.style.getPropertyValue('overflow'),priority:el.style.getPropertyPriority('overflow')}));
@@ -62,7 +63,7 @@ function open(origin){
   let gesture=null,blocked=false,backdropTap=false,lastTap=null,lastTouchTime=-Infinity,suppressClickUntil=0,wheelTime=0,wheelSum=0,wheelUsed=false;
   const pointers=new Map();
   function close(){
-    if(closed)return;closed=true;loadToken++;prepared?.dispose();prepared=null;renderCanvas?.remove();pointers.clear();observer.disconnect();
+    if(closed)return;closed=true;if(savedURL)URL.revokeObjectURL(savedURL);loadToken++;prepared?.dispose();prepared=null;renderCanvas?.remove();pointers.clear();observer.disconnect();
     document.removeEventListener('keydown',key,true);window.removeEventListener('qb-screen-change',close);window.removeEventListener('qb-retry-current',close);
     if(img){img.onload=null;img.onerror=null}d.remove();active=null;
     underneath.forEach(({el,inert})=>{el.inert=inert});
@@ -190,7 +191,7 @@ function open(origin){
     }
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.textContent='画像編集';editButton.className='qbImageLightboxEdit';closeButton.before(editButton);
-  editButton.onclick=async()=>{const node=images[index].node,host=mediaEditor(node);if(!host)return;const run=host.qbEditMedia,row=host.dataset.row||host.dataset.id,cls=host.classList.contains('qbLibraryDetailImage')?'qbLibraryDetailImage':null;close();try{await run();let target=node.isConnected?node:null;if(row){const wrapper=[...document.querySelectorAll('[data-row],[data-id]')].find(w=>(w.dataset.row||w.dataset.id)===row&&w.querySelector(TARGET));target=wrapper?.querySelector(TARGET)||target}if(cls)target=document.querySelector('.'+cls);if(target?.isConnected)open(target)}catch(e){alert('画像編集を開けませんでした：'+e.message)}};
+  editButton.onclick=async()=>{const node=images[index].node,host=mediaEditor(node);if(!host)return;const run=host.qbEditMedia,row=host.dataset.row||host.dataset.id,cls=host.classList.contains('qbLibraryDetailImage')?'qbLibraryDetailImage':null;close();try{const saved=await run();if(saved instanceof Blob)await new Promise(r=>setTimeout(r,100));let target=node.isConnected?node:null;if(row){const wrapper=[...document.querySelectorAll('[data-row],[data-id]')].find(w=>(w.dataset.row||w.dataset.id)===row&&w.querySelector(TARGET));target=wrapper?.querySelector(TARGET)||target}if(cls)target=document.querySelector('.'+cls);if(target?.isConnected)open(target,{savedBlob:saved instanceof Blob?saved:null})}catch(e){alert('画像編集を開けませんでした：'+e.message)}};
   prev.onclick=()=>go(-1);next.onclick=()=>go(1);retry.onclick=show;
   zoomIn.onclick=()=>zoom(scale*1.5);zoomOut.onclick=()=>zoom(scale/1.5);reset.onclick=()=>zoom(1);closeButton.onclick=close;
   // Pointer capture retargets image clicks to the stage. Only a tap which

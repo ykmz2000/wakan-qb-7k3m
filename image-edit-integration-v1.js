@@ -22,7 +22,7 @@ async function paste(files,c){if(!files.length||!c||opening||window.QBImageEdito
 async function edit(c,rowId,restore=false){if(opening||window.QBImageEditor.isOpen())return;opening=true;
   try{await window.QBImageStore.authorize(c);const row=await window.QBImageStore.get(c,rowId);
     if(restore){if(!row.original_image_path||row.original_image_path===row.image_path)return;if(!confirm('編集を取り消して、元のファイルに戻してもよろしいですか？'))return;await window.QBImageStore.restore(c,row);await Promise.resolve(c.onSaved?.()).catch(e=>console.warn("image refresh",e));return}
-    const blob=await window.QBImageStore.download(c,row.image_path);await (window.QBFiles?.isPDF(blob)?window.QBPDFEditor:window.QBImageEditor).open(blob,{title:'画像編集',resetSource:row.original_image_path&&row.original_image_path!==row.image_path?()=>QBImageStore.download(c,row.original_image_path):null,onSave:async output=>{await window.QBImageStore.replace(c,row,output,'annotation');await Promise.resolve(c.onSaved?.()).catch(e=>console.warn("image refresh",e))}})
+    const blob=await window.QBImageStore.download(c,row.image_path);return await (window.QBFiles?.isPDF(blob)?window.QBPDFEditor:window.QBImageEditor).open(blob,{title:'画像編集',resetSource:row.original_image_path&&row.original_image_path!==row.image_path?()=>QBImageStore.download(c,row.original_image_path):null,onSave:async output=>{await window.QBImageStore.replace(c,row,output,'annotation');await Promise.resolve(c.onSaved?.()).catch(e=>console.warn("image refresh",e))}})
   }catch(e){alert('画像編集に失敗しました：'+(e.message||e))}finally{opening=false}
 }
 async function remove(c,rowId){if(opening||window.QBImageEditor.isOpen())return;opening=true;
