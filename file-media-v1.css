@@ -29,3 +29,13 @@
 .qbPdfDimensions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.qbPdfDimensions label{min-width:0}
 
 .qbPdfViewingStage{padding:24px;background:#343740}.qbPdfPageFrame{display:flex;align-items:center;justify-content:center;width:max-content;min-width:100%;min-height:100%}.qbPdfViewingStage .qbPdfPage{flex:none;margin:0;box-shadow:0 3px 16px #0005}
+
+/* Inline documents follow the attachment width without a viewer backdrop. */
+.qbPdfCard.qbPdfInline{display:block;width:100%;max-width:100%;padding:0;border:0;background:transparent;overflow:hidden;min-height:0}
+.qbPdfInline .qbPdfPoster{display:flex;flex-direction:column;gap:12px;width:100%}
+.qbPdfInlinePage{display:block;position:relative;width:100%;min-width:0;overflow:hidden;background:#fff;cursor:zoom-in;touch-action:pan-y}
+.qbPdfInline .qbPdfInlinePage canvas{display:block;width:100%!important;height:auto!important;max-height:none;max-width:100%;pointer-events:none}
+.qbPdfInline .qbPdfCaption{padding:6px 0;text-align:center;color:var(--text,#172033)}
+.qbPdfInlinePage:focus-visible{outline:3px solid #126fb3;outline-offset:-3px}
+
+.qbPdfEditorPages{margin-top:8px}.qbPdfEditorPages button{min-height:44px;flex-basis:48px}
