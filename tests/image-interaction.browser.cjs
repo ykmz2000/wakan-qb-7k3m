@@ -20,7 +20,9 @@ async function run(browser,name){
   t=map(150,515);await p.mouse.click(t.x,t.y);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'first click selects without entering text');
   await drag(p,map,[[150,515],[500,515]]);assert.equal(await p.locator('.qbDrawText').isVisible(),false,'dragging selected text must not start typing');
   t=map(500,515);await p.mouse.click(t.x,t.y);await p.locator('.qbDrawText').waitFor();assert.equal(await p.locator('.qbDrawText').inputValue(),'MOVE');
-  const box=await p.locator('.qbDrawText').boundingBox(),target=map(460,500);near(box.x,target.x);near(box.y,target.y);assert.equal(await p.locator('.qbDrawText').evaluate(n=>document.activeElement===n),true);
+  // WebKit quantizes delivered pointer coordinates to CSS pixels. Only the DOM
+  // text overlay permits one CSS pixel; zoom matrices and saved pixels stay strict.
+  const box=await p.locator('.qbDrawText').boundingBox(),target=map(460,500);assert.ok(Math.abs(box.x-target.x)<=1,`text x: ${box.x} vs ${target.x}`);assert.ok(Math.abs(box.y-target.y)<=1,`text y: ${box.y} vs ${target.y}`);assert.equal(await p.locator('.qbDrawText').evaluate(n=>document.activeElement===n),true);
   await p.locator('.qbDrawText').fill('EDIT');await p.locator('.qbDrawSave').click();await p.waitForFunction(()=>drawResult instanceof Blob);
   const result=await pixels(p,[[300,260],[100,200],[350,430],[150,400]]);assert.ok(result.colors[0][0]>180&&result.colors[0][1]<110);assert.deepEqual(result.colors[1],[255,255,255,255]);assert.ok(result.colors[2][0]>180&&result.colors[2][1]<110);assert.deepEqual(result.colors[3],[255,255,255,255]);
   const textRegions=await p.evaluate(async()=>{const i=await createImageBitmap(drawResult),c=document.createElement('canvas');c.width=i.width;c.height=i.height;const x=c.getContext('2d');x.drawImage(i,0,0);i.close();return[110,460].map(left=>{const d=x.getImageData(left,500,120,42).data;let n=0;for(let k=0;k<d.length;k+=4)if(d[k+1]<180)n++;return n})});assert.equal(textRegions[0],0);assert.ok(textRegions[1]>30);
