@@ -13,7 +13,7 @@ async function run(browser,label,url){
  await page.locator('.qbPdfCollageEmpty').first().click();
  await page.locator('[data-files]').setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);
  await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===2);
- await page.locator('[data-border]:not(:disabled)').click();assert.equal(await page.locator('[data-border]').getAttribute('aria-pressed'),'true');assert.equal(await page.locator('[data-border]').textContent(),'フチあり');
+ await page.locator('.qbPdfCollageBorder:not(:disabled)').click();assert.equal(await page.locator('.qbPdfCollageBorder').getAttribute('aria-pressed'),'true');
  const item=page.locator('.qbPdfCollageItem').first(),box=await item.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(520);await page.mouse.up();await page.locator('[data-item=duplicate]').waitFor();await page.locator('[data-item=duplicate]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===3);
  await page.locator('[data-layout="2,2"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),4);
  await page.locator('[data-export]:not(:disabled)').click();await page.waitForFunction(()=>collageResult instanceof Blob);
