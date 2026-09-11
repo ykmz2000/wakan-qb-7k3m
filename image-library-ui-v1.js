@@ -302,7 +302,7 @@ async function open({context=null}={}){
     if(selectionMode&&!row.archived){const pick=btn('このファイルを選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
-   top.append(...(!pdf(row)?[btn('画像編集',()=>editImage('annotation'))]:[]),btn('元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
+   top.append(...(!pdf(row)?[btn('画像編集',()=>editImage('annotation'))]:[]),btn(pdf(row)?'元ファイルに戻す':'元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('このカードにファイルを追加',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'このファイルを選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'このファイルを選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
@@ -322,7 +322,7 @@ async function open({context=null}={}){
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);panel.inert=false;setBusy(false)}
     if(changed)await showDetail(row,true);else top.querySelector('button')?.focus();
    }
-   replaceInput.onchange=async()=>{const f=replaceInput.files?.[0];if(!f||busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';replaceInput.value='';return}if(!confirm('原本を差し替えますか？以前の画像は履歴に残り、読み取り本文は新しい画像用にリカードされます。'))return;setBusy(true);try{row=await S.replace(sb,row,f);dirty=()=>false;selected.delete(row.id);jobs.delete(row.id);await load(true);setBusy(false);await showDetail(row,true)}catch(e){report(note,e)}finally{setBusy(false)}};
+   replaceInput.onchange=async()=>{const f=replaceInput.files?.[0];if(!f||busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';replaceInput.value='';return}if(!confirm('原本を差し替えますか？以前の画像は履歴に残り、読み取り本文は新しい画像用にリセットされます。'))return;setBusy(true);try{row=await S.replace(sb,row,f);dirty=()=>false;selected.delete(row.id);jobs.delete(row.id);await load(true);setBusy(false);await showDetail(row,true)}catch(e){report(note,e)}finally{setBusy(false)}};
    const suggestions=row.ai_suggestions||{};
    if(Object.keys(suggestions).length){const d=detailBlock('手動編集を保持したAIの変更案');d.open=true;for(const [key,proposal] of Object.entries(suggestions)){const r=el('div','qbLibraryHistoryRow');r.append(el('b','',C.LABELS[key]||key),el('pre','','現在：'+fieldText(m[key])+'\n提案：'+fieldText(proposal.value)),btn('この項目の提案を採用',async()=>{if(dirty()){note.textContent='先に編集中の内容を保存してください。';return}setBusy(true);try{row=await S.save(sb,row,{[key]:proposal.value},{reason:'AIの変更案を確認して採用'});dirty=()=>false;setBusy(false);await showDetail(row,true)}catch(e){report(note,e)}finally{setBusy(false)}}));d.append(r)}advanced.append(d)}
    const reading=detailBlock('読み取り・補完結果'),readBody=el('div');reading.append(readBody);advanced.append(reading);
