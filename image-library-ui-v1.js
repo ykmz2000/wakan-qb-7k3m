@@ -55,7 +55,7 @@ async function open({context=null}={}){
    if(e.target.closest('.qbripModal'))return;
    if(listView.hidden){detailPaste?.(e);return;}
    if(editor&&editor!==pasteZone)return;
-   const data=e.clipboardData,files=window.QBFiles.filesFromPaste(e);
+   const data=e.clipboardData,files=window.QBFiles?.filesFromPaste(e)||[];
    if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&(i.type.startsWith('image/')||i.type==='application/pdf')).map(i=>i.getAsFile()).filter(Boolean));
    if(!files.length){if(e.target===pasteZone)uploadStatus.textContent='PDF・画像のファイルを受け取れませんでした。「ファイルを選択」から追加してください。';return}e.preventDefault();if(busy)return;pasteZone.hidden=true;register(files,f=>S.add(sb,f));
   });overlay.addEventListener('click',e=>e.stopPropagation());
@@ -401,7 +401,7 @@ async function open({context=null}={}){
    }
    detailPaste=e=>{
     const editor=e.target.closest('input,textarea,[contenteditable="true"]');if(!alive()||(editor&&editor!==addPaste))return;
-    const data=e.clipboardData,files=window.QBFiles.filesFromPaste(e);
+    const data=e.clipboardData,files=window.QBFiles?.filesFromPaste(e)||[];
     if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&(i.type.startsWith('image/')||i.type==='application/pdf')).map(i=>i.getAsFile()).filter(Boolean));
     if(!files.length){if(e.target===addPaste)note.textContent='PDF・画像のファイルを受け取れませんでした。「ファイルを選択」から追加してください。';return}e.preventDefault();if(busy)return;addPaste.hidden=true;appendImages(files,f=>S.add(sb,f));
    };
