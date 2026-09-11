@@ -69,7 +69,7 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>qbGetScreen()),'practice');assert.equal(await p.locator('[data-c="0"]').getAttribute('class'),'choice sel');
  assert.match(await p.locator('#view > .card > .qtext').textContent(),/更新後/);
  assert.equal(await p.evaluate(()=>testWrites.length),0);
- await p.locator('#review').click();await p.waitForFunction(()=>document.querySelector('#ans .qbSharedRating'));
+ await p.locator('#review').click();await p.waitForFunction(()=>document.querySelector('#ans .qbSharedRating'));await p.waitForTimeout(250);
  await p.evaluate(()=>{testDB.questions[0].explanation_overview='さらに最新';testWrites=[]});
  await p.evaluate(()=>QBDataRefresh.refresh());await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('さらに最新'));
  assert.equal(await p.evaluate(()=>testWrites.length),0,'refresh must never create attempts, ratings or sessions');
