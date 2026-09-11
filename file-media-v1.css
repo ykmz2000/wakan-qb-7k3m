@@ -5,3 +5,10 @@
 
 .qbLibraryImageButton>.qbPdfCard,.qbripItem>.qbPdfCard{height:150px;min-height:0;max-width:100%;padding:6px;gap:4px;overflow:hidden;margin-bottom:10px}.qbLibraryImageButton>.qbPdfCard .qbPdfPoster,.qbripItem>.qbPdfCard .qbPdfPoster{flex:1;min-height:0;overflow:hidden;display:flex;justify-content:center;width:100%}.qbLibraryImageButton>.qbPdfCard canvas,.qbripItem>.qbPdfCard canvas{max-height:100%;width:auto;max-width:100%;object-fit:contain}.qbLibraryImageButton>.qbPdfCard .qbPdfCaption,.qbripItem>.qbPdfCard .qbPdfCaption{flex-shrink:0;font-size:11px}.qbripItem>.qbPdfCard{height:120px;margin-bottom:0}
 @media(max-width:560px){.qbripItem>.qbPdfCard{height:92px}}
+
+/* Media cannot impose its canvas intrinsic width on a grid or flex parent. */
+.qbPdfCard,.qbPdfPoster,.qbPdfCaption,.qbPdfPanel,.qbPdfNav,.qbPdfPageStrip{min-width:0;box-sizing:border-box;max-width:100%}
+.qbPdfCard{width:min(420px,100%);overflow:hidden}.qbPdfPoster{width:100%}.qbPdfPoster canvas{width:100%;object-fit:contain}.qbPdfCaption{overflow-wrap:anywhere}
+.qbLibraryImageButton,.qbripItem,.qbPublicImageWrap,.qsiImgWrap{min-width:0;max-width:100%;box-sizing:border-box}
+
+.qbPdfModal[hidden]{display:none!important}

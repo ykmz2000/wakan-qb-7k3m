@@ -55,9 +55,9 @@ async function open({context=null}={}){
    if(e.target.closest('.qbripModal'))return;
    if(listView.hidden){detailPaste?.(e);return;}
    if(editor&&editor!==pasteZone)return;
-   const data=e.clipboardData,files=[...(data?.files||[])].filter(f=>(f.type.startsWith('image/')||f.type==='application/pdf'));
+   const data=e.clipboardData,files=window.QBFiles?.filesFromPaste(e)||[];
    if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&(i.type.startsWith('image/')||i.type==='application/pdf')).map(i=>i.getAsFile()).filter(Boolean));
-   if(!files.length)return;e.preventDefault();if(busy)return;pasteZone.hidden=true;register(files,f=>S.add(sb,f));
+   if(!files.length){if(e.target===pasteZone)uploadStatus.textContent='PDF・画像のファイルを受け取れませんでした。「ファイルを選択」から追加してください。';return}e.preventDefault();if(busy)return;pasteZone.hidden=true;register(files,f=>S.add(sb,f));
   });overlay.addEventListener('click',e=>e.stopPropagation());
   function setBusy(v){busy=v;listView.inert=v;detailView.inert=v;head.querySelector('button').disabled=v;useButton.disabled=v||!selected.size;uploadInput.disabled=v;setButton.disabled=v||!selected.size;}
   const footStatus=el('span','qbLibraryStatus'),useButton=btn('選択した画像を貼る',useSelected,'qbLibraryPrimary');useButton.hidden=!context;useButton.disabled=true;const setButton=btn('',()=>{});setButton.hidden=true;const selectModeButton=btn('✓',()=>{selectionMode=!selectionMode;syncSelection()},'qbLibrarySelectionMode');selectModeButton.setAttribute('aria-label','選択モード');selectModeButton.hidden=true;foot.append(footStatus,selectModeButton,setButton,useButton);
@@ -127,8 +127,8 @@ async function open({context=null}={}){
   }
   async function register(values,save){
    if(!values.length||busy||closed)return;setBusy(true);const mode=await uploadMode(values.length);if(!mode){uploadInput.value='';setBusy(false);return}let done=0,registered=[];
-   try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きなファイルを保存中… 通信に時間がかかる場合があります。 ':'ファイルを登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(mode==='together'&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のカード',registered.map(r=>r.id));uploadStatus.textContent=`${done}枚を登録しました。`;}
-   catch(e){uploadStatus.textContent=`${done}枚を登録済み。`+(e.message||e)}
+   try{for(const value of values){uploadStatus.textContent=(value?.size>50*1024*1024?'大きなファイルを保存中… 通信に時間がかかる場合があります。 ':'ファイルを登録中… ')+`${done}/${values.length}`;registered.push(await save(value));done++}if(mode==='together'&&registered.length>1)await S.setSave(sb,null,registered[0].metadata.name+'のカード',registered.map(r=>r.id));uploadStatus.textContent=`${done}ファイルを登録しました。`;}
+   catch(e){uploadStatus.textContent=`${done}ファイルを登録済み。`+(e.message||e)}
    finally{uploadInput.value='';if(done)await load(true);setBusy(false)}
    if(registered.length)await reviewUploads(registered);
   }
@@ -167,7 +167,7 @@ async function open({context=null}={}){
    function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage'),initialPath=draft.row.object_path;im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,initialPath).then(url=>{if(im.isConnected&&draft.row.object_path===initialPath)media(im,url)}).catch(()=>{if(draft.row.object_path===initialPath)im.alt='画像を読み込めませんでした'});
-    const imageActions=el('div','qbLibraryTools');if(owns(draft.row)&&!pdf(draft.row))imageActions.append(btn('画像編集',()=>editUploaded(draft,im,'annotation')));
+    const imageActions=el('div','qbLibraryTools');if(owns(draft.row))imageActions.append(btn(pdf(draft.row)?'PDF編集':'画像編集',()=>editUploaded(draft,im,'annotation')));
     const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(imageActions,form,draft.ocrStatus);host.append(draft.view);
     const fields=metadataForm(form,m);draft.fields=fields.controls;draft.commit=fields.commit;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
     draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);
@@ -184,7 +184,7 @@ async function open({context=null}={}){
      // Keep metadata inputs and manually entered OCR; discard only stale automatic readings.
      if(!draft.ocrTouched){draft.ocrInput.value='';draft.ocrApplied=false;if(!draft.analysisTouched)draft.analysisInput.value='unprocessed'}
      draft.ocrStatus.textContent='画像を編集しました。入力中の情報は保持しています。';
-     try{img.src=await S.signedURL(sb,draft.row.object_path)}catch{img.removeAttribute('src');img.alt='編集済み画像を再表示できませんでした。画像は保存されています。'}
+     try{media(img,await S.signedURL(sb,draft.row.object_path))}catch{img.removeAttribute('src');img.alt='編集済み画像を再表示できませんでした。画像は保存されています。'}
      note.textContent='画像を保存しました。情報を確認して確定してください。';
     };
     try{
@@ -194,7 +194,7 @@ async function open({context=null}={}){
       url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'追加した画像をトリミング'});if(output)await replace(output);else note.textContent='画像の編集をキャンセルしました。';
      }else{
       if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');
-      const output=await QBImageEditor.open(blob,{title:'追加した画像を画像編集',onSave:replace});if(!output)note.textContent='画像の編集をキャンセルしました。';
+      const output=await (pdf(draft.row)?QBPDFEditor:QBImageEditor).open(blob,{title:'追加したファイルを編集',onSave:replace});if(!output)note.textContent='画像の編集をキャンセルしました。';
      }
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);saving=false;modal.inert=false;if(!finished)draft.view.querySelector('.qbLibraryTools button')?.focus({preventScroll:true})}
    }
@@ -246,15 +246,15 @@ async function open({context=null}={}){
   uploadInput.onchange=()=>register([...uploadInput.files],f=>S.add(sb,f));
   async function pasteImages(){
    if(busy)return;setBusy(true);let files=[];
-   try{if(navigator.clipboard?.read){const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(t=>t==='application/pdf')||item.types.find(t=>t.startsWith('image/'));if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付けファイル.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* iPad and denied clipboard reads use an explicit paste target. */}
+   try{files=await QBFiles.clipboardFiles()}catch{/* iPad and denied clipboard reads use an explicit paste target. */}
    finally{setBusy(false)}
    if(files.length){pasteZone.hidden=true;await register(files,f=>S.add(sb,f));return}
-   pasteZone.hidden=false;pasteZone.focus();uploadStatus.textContent='ファイルをコピーして、貼り付け欄にペーストしてください。';
+   pasteZone.hidden=false;pasteZone.focus();uploadStatus.textContent='貼り付け欄にペーストしてください。PDFが渡されない場合は「ファイルを選択」から追加できます。';
   }
   async function chooseRecent(){
    if(busy)return;const picker=window.qbRecentImagePicker;if(!picker){uploadStatus.textContent='最近のファイルを読み込めません。画面を再読み込みしてください。';return}
    setBusy(true);panel.inert=true;let rows=[];
-   try{rows=await picker.pick({sb,title:'ライブラリに追加する画像を選択',parent:overlay,context:null})}
+   try{rows=await picker.pick({sb,title:'ライブラリに追加するファイルを選択',parent:overlay,context:null})}
    catch(e){report(uploadStatus,e)}
    finally{panel.inert=false;setBusy(false);recentButton.focus({preventScroll:true})}
    await register(rows,row=>S.addRecent(sb,row));
@@ -302,7 +302,7 @@ async function open({context=null}={}){
     if(selectionMode&&!row.archived){const pick=btn('このファイルを選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
-   top.append(...(!pdf(row)?[btn('画像編集',()=>editImage('annotation'))]:[]),btn(pdf(row)?'元ファイルに戻す':'元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
+   top.append(btn(pdf(row)?'PDF編集':'画像編集',()=>editImage('annotation')),btn(pdf(row)?'元ファイルに戻す':'元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('このカードにファイルを追加',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'このファイルを選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'このファイルを選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
@@ -317,7 +317,7 @@ async function open({context=null}={}){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);
      if(kind==='crop'){if(!window.QBImageCrop)throw Error('画像編集を読み込めません。再読み込みしてください。');url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'ライブラリ画像をトリミング'});if(output){row=await S.replace(sb,row,output);changed=true}}
-     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await QBImageEditor.open(blob,{title:'ライブラリ画像を画像編集',onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
+     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await (pdf(row)?QBPDFEditor:QBImageEditor).open(blob,{title:'ライブラリ画像を画像編集',onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
      if(changed){selected.delete(row.id);jobs.delete(row.id);dirty=()=>false;await load(true)}
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);panel.inert=false;setBusy(false)}
     if(changed)await showDetail(row,true);else top.querySelector('button')?.focus();
@@ -396,14 +396,14 @@ async function open({context=null}={}){
    addInput.onchange=()=>appendImages([...addInput.files],f=>S.add(sb,f));
    async function pasteIntoSet(){
     if(busy)return;setBusy(true);let files=[];
-    try{if(navigator.clipboard?.read){for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>t==='application/pdf')||item.types.find(t=>t.startsWith('image/'));if(type){const blob=await item.getType(type);files.push(new File([blob],'貼り付けファイル.'+(type.split('/')[1]||'png'),{type}))}}}}catch{/* Use the explicit paste field when clipboard access is unavailable. */}finally{setBusy(false)}
-    if(!alive())return;if(files.length){addPaste.hidden=true;await appendImages(files,f=>S.add(sb,f));return}addPaste.hidden=false;addPaste.focus();note.textContent='ファイルをコピーして、貼り付け欄にペーストしてください。';
+    try{files=await QBFiles.clipboardFiles()}catch{/* Use the explicit paste field when clipboard access is unavailable. */}finally{setBusy(false)}
+    if(!alive())return;if(files.length){addPaste.hidden=true;await appendImages(files,f=>S.add(sb,f));return}addPaste.hidden=false;addPaste.focus();note.textContent='貼り付け欄にペーストしてください。PDFが渡されない場合は「ファイルを選択」から追加できます。';
    }
    detailPaste=e=>{
     const editor=e.target.closest('input,textarea,[contenteditable="true"]');if(!alive()||(editor&&editor!==addPaste))return;
-    const data=e.clipboardData,files=[...(data?.files||[])].filter(f=>(f.type.startsWith('image/')||f.type==='application/pdf'));
+    const data=e.clipboardData,files=window.QBFiles?.filesFromPaste(e)||[];
     if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&(i.type.startsWith('image/')||i.type==='application/pdf')).map(i=>i.getAsFile()).filter(Boolean));
-    if(!files.length)return;e.preventDefault();if(busy)return;addPaste.hidden=true;appendImages(files,f=>S.add(sb,f));
+    if(!files.length){if(e.target===addPaste)note.textContent='PDF・画像のファイルを受け取れませんでした。「ファイルを選択」から追加してください。';return}e.preventDefault();if(busy)return;addPaste.hidden=true;appendImages(files,f=>S.add(sb,f));
    };
    const recentAdd=btn('最近のファイルから追加',async()=>{
     if(busy)return;const picker=window.qbRecentImagePicker;if(!picker){note.textContent='最近のファイルを読み込めません。画面を再読み込みしてください。';return}setBusy(true);panel.inert=true;let picked=[];

@@ -69,10 +69,14 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>qbGetScreen()),'practice');assert.equal(await p.locator('[data-c="0"]').getAttribute('class'),'choice sel');
  assert.match(await p.locator('#view > .card > .qtext').textContent(),/更新後/);
  assert.equal(await p.evaluate(()=>testWrites.length),0);
- await p.locator('#review').click();await p.waitForFunction(()=>document.querySelector('#ans .qbSharedRating'));await p.waitForTimeout(250);
+ await p.locator('#review').click();await p.waitForFunction(()=>document.querySelector('#ans .qbSharedRating'));await p.waitForFunction(()=>testWrites.some(w=>w.table==='user_question_state')&&testWrites.some(w=>w.table==='practice_sessions')&&!document.querySelector('#ans [data-qb-rate]').disabled);
  await p.evaluate(()=>{testDB.questions[0].explanation_overview='さらに最新';testWrites=[]});
  await p.evaluate(()=>QBDataRefresh.refresh());await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('さらに最新'));
- assert.equal(await p.evaluate(()=>testWrites.length),0,'refresh must never create attempts, ratings or sessions');
+ assert.deepEqual(await p.evaluate(()=>testWrites),[],'refresh must never create attempts, ratings or sessions');
+ await p.waitForFunction(()=>document.querySelector('#ans [data-qb-rate]')&&!document.querySelector('#ans [data-qb-rate]').disabled);
+ await p.locator('#ans [data-qb-rate="△"]').click();await p.waitForFunction(()=>testDB.question_ratings.find(r=>r.user_id==='u1'&&r.question_id==='q1')?.rating==='△');await p.evaluate(()=>testWrites=[]);
+ await p.evaluate(()=>QBDataRefresh.refresh());await p.waitForFunction(()=>document.querySelector('#ans [data-qb-rate="△"]')?.classList.contains('on'));
+ assert.deepEqual(await p.evaluate(()=>testWrites),[],'refresh preserves manual review rating without writes');
  // The shared explanation is decorated asynchronously after the refreshed text appears.
  await p.waitForFunction(()=>document.querySelector('#ans')?.dataset.qbExplanationReady==='q1'&&document.querySelector('#ans .qbSharedRating'));
  const old=await p.locator('#view').innerHTML();await p.evaluate(()=>testReadFail=true);
@@ -85,8 +89,9 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),true);assert.equal(await p.locator('.fbInput').first().inputValue(),'入力を保持');
  await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').waitFor();
  await p.evaluate(()=>{testDB.subjects[0].name='新しい科目名';window.scrollTo(0,0)});
+ assert.equal(await p.locator('.qbDataRefresh').count(),0);
  // Touch event delivery on both engines, including threshold and pinch cancellation.
- const gesture=async(distance,count=1)=>p.evaluate(({distance,count})=>{const target=document.querySelector('#view .title');const fire=(type,y,n)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count);fire('touchend',100+distance,0)},{distance,count});
+ const gesture=async(distance,count=1)=>p.evaluate(({distance,count})=>{const target=document.querySelector('#view .title');const fire=(type,y,n)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count);if(count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');}fire('touchend',100+distance,0)},{distance,count});
  await gesture(35);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100,2);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('新しい'));

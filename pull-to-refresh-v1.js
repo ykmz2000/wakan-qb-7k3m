@@ -9,15 +9,16 @@ function blocked(){
 function boot(){
   const head=document.querySelector('.header');if(!head)return;
   const style=document.createElement('style');style.textContent=`
+html.qbPullReady .header{position:sticky;top:0;z-index:100;background:var(--bg)}
 html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:contain}
-.qbDataRefresh{flex-shrink:0;min-width:44px;min-height:44px;border:0;background:transparent;color:var(--accent);font:inherit;font-size:23px;cursor:pointer}
-.qbDataRefresh:focus-visible{outline:2px solid var(--accent)}
+
 .qbRefreshStatus{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:99;max-width:85vw;padding:9px 14px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 10px #0002;font-size:13px;pointer-events:none}
 .qbRefreshStatus[hidden]{display:none}.qbRefreshStatus[data-busy="true"]::before{content:'';display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin-right:8px;vertical-align:-2px;animation:qbRefreshSpin .8s linear infinite}
 @keyframes qbRefreshSpin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.qbRefreshStatus[data-busy="true"]::before{animation:none}}
 `;document.head.append(style);document.documentElement.classList.add('qbPullReady');
-  const button=document.createElement('button');button.type='button';button.className='qbDataRefresh';button.textContent='↻';button.title='この画面の最新情報を取得';button.setAttribute('aria-label',button.title);head.append(button);
+  const content=document.getElementById('choices')||document.getElementById('view');
+  const move=(distance,animate=false)=>{if(content){content.style.transition=animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches?'transform 180ms ease-out':'';content.style.transform=distance?'translateY('+distance+'px)':'';}status.style.top=(head.getBoundingClientRect().bottom+12)+'px'};
   const status=document.createElement('div');status.className='qbRefreshStatus';status.hidden=true;status.setAttribute('role','status');status.setAttribute('aria-live','polite');document.body.append(status);
   function message(text){clearTimeout(resetTimer);status.hidden=false;status.textContent=text;status.dataset.busy=String(busy)}
   function hideLater(){clearTimeout(resetTimer);resetTimer=setTimeout(()=>{status.hidden=true},3000)}
@@ -25,13 +26,12 @@ html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:contain}
     if(busy)return false;
     if(blocked()){message('編集中の内容を保存し、編集画面を閉じてから更新してください。');hideLater();return false}
     if(!window.qbRefreshCurrentScreen)return false;
-    busy=true;button.disabled=true;button.setAttribute('aria-busy','true');message('最新情報を取得中…');
+    move(64,true);busy=true;message('最新情報を取得中…');
     try{await window.qbRefreshCurrentScreen();message('最新情報に更新しました');return true}
     catch(e){message(e?.message||'更新できませんでした。通信状態を確認して、もう一度お試しください。');return false}
-    finally{busy=false;status.dataset.busy='false';button.disabled=false;button.removeAttribute('aria-busy');hideLater()}
+    finally{move(0,true);busy=false;status.dataset.busy='false';hideLater()}
   }
-  button.onclick=refresh;
-  function cancel(){pull=null;if(!busy)status.hidden=true}
+  function cancel(){pull=null;if(!busy)move(0,true);if(!busy)status.hidden=true}
   function scrollTop(){return Math.max(0,window.scrollY||document.scrollingElement?.scrollTop||0)}
   function eligible(target){
     if(blocked()||busy||scrollTop()>1||window.visualViewport?.scale>1.01)return false;
@@ -45,9 +45,9 @@ html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:contain}
     const dx=e.touches[0].clientX-pull.x,dy=e.touches[0].clientY-pull.y;
     if(dy<0||Math.abs(dx)>Math.max(12,Math.abs(dy)*.7)){cancel();return}
     if(dy<10)return;if(!e.cancelable){cancel();return}e.preventDefault();pull.active=true;pull.distance=dy;
-    message(dy>=80?'離して最新情報を取得':'下に引っ張って更新');
+    move(Math.min(140,dy*.5));message(dy>=80?'離して最新情報を取得':'下に引っ張って更新');
   },{passive:false});
-  document.addEventListener('touchend',e=>{if(!pull)return;const go=pull.active&&pull.distance>=80&&!e.touches.length;pull=null;if(go)refresh();else if(!busy)status.hidden=true},{passive:true});
+  document.addEventListener('touchend',e=>{if(!pull)return;const go=pull.active&&pull.distance>=80&&!e.touches.length;pull=null;if(go)refresh();else if(!busy){move(0);status.hidden=true}},{passive:true});
   document.addEventListener('touchcancel',cancel,{passive:true});window.addEventListener('blur',cancel);window.addEventListener('qb-screen-change',cancel);
   window.QBDataRefresh.refresh=refresh;
 }

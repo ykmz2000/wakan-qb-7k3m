@@ -4,7 +4,7 @@ const {chromium,webkit}=require('playwright'),{boot,edit,peek}=require('./image-
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
 async function run(browser,name){
  const {page:p,errors}=await boot(browser);let count=0;const pass=s=>console.log(name+' '+(++count)+' '+s);
- await p.addScriptTag({content:read('recent-image-picker-v1.js')});
+ await p.addScriptTag({content:read('file-media-v1.js')});await p.addScriptTag({content:read('recent-image-picker-v1.js')});
  // Recreate the existing theme/legacy styles which previously overrode only some buttons.
  await p.addStyleTag({content:'.oeiBtn,.qsiPick,.qsiPasteBtn,.qsiRecentBtn{border:1px solid blue;border-radius:8px;padding:7px 10px;font-weight:900;font-size:11px}.oeiActions,.qsiActions{display:flex;gap:7px;flex-wrap:wrap}'});
  await p.addStyleTag({content:read('editor-appearance-v1.css')});
@@ -56,7 +56,7 @@ async function run(browser,name){
  const independent=await p.evaluate(async()=>{const row=db.qb_image_library_items.at(-1);objects.set('question-media/q1/current.png',new Blob(['later edited']));return await objects.get('qb-image-library/'+row.object_path).text()});assert.equal(independent,'edited image bytes');
  pass('selected variants copied independently in selection order; no AI, question writes or bulk migration');
  await p.locator('.qbLibraryPanel').getByRole('button',{name:'最近のファイル',exact:true}).click();await p.locator('.qbripItem').first().waitFor();await p.locator('.qbripItem[data-id="r1"]').click();
- await p.evaluate(()=>objects.delete('question-media/q1/current.png'));await p.locator('.qbripUse').click();await p.getByText(/0枚を登録済み。missing/).waitFor();
+ await p.evaluate(()=>objects.delete('question-media/q1/current.png'));await p.locator('.qbripUse').click();await p.getByText(/0ファイルを登録済み。missing/).waitFor();
  assert.equal(await p.evaluate(()=>db.qb_image_library_items.length),6);assert.equal(await p.locator('.qbLibraryPanel').getByRole('button',{name:'ファイルをペースト',exact:true}).isEnabled(),true);pass('source download failure leaves no library record and restores controls');
  await p.locator('.qbLibraryImageButton').first().click();await p.getByRole('button',{name:'編集',exact:true}).waitFor();await edit(p);await p.getByLabel('読み取り本文',{exact:true}).fill('下書き本文');
  await p.getByLabel('読み取り本文',{exact:true}).evaluate(n=>{const dt=new DataTransfer();dt.items.add(new File(['do not import'],'text-field.png',{type:'image/png'}));n.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))});
