@@ -92,7 +92,7 @@ async function saveRating(b,value){
       const r=await b.sb.rpc('save_attempt_self_rating',{p_attempt_id:s.row.id,p_rating:value,p_source:'manual'});if(r.error)throw r.error;
       s.rating=value;s.source='manual';s.ratingError=null;
     }else{
-      const r=await b.sb.from('question_ratings').upsert({user_id:b.userId,question_id:b.questionId,rating:value,updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});if(r.error)throw r.error;
+      const r=await b.sb.from('question_ratings').upsert({user_id:b.userId,question_id:b.questionId,rating:value,updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});if(r.error)throw r.error;if(s)s.rating=value;
     }
     b.value=value;
     if(valid(b)){setButtons(b,value);drawCurrent(b);b.msg.textContent='保存しました';}
@@ -122,8 +122,15 @@ function bindRating(root,q,d){
         b.msg.textContent=session.error?'回答履歴が保存されていません':session.ratingError?'自己評価を再保存してください':session.rating?'自動設定：'+session.rating+'　（必要なら変更できます）':'今回の自己評価を選んでください';
       }else{
         if(!valid(b))return;
-        const r=await b.sb.from('question_ratings').upsert({user_id:b.userId,question_id:b.questionId,rating:'-',updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});if(r.error)throw r.error;
-        if(!valid(b))return;b.value='-';setButtons(b,'-');enable(b,true);b.msg.textContent='解説のみの自己評価です。過去の回答には反映しません。';
+        // Initialize only for an explicit review action, once per session.
+        // Rebinding after a data refresh must never write or reset a manual rating.
+        if(session?.mode==='review'){
+          session.reviewRatingReady ||= (async()=>{const r=await b.sb.from('question_ratings').upsert({user_id:b.userId,question_id:b.questionId,rating:'-',updated_at:new Date().toISOString()},{onConflict:'user_id,question_id'});if(r.error)throw r.error;session.rating='-'})();
+          await session.reviewRatingReady;b.value=session.rating;
+        }else{
+          const r=await b.sb.from('question_ratings').select('rating').eq('user_id',b.userId).eq('question_id',b.questionId).maybeSingle();if(r.error)throw r.error;b.value=r.data?.rating??'-';
+        }
+        if(!valid(b))return;setButtons(b,b.value);enable(b,true);b.msg.textContent='解説のみの自己評価です。過去の回答には反映しません。';
       }
       await loadPast(b);
     }catch(e){if(valid(b)){b.msg.textContent='自己評価を準備できませんでした：'+(e.message||e);b.past.replaceChildren(node('div','qbAttemptNotice','回答履歴を取得できませんでした。'))}}
