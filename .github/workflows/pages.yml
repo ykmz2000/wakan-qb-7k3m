@@ -49,6 +49,7 @@ jobs:
           node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs
           node tests/recent-image-scope-preview.browser.cjs
           node tests/unit-pdf-export.browser.cjs
+          node tests/pull-to-refresh.browser.cjs
           node tests/image-interaction.browser.cjs
           node tests/image-annotation.browser.cjs
           node tests/problem-source-filter.browser.cjs
@@ -73,5 +74,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
 
 

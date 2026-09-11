@@ -169,6 +169,7 @@ function schedule(e){
   if(e?.type==='qb-content-updated'&&!/^(personal-note|personal-note-image|official-image)/.test(e.detail?.type||'')){const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}}
   clearTimeout(timer);timer=setTimeout(render,50);
 }
+window.addEventListener('qb-data-refreshed',e=>{const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}});
 window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving};
 function boot(){css();['qb-question-ready','qb-screen-change','qb-retry-current','qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
