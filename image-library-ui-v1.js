@@ -152,7 +152,7 @@ async function open({context=null}={}){
    function stopOCR(){ocrStopped=true;clearTimeout(ocrTimer);if(worker){worker.terminate().catch(()=>{});worker=null}}
    for(const draft of drafts){
     const m=draft.row.metadata||{},im=el('img','qbLibraryDetailImage'),initialPath=draft.row.object_path;im.alt=m.name||'追加した画像';draft.view.append(im);S.signedURL(sb,initialPath).then(url=>{if(im.isConnected&&draft.row.object_path===initialPath)im.src=url}).catch(()=>{if(draft.row.object_path===initialPath)im.alt='画像を読み込めませんでした'});
-    const imageActions=el('div','qbLibraryTools');if(owns(draft.row))imageActions.append(btn('トリミング',()=>editUploaded(draft,im,'crop')),btn('書き込み',()=>editUploaded(draft,im,'annotation')));
+    const imageActions=el('div','qbLibraryTools');if(owns(draft.row))imageActions.append(btn('画像編集',()=>editUploaded(draft,im,'annotation')));
     const form=el('div','qbLibraryForm');draft.ocrStatus=el('div','qbLibraryStatus');draft.ocrStatus.setAttribute('role','status');draft.view.append(imageActions,form,draft.ocrStatus);host.append(draft.view);
     const fields=metadataForm(form,m);draft.fields=fields.controls;draft.commit=fields.commit;draft.ocrInput=fields.inputs.ocr_text;draft.analysisInput=fields.inputs.analysis_status;
     draft.ocrTouched=!!m.ocr_text||(Array.isArray(draft.row.manual_fields)?draft.row.manual_fields.includes('ocr_text'):!!draft.row.manual_fields?.ocr_text);
@@ -179,7 +179,7 @@ async function open({context=null}={}){
       url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'追加した画像をトリミング'});if(output)await replace(output);else note.textContent='画像の編集をキャンセルしました。';
      }else{
       if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');
-      const output=await QBImageEditor.open(blob,{title:'追加した画像に書き込む',onSave:replace});if(!output)note.textContent='画像の編集をキャンセルしました。';
+      const output=await QBImageEditor.open(blob,{title:'追加した画像を画像編集',onSave:replace});if(!output)note.textContent='画像の編集をキャンセルしました。';
      }
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);saving=false;modal.inert=false;if(!finished)draft.view.querySelector('.qbLibraryTools button')?.focus({preventScroll:true})}
    }
@@ -287,7 +287,7 @@ async function open({context=null}={}){
     if(selectionMode&&!row.archived){const pick=btn('この画像を選択',()=>toggleImages([row]));pick.dataset.pickIds=JSON.stringify([row.id]);actions.append(pick)}detailView.append(actions);readMetadata(detailView,row);syncSelection();return;
    }
    const top=el('div','qbLibraryTools'),replaceInput=el('input');replaceInput.type='file';replaceInput.accept=uploadInput.accept;replaceInput.hidden=true;
-   top.append(btn('トリミング',()=>editImage('crop')),btn('書き込み',()=>editImage('annotation')),btn('元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
+   top.append(btn('画像編集',()=>editImage('annotation')),btn('元画像に戻す',()=>restore({},row.original_path)),btn('原本を差し替える',()=>replaceInput.click()),replaceInput);
    if(!row.archived)top.append(btn('この画像に追加してセットにする',()=>showSetEditor(null,[row])));
    if(context&&!row.archived)top.append(btn(selected.has(row.id)?'選択を解除':'この画像を選択',e=>{if(selected.has(row.id))selected.delete(row.id);else selected.set(row.id,row);e.currentTarget.textContent=selected.has(row.id)?'選択を解除':'この画像を選択';syncSelection()},'qbLibraryPrimary'));
    detailView.append(top);note.textContent=`解析：${ANALYSIS[m.analysis_status]||'未解析'}　分類：${CLASSIFICATION[m.classification_status]||'不明'}`;
@@ -302,7 +302,7 @@ async function open({context=null}={}){
     if(busy)return;if(dirty()){note.textContent='先に情報の変更を保存してください。';return;}setBusy(true);panel.inert=true;let url,changed=false;
     try{const blob=await S.download(sb,row);
      if(kind==='crop'){if(!window.QBImageCrop)throw Error('画像編集を読み込めません。再読み込みしてください。');url=URL.createObjectURL(blob);const output=await QBImageCrop.open(url,{title:'ライブラリ画像をトリミング'});if(output){row=await S.replace(sb,row,output);changed=true}}
-     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await QBImageEditor.open(blob,{title:'ライブラリ画像に書き込む',onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
+     else{if(!window.QBImageEditor)throw Error('画像編集を読み込めません。再読み込みしてください。');await QBImageEditor.open(blob,{title:'ライブラリ画像を画像編集',onSave:async output=>{row=await S.replace(sb,row,output);changed=true}})}
      if(changed){selected.delete(row.id);jobs.delete(row.id);dirty=()=>false;await load(true)}
     }catch(e){report(note,e)}finally{if(url)URL.revokeObjectURL(url);panel.inert=false;setBusy(false)}
     if(changed)await showDetail(row,true);else top.querySelector('button')?.focus();
