@@ -13,10 +13,10 @@ async function run(browser,label,url){
  await page.locator('.qbPdfCollageEmpty').first().click();
  await page.locator('[data-files]').setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);
  await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===2);
- await page.getByRole('button',{name:'フチなし',exact:true}).click();assert.equal(await page.getByRole('button',{name:'フチあり',exact:true}).getAttribute('aria-pressed'),'true');
- const item=page.locator('.qbPdfCollageItem').first(),box=await item.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(520);await page.mouse.up();await page.getByRole('dialog',{name:'資料を操作'}).waitFor();await page.getByRole('button',{name:'複製',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===3);
+ await page.locator('[data-border]:not(:disabled)').click();assert.equal(await page.locator('[data-border]').getAttribute('aria-pressed'),'true');assert.equal(await page.locator('[data-border]').textContent(),'フチあり');
+ const item=page.locator('.qbPdfCollageItem').first(),box=await item.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(520);await page.mouse.up();await page.locator('[data-item=duplicate]').waitFor();await page.locator('[data-item=duplicate]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===3);
  await page.locator('[data-layout="2,2"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),4);
- await page.getByRole('button',{name:'この1ページを作成',exact:true}).click();await page.waitForFunction(()=>collageResult instanceof Blob);
+ await page.locator('[data-export]:not(:disabled)').click();await page.waitForFunction(()=>collageResult instanceof Blob);
  const result=await page.evaluate(async()=>{const L=await import('/vendor/pdfjs/pdf-lib.mjs'),doc=await L.PDFDocument.load(await collageResult.arrayBuffer()),p=doc.getPage(0);return{pages:doc.getPageCount(),width:p.getWidth(),height:p.getHeight(),type:collageResult.type}});
  assert.equal(result.pages,1);assert.equal(result.type,'application/pdf');assert.ok(result.width>500);assert.ok(result.height>100);assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS collage layout, upload, long-press duplicate and one-page export');
 }
