@@ -6,12 +6,24 @@ const pdfFixture=require('./pdf-fixture.cjs');
 const fixture=pdfFixture();
 const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://local').pathname;res.setHeader('Access-Control-Allow-Origin','*');if(pathname==='/fixture.pdf'){res.setHeader('Content-Type','application/pdf');res.end(fixture);return}const file=path.resolve(root,'.'+decodeURIComponent(pathname));if(pathname!=='/'&&!file.startsWith(root+path.sep)){res.writeHead(403).end();return}if(pathname==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><meta charset="utf-8"></head><body><button id="origin">開く</button><div id="files"></div></body></html>');return}try{res.setHeader('Content-Type',file.endsWith('.mjs')||file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.wasm')?'application/wasm':'application/octet-stream');res.end(fs.readFileSync(file))}catch{res.writeHead(404).end()}});
 async function run(browser,label,url){
- const p=await browser.newPage({viewport:{width:1024,height:800}}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(label+' PDF console: '+m.text())});p.setDefaultTimeout(20000);await p.goto(url);await p.addStyleTag({url:url+'file-media-v1.css'});await p.addScriptTag({url:url+'file-media-v1.js'});
+ const p=await browser.newPage({viewport:{width:1024,height:800},deviceScaleFactor:2}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(label+' PDF console: '+m.text())});p.setDefaultTimeout(20000);await p.goto(url);await p.addStyleTag({url:url+'file-media-v1.css'});await p.addScriptTag({url:url+'file-media-v1.js'});
  await p.evaluate(()=>document.querySelector('#files').innerHTML=QBFiles.markup('/fixture.pdf'));
  await p.waitForFunction(()=>document.querySelector('[data-pdf-pages="3"]'));
+ assert.ok(await p.locator('.qbPdfPoster canvas').evaluate(c=>c.width>=parseFloat(c.style.width)*1.9));
  assert.equal(await p.locator('#files img').count(),0);await p.locator('.qbPdfCard').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  const waitForWholePage=()=>p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage')?.getBoundingClientRect(),s=document.querySelector('.qbPdfViewingStage')?.getBoundingClientRect();return c&&s&&c.left>=s.left+23&&c.right<=s.right-23&&c.top>=s.top+23&&c.bottom<=s.bottom-23});
  await waitForWholePage();await p.setViewportSize({width:390,height:700});await waitForWholePage();await p.screenshot({path:'test-results/ui/pdf-popup-fit-'+label+'.png'});
+ // Pinch zoom changes only the PDF, then one-finger movement pans the page.
+ const gesture=await p.evaluate(()=>{
+  const stage=document.querySelector('.qbPdfViewingStage'),c=stage.querySelector('canvas'),r=c.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+  const send=(type,id,x,y)=>stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',clientX:x,clientY:y,button:0}));
+  send('pointerdown',41,x-20,y);send('pointerdown',42,x+20,y);send('pointermove',41,x-80,y);send('pointermove',42,x+80,y);
+  const expanded=c.getBoundingClientRect().width;send('pointerup',42,x+80,y);const before=stage.scrollLeft;send('pointermove',41,x-110,y);const after=stage.scrollLeft;send('pointerup',41,x-110,y);
+  return {initial:r.width,expanded,before,after};
+ });
+ assert.ok(gesture.expanded>gesture.initial*3);assert.ok(gesture.after>gesture.before);
+ await p.waitForTimeout(300);assert.ok(await p.locator('.qbPdfPage').evaluate(c=>c.getBoundingClientRect().width)>gesture.initial*3);
+ await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
  assert.equal(await p.locator('#origin').evaluate(n=>n.inert),true);
  const color=()=>p.locator('.qbPdfPage').evaluate(c=>Array.from(c.getContext('2d').getImageData(10,10,1,1).data));
  assert.deepEqual(await color(),[255,0,0,255]);await p.getByRole('button',{name:'2ページを表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);
