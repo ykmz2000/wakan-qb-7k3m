@@ -44,22 +44,22 @@ function choose({onDevice}={}){
     trap(d,close);d.querySelector('[data-source]').focus({preventScroll:true});
   });
 }
-async function pickLibrary({sb=window.qbSupabase}={}){
+async function pickLibrary({sb=window.qbSupabase,title='ライブラリから選択',noun='画像'}={}){
   const S=window.QBImageLibraryStore;if(!sb||!S)throw Error('ライブラリを利用できません。');if(active)return [];
   await S.authorize(sb);if(active)return [];
   return new Promise(resolve=>{
-    const d=modalBase('ライブラリから選択'),body=d.querySelector('.qbeSourceBody');
-    body.innerHTML='<div class="qbeSourceSearch"><input type="search" placeholder="タイトル・キーワードで検索" aria-label="ライブラリを検索"><button type="button" class="qbeSearchButton">検索</button><select aria-label="ライブラリの科目"><option value="">全科目</option></select></div><div class="qbeLibraryStatus" role="status">読み込み中…</div><div class="qbeLibraryGrid"></div><button type="button" class="qbeLibraryMore" hidden>さらに読み込む</button><div class="qbeLibraryFoot"><button type="button" class="qbeCancel">キャンセル</button><button type="button" class="qbeUse" disabled>選択した画像を追加</button></div>';
+    const d=modalBase(title),body=d.querySelector('.qbeSourceBody');
+    body.innerHTML=`<div class="qbeSourceSearch"><input type="search" placeholder="タイトル・キーワードで検索" aria-label="ライブラリを検索"><button type="button" class="qbeSearchButton">検索</button><select aria-label="ライブラリの科目"><option value="">全科目</option></select></div><div class="qbeLibraryStatus" role="status">読み込み中…</div><div class="qbeLibraryGrid"></div><button type="button" class="qbeLibraryMore" hidden>さらに読み込む</button><div class="qbeLibraryFoot"><button type="button" class="qbeCancel">キャンセル</button><button type="button" class="qbeUse" disabled>選択した${esc(noun)}を追加</button></div>`;
     const input=d.querySelector('input'),subject=d.querySelector('select'),grid=d.querySelector('.qbeLibraryGrid'),status=d.querySelector('.qbeLibraryStatus'),more=d.querySelector('.qbeLibraryMore'),use=d.querySelector('.qbeUse'),selected=new Map();
     let rows=[],offset=0,closed=false,generation=0,loading=false,composing=false,lastComposition=-Infinity;
     function close(value=[]){if(closed)return;closed=true;generation++;d.release();resolve(value)}
     function sync(){
       const order=new Map([...selected.keys()].map((id,i)=>[id,i+1]));
       for(const b of grid.querySelectorAll('.qbeLibraryItem')){const n=order.get(b.dataset.id);b.setAttribute('aria-pressed',String(!!n));const badge=b.querySelector('.qbeLibraryOrder');badge.hidden=!n;badge.textContent=n||''}
-      use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}枚を追加`:'選択した画像を追加';
+      use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}件を追加`:`選択した${noun}を追加`;
     }
     function addCard(row){
-      const b=document.createElement('button');b.type='button';b.className='qbeLibraryItem';b.dataset.id=row.id;b.setAttribute('aria-pressed','false');const name=row.metadata?.name||'画像';
+      const b=document.createElement('button');b.type='button';b.className='qbeLibraryItem';b.dataset.id=row.id;b.setAttribute('aria-pressed','false');const name=row.metadata?.name||noun;
       b.innerHTML=`<img alt="${esc(name)}" loading="lazy"><span class="qbeLibraryName">${esc(name)}</span><span class="qbeLibraryOrder" hidden></span>`;grid.append(b);
       S.signedURL(sb,row.object_path).then(url=>{if(!closed&&b.isConnected&&b.querySelector('img'))window.QBFiles?QBFiles.present(b.querySelector('img'),url,false):b.querySelector('img').src=url}).catch(()=>{if(b.isConnected)b.title='プレビューの取得に失敗しました。検索で再読み込みしてください。'});
       b.onclick=()=>{selected.has(row.id)?selected.delete(row.id):selected.set(row.id,row);sync()};
@@ -72,7 +72,7 @@ async function pickLibrary({sb=window.qbSupabase}={}){
         const batch=await S.search(sb,{query:input.value.trim(),subjects:subject.value?[subject.value]:[],sort:'recent',view:'images',archived:false,offset});
         if(closed||token!==generation)return;
         for(const hit of batch){const row=hit.item||hit;if(!row.id||!row.object_path||row.archived||rows.some(x=>x.id===row.id))continue;rows.push(row);addCard(row)}
-        offset+=batch.length;more.hidden=batch.length<30;status.textContent=rows.length?`${rows.length}件を表示`:'該当する画像がありません。';sync();
+        offset+=batch.length;more.hidden=batch.length<30;status.textContent=rows.length?`${rows.length}件を表示`:`該当する${noun}がありません。`;sync();
       }catch(e){if(!closed&&token===generation)status.textContent='読み込めませんでした：'+(e.message||e)}finally{if(token===generation)loading=false}
     }
     d.querySelector('.qbeSourceClose').onclick=d.querySelector('.qbeCancel').onclick=()=>close();
