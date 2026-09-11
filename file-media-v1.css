@@ -14,3 +14,16 @@
 .qbPdfModal[hidden]{display:none!important}
 
 .qbPdfCreate{max-height:80dvh!important;height:auto!important}.qbPdfCreate .qbPdfStage{padding:20px}.qbPdfCreate label{display:block;margin:12px 0}.qbPdfCreate input,.qbPdfCreate select{max-width:100%;min-height:44px;padding:8px;font:inherit}.qbPdfDimensions[hidden]{display:none}
+
+/* Creation settings are a light form, independent of PDF page/stage colors. */
+.qbPdfPanel.qbPdfCreate{width:min(520px,calc(100% - 24px));max-height:calc(100dvh - 32px)!important;border-radius:16px;background:#fff;color:#172033;color-scheme:light;box-shadow:0 12px 48px #0005}
+.qbPdfCreate .qbPdfStage{background:#fff;color:#172033;padding:8px 20px 16px;touch-action:pan-y}
+.qbPdfCreate .qbPdfHead,.qbPdfCreate .qbPdfNav{background:#fff;color:#172033;padding:16px 20px}
+.qbPdfCreate .qbPdfHead{border-bottom:1px solid #dce3ec}.qbPdfCreate .qbPdfNav{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dce3ec;flex-wrap:wrap}
+.qbPdfCreate label{font-weight:600}.qbPdfCreate input,.qbPdfCreate select{display:block;width:100%;box-sizing:border-box;margin-top:6px;border:1px solid #8793a5;border-radius:8px;background:#fff;color:#172033;opacity:1}
+.qbPdfCreate p{font-size:14px;line-height:1.6;color:#475569}.qbPdfCreate [role=status]:empty{display:none}
+.qbPdfOrientation{margin:16px 0;padding:0;border:0;display:flex;gap:8px;min-width:0}.qbPdfOrientation legend{font-weight:600;margin-bottom:8px;padding:0}
+.qbPdfCreate button{min-height:44px;padding:8px 16px;border:1px solid #8793a5;border-radius:8px;background:#fff;color:#172033;font:inherit;cursor:pointer}
+.qbPdfOrientation button{flex:1}.qbPdfOrientation button[aria-pressed=true]{border:2px solid var(--accent,#126fb3);background:var(--accent-soft,#eaf4fb);color:#172033;font-weight:700}
+.qbPdfCreate [data-do=create]{border:2px solid var(--accent,#126fb3);background:var(--accent-soft,#eaf4fb);color:#172033;font-weight:700}
+.qbPdfDimensions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.qbPdfDimensions label{min-width:0}
