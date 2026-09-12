@@ -27,11 +27,17 @@ function loadTusClient(){
     script.src='https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js';script.onload=()=>finish(window.tus?.Upload?null:Error('大きなPDFの保存機能を準備できませんでした。'));script.onerror=()=>finish(Error('大きなPDFの保存機能を読み込めませんでした。通信を確認してください。'));document.head.append(script);
   });return tusClientPromise;
 }
+function storageEndpoint(sb){
+  const configured=sb?.storageUrl,base=typeof configured==='string'?configured:(configured&&typeof configured.href==='string'?configured.href:'');
+  const fallback=typeof sb?.supabaseUrl==='string'?sb.supabaseUrl:(sb?.supabaseUrl&&typeof sb.supabaseUrl.href==='string'?sb.supabaseUrl.href:'');
+  const endpoint=String(base||(fallback.replace(/\/$/,'')+'/storage/v1')).replace(/\/$/,'');
+  if(!/^https?:\/\//.test(endpoint))throw Error('アップロード先を確認できません。画面を再読み込みしてください。');
+  return endpoint;
+}
 async function resumableUpload(c,path,blob){
   const client=await loadTusClient(),auth=await c.sb.auth.getSession(),session=auth.data?.session,token=session?.access_token;
   if(auth.error||!token)throw Error('ログイン状態を確認できません。もう一度ログインしてください。');
-  const storageUrl=(c.sb.storageUrl||((c.sb.supabaseUrl||'').replace(/\/$/,'')+'/storage/v1')).replace(/\/$/,'');
-  if(!/^https?:\/\//.test(storageUrl))throw Error('アップロード先を確認できません。画面を再読み込みしてください。');
+  const storageUrl=storageEndpoint(c.sb);
   await new Promise((resolve,reject)=>{const task=new client.Upload(blob,{endpoint:storageUrl+'/upload/resumable',retryDelays:[0,3000,5000,10000,20000],headers:{authorization:'Bearer '+token,'x-upsert':'false'},uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,metadata:{bucketName:c.bucket,objectName:path,contentType:'application/pdf',cacheControl:'3600'},onError:error=>reject(Error('PDFの保存に失敗しました。通信を確認して再試行してください。'+(error?.message?' '+error.message:''))),onSuccess:resolve});task.start()});
 }
 async function upload(c,blob){if(window.QBFiles)blob=await QBFiles.validate(blob);if(!blob||blob.size>MAX_IMAGE_BYTES)throw Error('保存する画像またはPDFは100MiB以下にしてください。');const path=objectPath(c,blob);if(blob.type==='application/pdf'&&blob.size>RESUMABLE_PDF_BYTES){await resumableUpload(c,path,blob);return path}const r=await c.sb.storage.from(c.bucket).upload(path,blob,{contentType:blob.type||'image/png',upsert:false,cacheControl:'3600'});if(r.error)throw r.error;return path}

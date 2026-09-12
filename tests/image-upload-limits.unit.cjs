@@ -36,3 +36,10 @@ test('editing saves PDFs above 6MiB with resumable upload',async()=>{
  await w.QBImageStore.add(context,{size:6*1024*1024+1,type:'application/pdf'});
  assert.equal(uploads.length,0);assert.equal(tasks.length,1);assert.equal(tasks[0].options.metadata.bucketName,'question-media');assert.equal(tasks[0].options.metadata.contentType,'application/pdf');assert.match(tasks[0].options.metadata.objectName,/\.pdf$/);
 });
+test('resumable PDF saves accept a URL-like storageUrl from the Supabase client',async()=>{
+ const tasks=[];class Upload{constructor(file,options){this.options=options;tasks.push(this)}start(){this.options.onSuccess()}}
+ const {sb,window:w}=fixture({tus:{Upload}});sb.storageUrl={href:'https://project.supabase.co/storage/v1/'};
+ await w.QBImageStore.add({sb,bucket:'question-media',questionId:'question',placement:'question',host:{isConnected:true}},{size:6*1024*1024+1,type:'application/pdf'});
+ await w.QBImageLibraryStore.add(sb,{size:6*1024*1024+1,type:'application/pdf',name:'large.pdf'});
+ assert.deepEqual(tasks.map(task=>task.options.endpoint),['https://project.supabase.co/storage/v1/upload/resumable','https://project.supabase.co/storage/v1/upload/resumable']);
+});
