@@ -6,6 +6,34 @@ const MEDIA=TARGET+',.qbPdfCard';
 const GROUP='.qbMediaHostV2,.qbNoteImageGrid,.oeiGrid,.qsiGrid,.qbLibraryCarousel';
 let active=null;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+function questionPreviewData(){
+  if(window.qbGetScreen?.()!=='practice')return null;
+  const stem=document.querySelector('#view > .card > .qtext');
+  let question=null;try{question=window.qbResolveCurrentQuestion?.()||window.pq?.()||null}catch{}
+  if(!stem||!question)return null;
+  const media=[];
+  for(const wrap of document.querySelectorAll('.qsiHost .qsiGrid > .qsiImgWrap')){
+    const image=wrap.querySelector('.qsiImg');
+    if(image?.src){media.push({src:image.currentSrc||image.src,alt:image.alt||'問題画像',pdf:false});continue}
+    const pdf=wrap.querySelector('.qbPdfCard');if(!pdf)continue;
+    let src='';try{src=pdf.querySelector('canvas')?.toDataURL('image/png')||''}catch{}
+    media.push({src,alt:'問題PDF',pdf:true});
+  }
+  return {stemHtml:stem.innerHTML,media};
+}
+function attachQuestionPreview(root,toolbar,{before=null}={}){
+  const data=questionPreviewData();if(!data)return null;
+  const button=document.createElement('button');button.type='button';button.className='qbQuestionPreviewButton';button.textContent='問題を確認';button.setAttribute('aria-expanded','false');
+  const panel=document.createElement('section');panel.className='qbQuestionPreviewPanel';panel.hidden=true;panel.setAttribute('aria-label','問題のプレビュー');
+  const head=document.createElement('div');head.className='qbQuestionPreviewHead';const title=document.createElement('b');title.textContent='問題';const close=document.createElement('button');close.type='button';close.textContent='閉じる';head.append(title,close);
+  const stem=document.createElement('div');stem.className='qbQuestionPreviewStem';stem.innerHTML=data.stemHtml;panel.append(head,stem);
+  if(data.media.length){const grid=document.createElement('div');grid.className='qbQuestionPreviewMedia';for(const item of data.media){const cell=document.createElement('div');cell.className='qbQuestionPreviewMediaItem';if(item.src){const img=document.createElement('img');img.src=item.src;img.alt=item.alt;cell.append(img)}else cell.textContent='PDF';if(item.pdf)cell.dataset.pdf='true';grid.append(cell)}panel.append(grid)}
+  root.append(panel);if(before?.parentElement===toolbar)toolbar.insertBefore(button,before);else toolbar.append(button);
+  const set=open=>{panel.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=open?'問題を閉じる':'問題を確認';if(open)close.focus({preventScroll:true})};
+  button.onclick=()=>set(panel.hidden);close.onclick=()=>{set(false);button.focus({preventScroll:true})};
+  return {closeIfOpen(){if(panel.hidden)return false;set(false);button.focus({preventScroll:true});return true}};
+}
+window.QBQuestionPreview={attach:attachQuestionPreview};
 function css(){
   if(document.getElementById('qbImageViewerCss'))return;
   const s=document.createElement('style');s.id='qbImageViewerCss';s.textContent=`
@@ -34,6 +62,9 @@ function css(){
 .qbImageLightboxCounter{min-width:52px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
 .qbImageLightboxHint{margin:6px 0 0;text-align:center;font-size:11px;color:#ffffffbb}
 .qbImageLightbox [hidden]{display:none!important}
+.qbQuestionPreviewPanel{position:fixed;z-index:10550;top:max(66px,calc(env(safe-area-inset-top) + 56px));right:max(12px,env(safe-area-inset-right));box-sizing:border-box;width:min(440px,calc(100% - 24px));max-height:min(62dvh,560px);overflow:auto;padding:14px;background:var(--card,#fff);color:var(--text,#172033);border:1px solid var(--line,#dce3ec);border-radius:14px;box-shadow:0 14px 48px #0008;text-align:left;touch-action:pan-y;overscroll-behavior:contain}
+.qbQuestionPreviewPanel[hidden]{display:none!important}.qbQuestionPreviewHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.qbQuestionPreviewHead>b{font-size:15px}.qbQuestionPreviewHead button,.qbQuestionPreviewButton{min-width:44px;min-height:44px;padding:7px 11px;border:1px solid var(--accent-border,var(--line,#dce3ec));border-radius:10px;background:var(--card,#fff);color:var(--accent,#126fb3);font:inherit;font-weight:800;touch-action:manipulation}
+.qbQuestionPreviewStem{font-size:15px;font-weight:700;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.qbQuestionPreviewMedia{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:12px}.qbQuestionPreviewMediaItem{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:72px;max-height:150px;overflow:hidden;background:var(--bg,#f5f7fb);border:1px solid var(--line,#dce3ec);border-radius:8px;color:var(--muted,#6f7786);font-size:13px}.qbQuestionPreviewMediaItem img{display:block!important;position:static!important;max-width:100%!important;max-height:150px!important;width:auto!important;height:auto!important;transform:none!important;box-shadow:none!important;border-radius:0!important;cursor:default!important;object-fit:contain}.qbQuestionPreviewMediaItem[data-pdf=true]::after{content:'PDF';position:absolute;right:5px;bottom:5px;padding:2px 5px;background:#000a;color:#fff;border-radius:4px;font-size:10px}
 @media(max-width:360px){.qbImageLightboxZoom{gap:3px}.qbImageLightboxCounter{min-width:42px}.qbImageLightboxFoot{gap:4px}}
 `;document.head.appendChild(s);
 }
@@ -183,9 +214,9 @@ function open(origin,{savedBlob=null}={}){
   },{passive:false});
   function key(e){
     if(closed||e.isComposing)return;
-    if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close();return}
+    if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(questionPreview?.closeIfOpen())return;close();return}
     if(e.key==='Tab'){
-      const buttons=[...d.querySelectorAll('button')].filter(b=>!b.disabled&&!b.hidden);
+      const buttons=[...d.querySelectorAll('button')].filter(b=>!b.disabled&&!b.hidden&&b.getClientRects().length);
       const i=buttons.indexOf(document.activeElement),target=e.shiftKey?(i<=0?buttons.length-1:i-1):(i+1)%buttons.length;
       e.preventDefault();e.stopImmediatePropagation();buttons[target]?.focus();return;
     }
@@ -199,6 +230,7 @@ function open(origin,{savedBlob=null}={}){
     }
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.textContent='画像編集';editButton.className='qbImageLightboxEdit';closeButton.before(editButton);
+  const questionPreview=attachQuestionPreview(d,get('.qbImageLightboxHead'),{before:editButton});
   editButton.onclick=async()=>{const node=images[index].node,host=mediaEditor(node);if(!host)return;const run=host.qbEditMedia,row=host.dataset.row||host.dataset.id,cls=host.classList.contains('qbLibraryDetailImage')?'qbLibraryDetailImage':null;close();try{const saved=await run();if(saved instanceof Blob)await new Promise(r=>setTimeout(r,100));let target=node.isConnected?node:null;if(row){const wrapper=[...document.querySelectorAll('[data-row],[data-id]')].find(w=>(w.dataset.row||w.dataset.id)===row&&w.querySelector(TARGET));target=wrapper?.querySelector(TARGET)||target}if(cls)target=document.querySelector('.'+cls);if(target?.isConnected)open(target,{savedBlob:saved instanceof Blob?saved:null})}catch(e){alert('画像編集を開けませんでした：'+e.message)}};
   prev.onclick=()=>go(-1);next.onclick=()=>go(1);retry.onclick=show;
   zoomIn.onclick=()=>zoom(scale*1.5);zoomOut.onclick=()=>zoom(scale/1.5);reset.onclick=()=>zoom(1);closeButton.onclick=close;
