@@ -20,7 +20,7 @@ function css(){
 .qbripFilters select{display:block;width:100%;min-height:44px;margin-top:4px;padding:6px;border:1px solid var(--line,#dce3ec);border-radius:8px;background:var(--card,#fff);color:var(--text,#172033);font:inherit;font-size:16px}
 .qbripFilterRetry{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:8px;min-height:44px;margin-bottom:8px}
 .qbripGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.qbripItem{position:relative;border:2px solid transparent;background:var(--bg,#f5f7fb);color:var(--text);border-radius:11px;padding:5px;min-height:110px;touch-action:pan-y pinch-zoom;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.qbripItemHost{position:relative;min-width:0}.qbripItem{position:relative;width:100%;border:2px solid transparent;background:var(--bg,#f5f7fb);color:var(--text);border-radius:11px;padding:5px;min-height:110px;touch-action:pan-y pinch-zoom;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .qbripItem.on{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 .qbripItem img{display:block;width:100%;height:120px;object-fit:contain;background:var(--card,#fff);border-radius:7px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .qbripMeta{font-size:10px;color:var(--muted,#6f7786);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
@@ -135,7 +135,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
-        grid.appendChild(b);
+        const host=document.createElement('div');host.className='qbripItemHost';host.append(b);grid.appendChild(host);
       }
     }
     grid.addEventListener('pointerdown',e=>{

@@ -54,7 +54,7 @@ async function boot(browser){
     }};
     window.pickerOriginal=JSON.stringify(testDB);
   });
-  for(const script of ['recent-image-picker-v1.js','image-library-tools-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
+  for(const script of ['recent-image-picker-v1.js','image-library-tools-v1.js','media-share-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
   await p.waitForTimeout(150);return ctx;
 }
 async function open(p){
@@ -94,6 +94,7 @@ async function run(browser,name){
   await p.locator('.qbripUnit').selectOption('u11');await settle(p);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));assert.equal((await ids(p)).length,2);pass('unit filtering returns only images on questions in that unit');
   await p.locator('.qbripSubject').selectOption('s2');await settle(p);assert.equal(await p.locator('.qbripUnit').inputValue(),'');assert.deepEqual(await p.locator('.qbripUnit option').evaluateAll(es=>es.map(x=>x.value)),['','u21']);assert.ok((await ids(p)).every(x=>x>='img-026'));pass('changing subject clears stale unit selection and replaces the unit choices');
   await p.locator('.qbripSubject').selectOption('');await finish(p);assert.equal(await p.locator('.qbripUnit').isDisabled(),true);assert.ok((await ids(p)).includes('img-045'));pass('all-subject mode includes cross-subject images and disables meaningless unit filtering');
+  await p.waitForFunction(()=>document.querySelectorAll('.qbripItemHost').length===document.querySelectorAll('.qbripItemHost>.qbMediaShareButton').length);assert.ok(await p.locator('.qbripItemHost>.qbMediaShareButton').count()>1);pass('every recent thumbnail has its own share action after asynchronous rendering');
   await p.locator('.qbripItem').first().click();assert.equal(await p.locator('.qbripItem.on').count(),1);assert.equal(await p.locator('.qbripPreview').count(),0);
   await p.locator('.qbripItem').first().click();assert.equal(await p.locator('.qbripItem.on').count(),0);pass('short tap toggles selection without opening an enlarged image or writing any data');
   await p.locator('.qbripItem').nth(1).click();

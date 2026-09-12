@@ -70,6 +70,7 @@ jobs:
           node tests/question-image-add-theme.browser.cjs
           node tests/editable-media.browser.cjs
           node tests/pdf-editor.browser.cjs
+          node tests/pdf-collage.browser.cjs
           node tests/file-media.browser.cjs
           node tests/library-question-search.browser.cjs
           node tests/library-file-batch.browser.cjs
