@@ -36,3 +36,19 @@ test('a PDF path overrides an incorrect storage MIME type',()=>{
   assert.equal(M.mediaType({type:'text/plain'},'recent/uploaded.PDF'),'application/pdf');
   assert.equal(M.mediaType({type:'application/octet-stream'},'recent/image.png'),'image/png');
 });
+
+test('free layouts preserve up to twenty independently configured rows',()=>{
+  const rows=Array.from({length:12},(_,index)=>Array((index%4)+1).fill(null));
+  assert.deepEqual(M.normalizeRows(rows).map(row=>row.length),rows.map(row=>row.length));
+});
+
+test('column layout supports one tall item beside two stacked wide items',()=>{
+  const tall={aspect:.65},wideTop={aspect:1.5},wideBottom={aspect:1.6};
+  const layout=M.calculate([[tall],[wideTop,wideBottom]],{axis:'columns',mode:'fit',margin:16,gap:8});
+  const [left,topRight,bottomRight]=layout.placements;
+  assert.equal(layout.axis,'columns');
+  assert.equal(left.column,0);assert.equal(topRight.column,1);assert.equal(bottomRight.column,1);
+  assert.equal(topRight.x,bottomRight.x);assert.equal(left.top,topRight.top);
+  assert.ok(bottomRight.y<topRight.y);assert.ok(left.height>topRight.height);
+  for(const placement of layout.placements){assert.ok(placement.x>=0);assert.ok(placement.y>=0);assert.ok(placement.x+placement.width<=layout.width+.001);assert.ok(placement.y+placement.height<=layout.height+.001)}
+});
