@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const {chromium,webkit}=require('playwright'),root=path.resolve(__dirname,'..');
-const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://local').pathname;if(pathname==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><body><button id="origin">開く</button></body></html>');return}const file=path.resolve(root,'.'+decodeURIComponent(pathname));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return}try{res.setHeader('Content-Type',file.endsWith('.js')||file.endsWith('.mjs')?'application/javascript':'application/octet-stream');res.end(fs.readFileSync(file))}catch{res.writeHead(404).end()}});
+const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://local').pathname;if(pathname==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html><body><button id="origin">開く</button></body></html>');return}const file=path.resolve(root,'.'+decodeURIComponent(pathname));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return}try{res.setHeader('Content-Type',file.endsWith('.js')||file.endsWith('.mjs')?'application/javascript; charset=utf-8':'application/octet-stream');res.end(fs.readFileSync(file))}catch{res.writeHead(404).end()}});
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
 async function run(browser,label,url){
  const page=await browser.newPage({viewport:{width:900,height:760}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
