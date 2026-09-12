@@ -82,6 +82,12 @@ async function run(browser,label,url){
  assert.equal(await p.locator('[data-paste-target]').evaluate(n=>n.classList.contains('qbPdfPasteWaiting')&&n.getBoundingClientRect().height>=70),true);
  await p.evaluate(data=>{const d=new DataTransfer();d.items.add(new File([Uint8Array.from(atob(data),c=>c.charCodeAt(0))],'copied.png',{type:'image/png'}));document.querySelector('[data-paste-target]').dispatchEvent(new ClipboardEvent('paste',{clipboardData:d,bubbles:true,cancelable:true}))},photoPNG);
  await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 1ページ');await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
+ // A storage callback may reject without an Error object. Keep the edit open and
+ // show an actionable fallback instead of the literal word "undefined".
+ await p.evaluate(()=>{QBPDFEditor.open(original,{onSave:async()=>Promise.reject()})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
+ await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('保存できませんでした：'));
+ const saveFailure=await p.locator('.qbPdfStatus').textContent();assert.doesNotMatch(saveFailure,/undefined/);assert.match(saveFailure,/予期しないエラー/);assert.equal(await p.locator('.qbPdfModal').isVisible(),true);
+ await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS editable multi-page PDF, original retained, transparent overlays, no whole crop, save and reopen');
 }
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,label,`http://127.0.0.1:${server.address().port}/`)}finally{await b.close()}}}finally{server.close()}})().catch(e=>{console.error(e);process.exitCode=1});
