@@ -31,3 +31,8 @@ test('PDF coordinates place the first row at the top of the page instead of belo
   assert.equal(layout.placements[1].y,layout.placements[1].top-layout.placements[1].height);
   assert.ok(layout.placements.every(p=>p.y>=20&&p.y+p.height<=layout.height-20));
 });
+
+test('a PDF path overrides an incorrect storage MIME type',()=>{
+  assert.equal(M.mediaType({type:'text/plain'},'recent/uploaded.PDF'),'application/pdf');
+  assert.equal(M.mediaType({type:'application/octet-stream'},'recent/image.png'),'image/png');
+});
