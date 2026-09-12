@@ -3,13 +3,29 @@ on:
   push:
     branches: ["peds-image-import-20260913"]
 permissions:
-  contents: read
+  contents: write
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Invoke fixed-purpose import function
+      - uses: actions/checkout@v4
+      - name: Invoke fixed-purpose import function and capture response
+        shell: bash
         run: |
-          curl --fail-with-body --retry 2 \
+          set +e
+          code=$(curl -sS --retry 1 -o /tmp/body.txt -w "%{http_code}" \
             -H "X-QB-Import: peds-images-20260913" \
-            https://qebvqcubtyfgaakrzbzh.supabase.co/functions/v1/qb-peds-image-import-20260913
+            https://qebvqcubtyfgaakrzbzh.supabase.co/functions/v1/qb-peds-image-import-20260913)
+          ec=$?
+          mkdir -p tmp
+          {
+            echo "curl_exit=$ec"
+            echo "http_code=$code"
+            cat /tmp/body.txt 2>/dev/null || true
+          } > tmp/peds-curl-result.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add tmp/peds-curl-result.txt
+          git commit -m "Capture pediatric import response" || true
+          git push || true
+          exit 0
