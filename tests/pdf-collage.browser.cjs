@@ -12,6 +12,8 @@ async function run(browser,label,url){
  await page.locator('[data-layout="2,3"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),5);
  await page.locator('[data-gap]').selectOption('0');await page.locator('[data-margin]').selectOption('32');
  assert.deepEqual(await page.locator('.qbPdfCollageSheet').evaluate(sheet=>({padding:getComputedStyle(sheet).paddingTop,gap:getComputedStyle(sheet.querySelector('.qbPdfCollageRow')).columnGap})),{padding:'32px',gap:'0px'});
+ await page.locator('[data-custom]').click();await page.getByRole('dialog',{name:'自由配置を設定',exact:true}).waitFor();await page.locator('[data-custom-axis]').selectOption('columns');await page.locator('[data-custom-add]').click();await page.locator('[data-custom-columns]').first().selectOption('1');assert.equal(await page.locator('.qbPdfCollageRow').count(),3);assert.equal(await page.locator('.qbPdfCollageCell').count(),6);assert.equal(await page.locator('.qbPdfCollageSheet').getAttribute('data-axis'),'columns');await page.locator('[data-custom-close]').click();await page.getByRole('dialog',{name:'自由配置を設定',exact:true}).waitFor({state:'detached'});
+ await page.locator('[data-layout="1,2"][data-axis="columns"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),3);assert.equal(await page.locator('.qbPdfCollageSheet').getAttribute('data-axis'),'columns');
  await page.locator('.qbPdfCollageEmpty').first().click();
  await page.locator('[data-source="recent"]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===1);assert.equal(await page.evaluate(()=>recentParent===document.body),true);
  await page.locator('.qbPdfCollageEmpty').first().click();
