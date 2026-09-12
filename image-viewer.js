@@ -7,10 +7,11 @@ const GROUP='.qbMediaHostV2,.qbNoteImageGrid,.oeiGrid,.qsiGrid,.qbLibraryCarouse
 let active=null;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 function questionPreviewData(){
-  if(window.qbGetScreen?.()!=='practice')return null;
   const stem=document.querySelector('#view > .card > .qtext');
   let question=null;try{question=window.qbResolveCurrentQuestion?.()||window.pq?.()||null}catch{}
-  if(!stem||!question)return null;
+  if(!stem&&!question)return null;
+  const stemHtml=stem?.innerHTML||String(question?.stem||question?.question||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  if(!stemHtml)return null;
   const media=[];
   for(const wrap of document.querySelectorAll('.qsiHost .qsiGrid > .qsiImgWrap')){
     const image=wrap.querySelector('.qsiImg');
@@ -19,7 +20,7 @@ function questionPreviewData(){
     let src='';try{src=pdf.querySelector('canvas')?.toDataURL('image/png')||''}catch{}
     media.push({src,alt:'問題PDF',pdf:true});
   }
-  return {stemHtml:stem.innerHTML,media,question};
+  return {stemHtml,media,question:question||{}};
 }
 function previewAnswer(question){
   let answer='解答未登録';const indices=Array.isArray(question?.ans)?question.ans:[],correct=(question?.choices||[]).filter((choice,index)=>choice?.is_correct||indices.includes(index)).map(choice=>`${choice.choice_key||''} ${choice.choice_text||''}`.trim());if(correct.length&&question?.answer_mode!=='fill_blank')answer=correct.join('・');else try{answer=window.QBQuestionExport?.answers?.(question)||answer}catch{}
