@@ -61,7 +61,7 @@ async function pngBlob(blob){
 }
 async function exportPDF(rows,{mode,border,gap}){
  const M=window.QBPDFCollageModel;if(!M)throw Error('配置機能を読み込めません。');const layout=M.calculate(rows,{mode,gap,margin:border?20:16}),L=await import('./vendor/pdfjs/pdf-lib.mjs'),pdf=await L.PDFDocument.create(),page=pdf.addPage([layout.width,layout.height]),loadedPDFs=new Map();
- for(const placement of layout.placements){const item=placement.item,y=layout.height-placement.top-placement.height;
+ for(const placement of layout.placements){const item=placement.item,y=placement.y;
   if(item.kind==='pdf'){
    let source=loadedPDFs.get(item.blob);if(!source){source=await L.PDFDocument.load(await item.blob.arrayBuffer());loadedPDFs.set(item.blob,source)}const sourcePage=source.getPage(item.pageIndex);let embedded;
    if(item.crop){const w=sourcePage.getWidth(),h=sourcePage.getHeight(),c=item.crop;embedded=await pdf.embedPage(sourcePage,{left:c.x*w,bottom:(1-c.y-c.h)*h,right:(c.x+c.w)*w,top:(1-c.y)*h})}else embedded=await pdf.embedPage(sourcePage);

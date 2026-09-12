@@ -37,7 +37,7 @@
       entry.row.forEach((item,columnIndex)=>{
         if(!item)return;
         const itemHeight=entry.heights[columnIndex]*scale;
-        placements.push({item,row:rowIndex,column:columnIndex,x:offsetX+columnIndex*(entry.cellWidth+gap)*scale,top,width:entry.cellWidth*scale,height:itemHeight});
+        placements.push({item,row:rowIndex,column:columnIndex,x:offsetX+columnIndex*(entry.cellWidth+gap)*scale,top,y:top-itemHeight,width:entry.cellWidth*scale,height:itemHeight});
       });
       top-=entry.rowHeight*scale+gap*scale;
     });
