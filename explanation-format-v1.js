@@ -133,7 +133,7 @@ async function saveEditor(ed,q,table,id,payload){
   return map;
 }
 function decorate(node,text,record){
-  if(!node||(!node.dataset.qbFormatted&&node.querySelector('img,button,input,textarea,a,[contenteditable]')))return;
+  if(!node||node.querySelector('img,button,input,textarea,[contenteditable]')||(!node.dataset.qbFormatted&&node.querySelector('a')))return;
   const active=rangesFor(text,record).length>0;if(!active&&!node.dataset.qbFormatted)return;
   const output=html(text,record);if(node.innerHTML!==output)node.innerHTML=output;
   if(active)node.dataset.qbFormatted='1';else delete node.dataset.qbFormatted;
