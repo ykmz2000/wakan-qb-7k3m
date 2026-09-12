@@ -1,0 +1,15 @@
+name: Temporary pediatric image import trigger v2
+on:
+  push:
+    branches: ["peds-image-import-20260913"]
+permissions:
+  contents: read
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke fixed-purpose import function
+        run: |
+          curl --fail-with-body --retry 2 \
+            -H "X-QB-Import: peds-images-20260913" \
+            https://qebvqcubtyfgaakrzbzh.supabase.co/functions/v1/qb-peds-image-import-20260913
