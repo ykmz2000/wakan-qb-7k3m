@@ -35,6 +35,8 @@ test('PDF coordinates place the first row at the top of the page instead of belo
 test('a PDF path overrides an incorrect storage MIME type',()=>{
   assert.equal(M.mediaType({type:'text/plain'},'recent/uploaded.PDF'),'application/pdf');
   assert.equal(M.mediaType({type:'application/octet-stream'},'recent/image.png'),'image/png');
+  assert.equal(M.mediaType({type:'application/octet-stream'},'recent/photo.avif'),'image/avif');
+  assert.equal(M.mediaType({type:'application/octet-stream'},'recent/scan.tiff'),'image/tiff');
 });
 
 test('free layouts preserve up to twenty independently configured rows',()=>{

@@ -19,7 +19,7 @@
     if(/\.pdf(?:[?#]|$)/i.test(String(path||'')))return'application/pdf';
     if(blob?.type&&blob.type!=='application/octet-stream')return blob.type;
     const ext=String(path||'').split(/[?#]/)[0].split('.').pop()?.toLowerCase();
-    return({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',heic:'image/heic',heif:'image/heif'}[ext]||blob?.type||'application/octet-stream');
+    return({avif:'image/avif',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',heic:'image/heic',heif:'image/heif',tif:'image/tiff',tiff:'image/tiff'}[ext]||blob?.type||'application/octet-stream');
   }
   function calculate(rows,{mode='fit',axis='rows',margin=18,gap=8,pageWidth=595.28,maxHeight=5000}={}){
     rows=normalizeRows(rows);margin=clamp(Number(margin)||0,0,72);gap=clamp(Number(gap)||0,0,48);
