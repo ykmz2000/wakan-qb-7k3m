@@ -1,8 +1,9 @@
 /* PDF originals remain vector documents. Editable overlays travel inside the saved PDF. */
 (()=>{
 'use strict';
-const LIMIT=100*1024*1024,NAME='qb-page-edits-v1.json';let active=false;
+const LIMIT=100*1024*1024,HISTORY_UPLOAD_LIMIT=45*1024*1024,NAME='qb-page-edits-v1.json';let active=false;
 const message=error=>typeof error==='string'?error:error?.message||error?.error_description||error?.details||'処理中に予期しないエラーが発生しました。編集内容はこの画面に残っています。もう一度お試しください。';
+const storageTooLarge=error=>error?.code==='STORAGE_FILE_TOO_LARGE'||/(?:413|maximum size exceeded|ファイルサイズの上限|容量の上限)/i.test(message(error));
 const dataURL=blob=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('画像データを読み込めませんでした。'));r.readAsDataURL(blob)});
 const bytes=url=>Uint8Array.from(atob(url.split(',')[1]),c=>c.charCodeAt(0));
 async function open(input,{onSave,blank=null,resetSource=null,initialPage=1,initialOrder=null}={}){
@@ -39,7 +40,10 @@ async function open(input,{onSave,blank=null,resetSource=null,initialPage=1,init
  }catch(e){status.textContent=message(e)}finally{box.hidden=false;lock(false);await show()}}
  async function save(){if(busy||!doc)return;lock(true);status.textContent='PDFを保存中…';try{const lib=await import('./vendor/pdfjs/pdf-lib.mjs'),pdf=await lib.PDFDocument.load(original);
  for(const [number,edit] of Object.entries(edits)){const page=pdf.getPage(Number(number)-1),[a,b,c,d,e,f]=edit.transform,w=edit.width,h=edit.height,det=a*d-b*c;if(!Number.isFinite(det)||!det)throw Error('ページの座標を確認できません。');page.pushOperators(lib.pushGraphicsState(),lib.concatTransformationMatrix(1,0,0,1,Number(edit.pdfOffsetX)||0,Number(edit.pdfOffsetY)||0),lib.concatTransformationMatrix(d*w/det,-b*w/det,c*h/det,-a*h/det,(c*(f-h)-d*e)/det,(b*e+a*(h-f))/det));if(edit.editable&&window.QBEditableMedia){const rec=await QBEditableMedia.fromLegacy(edit.editable);page.pushOperators(lib.concatTransformationMatrix(1/rec.scene.width,0,0,-1/rec.scene.height,0,1));await QBEditableMedia.drawPDF(pdf,page,rec,{overlay:true})}else{const image=await pdf.embedPng(edit.overlay);page.drawImage(image,{x:0,y:0,width:1,height:1})}page.pushOperators(lib.popGraphicsState());}
- const record=JSON.stringify({version:1,blank,original:await dataURL(new Blob([original],{type:'application/pdf'})),edits});if(record.length>LIMIT)throw Error('編集データが100MiBを超えました。');await pdf.attach(new TextEncoder().encode(record),NAME,{mimeType:'application/json'});const output=new Blob([await pdf.save()],{type:'application/pdf'});if(output.size>LIMIT)throw Error('PDFが100MiBを超えました。');await onSave?.(output);dirty=false;lock(false);await close(output);
+ const flatOutput=new Blob([await pdf.save()],{type:'application/pdf'});if(flatOutput.size>LIMIT)throw Error('PDFが100MiBを超えました。');let output=flatOutput,keptHistory=false;
+ if(Object.keys(edits).length){const record=JSON.stringify({version:1,blank,original:await dataURL(new Blob([original],{type:'application/pdf'})),edits}),encoded=new TextEncoder().encode(record);if(encoded.length<=LIMIT&&flatOutput.size+encoded.length<=HISTORY_UPLOAD_LIMIT){await pdf.attach(encoded,NAME,{mimeType:'application/json'});const withHistory=new Blob([await pdf.save()],{type:'application/pdf'});if(withHistory.size<=HISTORY_UPLOAD_LIMIT){output=withHistory;keptHistory=true}}}
+ try{await onSave?.(output)}catch(e){if(!keptHistory||!storageTooLarge(e))throw e;status.textContent='容量を抑えて再保存中…';await onSave?.(flatOutput);output=flatOutput}
+ dirty=false;lock(false);await close(output);
  }catch(e){status.textContent='保存できませんでした：'+message(e);lock(false)}}
  async function reloadOriginal(){await task?.destroy();task=await QBFiles.documentTask(new Blob([original],{type:'application/pdf'}));doc=await task.promise}
  // Commit a page operation only after the replacement PDF has loaded successfully.
