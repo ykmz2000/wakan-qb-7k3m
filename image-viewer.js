@@ -31,6 +31,7 @@ function attachQuestionPreview(root,toolbar,{before=null}={}){
   root.append(panel);if(before?.parentElement===toolbar)toolbar.insertBefore(button,before);else toolbar.append(button);
   const set=open=>{panel.hidden=!open;button.setAttribute('aria-expanded',String(open));button.textContent=open?'問題を閉じる':'問題を確認';if(open)close.focus({preventScroll:true})};
   button.onclick=()=>set(panel.hidden);close.onclick=()=>{set(false);button.focus({preventScroll:true})};
+  root.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&e.target!==button)set(false)});
   return {closeIfOpen(){if(panel.hidden)return false;set(false);button.focus({preventScroll:true});return true}};
 }
 window.QBQuestionPreview={attach:attachQuestionPreview};
@@ -230,8 +231,10 @@ function open(origin,{savedBlob=null}={}){
     }
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.textContent='画像編集';editButton.className='qbImageLightboxEdit';closeButton.before(editButton);
+  const shareButton=document.createElement('button');shareButton.type='button';shareButton.textContent='共有';shareButton.className='qbImageLightboxShare';closeButton.before(shareButton);
   const questionPreview=attachQuestionPreview(d,get('.qbImageLightboxHead'),{before:editButton});
   editButton.onclick=async()=>{const node=images[index].node,host=mediaEditor(node);if(!host)return;const run=host.qbEditMedia,row=host.dataset.row||host.dataset.id,cls=host.classList.contains('qbLibraryDetailImage')?'qbLibraryDetailImage':null;close();try{const saved=await run();if(saved instanceof Blob)await new Promise(r=>setTimeout(r,100));let target=node.isConnected?node:null;if(row){const wrapper=[...document.querySelectorAll('[data-row],[data-id]')].find(w=>(w.dataset.row||w.dataset.id)===row&&w.querySelector(TARGET));target=wrapper?.querySelector(TARGET)||target}if(cls)target=document.querySelector('.'+cls);if(target?.isConnected)open(target,{savedBlob:saved instanceof Blob?saved:null})}catch(e){alert('画像編集を開けませんでした：'+e.message)}};
+  shareButton.onclick=()=>window.QBMediaShare?.open({source:images[index].src,kind:'image',name:images[index].alt||'画像'});
   prev.onclick=()=>go(-1);next.onclick=()=>go(1);retry.onclick=show;
   zoomIn.onclick=()=>zoom(scale*1.5);zoomOut.onclick=()=>zoom(scale/1.5);reset.onclick=()=>zoom(1);closeButton.onclick=close;
   // Pointer capture retargets image clicks to the stage. Only a tap which

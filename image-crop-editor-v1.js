@@ -110,6 +110,7 @@ async function open(src,{title='画像をトリミング',rotatable=true,selecti
       if(e.shiftKey&&(document.activeElement===first||document.activeElement===panel)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}
     });
     modal.querySelector('.qbCropClose').onclick=modal.querySelector('.qbCropCancel').onclick=()=>{if(!busy)close()};
+    listen(modal,'click',e=>{if(e.target===modal&&!busy)close()});
     modal.querySelector('.qbCropFull').onclick=fitAll;
     modal.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{if(!ready||busy)return;cropper.setAspectRatio(Number(b.dataset.r));modal.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));status.textContent=''});
     modal.querySelectorAll('[data-rotate]').forEach(b=>b.onclick=()=>{if(ready&&!busy){cropper.rotate(Number(b.dataset.rotate));status.textContent=''}});

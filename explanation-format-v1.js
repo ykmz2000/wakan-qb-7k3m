@@ -2,24 +2,26 @@
    No MutationObserver, document click interception, card replacement, or rating writes. */
 (()=>{
 'use strict';
-const KINDS=['bold','underline','strike','marker','accent'];
+const STYLE_KINDS=['bold','underline','strike','marker','accent'],KINDS=[...STYLE_KINDS,'link'];
 const MAX_RANGES=512;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const boundary=(t,n)=>!(n>0&&n<t.length&&/[\uD800-\uDBFF]/.test(t[n-1])&&/[\uDC00-\uDFFF]/.test(t[n]));
+function validHref(value){try{if(typeof value!=='string'||value.length>2048)return null;const url=new URL(value);return ['http:','https:'].includes(url.protocol)?url.href:null}catch{return null}}
 function normalize(text,ranges){
   const out=[];
-  for(const kind of KINDS){
+  for(const kind of STYLE_KINDS){
     const same=(Array.isArray(ranges)?ranges.slice(0,MAX_RANGES):[]).filter(r=>r&&r.kind===kind&&Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start>=0&&r.end<=text.length&&r.start<r.end&&boundary(text,r.start)&&boundary(text,r.end)).map(r=>({kind,start:r.start,end:r.end})).sort((a,b)=>a.start-b.start||a.end-b.end);
     for(const r of same){const last=out[out.length-1];if(last&&last.kind===kind&&r.start<=last.end)last.end=Math.max(last.end,r.end);else out.push(r)}
   }
-  return out;
+  const links=(Array.isArray(ranges)?ranges:[]).filter(r=>r?.kind==='link'&&Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start>=0&&r.end<=text.length&&r.start<r.end&&boundary(text,r.start)&&boundary(text,r.end)&&validHref(r.href)).map(r=>({kind:'link',start:r.start,end:r.end,href:validHref(r.href)})).sort((a,b)=>a.start-b.start||a.end-b.end);
+  let end=-1;for(const link of links){if(link.start<end)continue;out.push(link);end=link.end;if(out.length>=MAX_RANGES)break}return out.slice(0,MAX_RANGES);
 }
 function rangesFor(text,record){return record?.version===1&&record.source_text===text?normalize(text,record.ranges):[]}
 function html(text,record){
   text=String(text??'');const ranges=rangesFor(text,record);if(!ranges.length)return esc(text);
   const points=[...new Set([0,text.length,...ranges.flatMap(r=>[r.start,r.end])])].sort((a,b)=>a-b);
   let result='';
-  for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1],part=esc(text.slice(a,b)),active=KINDS.filter(k=>ranges.some(r=>r.kind===k&&r.start<=a&&r.end>=b));result+=active.length?`<span class="${active.map(k=>'qbFmt-'+k).join(' ')}">${part}</span>`:part}
+  for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1],part=esc(text.slice(a,b)),active=STYLE_KINDS.filter(k=>ranges.some(r=>r.kind===k&&r.start<=a&&r.end>=b)),link=ranges.find(r=>r.kind==='link'&&r.start<=a&&r.end>=b);let body=active.length?`<span class="${active.map(k=>'qbFmt-'+k).join(' ')}">${part}</span>`:part;if(link)body=`<a class="qbFmt-link" href="${esc(link.href)}" target="_blank" rel="noopener noreferrer">${a===link.start?'<span class="qbFmt-linkIcon" aria-hidden="true">🔗</span>':''}${body}</a>`;result+=body}
   return result;
 }
 function subtract(ranges,start,end,kind=null){
@@ -50,7 +52,7 @@ function snapshot(raw,ranges,trim=true){
   const next=normalize(text,ranges.map(r=>({...r,start:Math.max(0,r.start-offset),end:Math.min(text.length,r.end-offset)})));
   return next.length?{version:1,source_text:text,ranges:next}:null;
 }
-if(typeof module!=='undefined'&&module.exports)module.exports={normalize,rangesFor,html,toggle,subtract,rebase,snapshot};
+if(typeof module!=='undefined'&&module.exports)module.exports={normalize,rangesFor,html,toggle,subtract,rebase,snapshot,validHref};
 if(typeof document==='undefined')return;
 const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap();
 const META='explanation_formatting',STEM_META='stem_formatting';
@@ -69,9 +71,13 @@ async function load(id,force=false){
 function css(){
   if(document.getElementById('qbExplanationFormatCss'))return;
   const s=document.createElement('style');s.id='qbExplanationFormatCss';s.textContent=`
-.qbFmt-bold{font-weight:800}.qbFmt-underline{text-decoration-line:underline;text-underline-offset:.16em}.qbFmt-strike{text-decoration-line:line-through}.qbFmt-underline.qbFmt-strike{text-decoration-line:underline line-through}.qbFmt-marker{background:var(--accent-soft);color:inherit;box-decoration-break:clone;-webkit-box-decoration-break:clone}.qbFmt-accent{color:var(--accent)}
+.qbFmt-bold{font-weight:800}.qbFmt-underline{text-decoration-line:underline;text-underline-offset:.16em}.qbFmt-strike{text-decoration-line:line-through}.qbFmt-underline.qbFmt-strike{text-decoration-line:underline line-through}.qbFmt-marker{background:var(--accent-soft);color:inherit;box-decoration-break:clone;-webkit-box-decoration-break:clone}.qbFmt-accent{color:var(--accent)}.qbFmt-link{color:var(--accent,#126fb3)!important;font-weight:800;background:var(--accent-soft,#eaf4fb);text-decoration-line:underline!important;text-decoration-style:dotted!important;text-decoration-thickness:2px!important;text-underline-offset:.2em;border-radius:3px;padding:0 .08em;box-decoration-break:clone;-webkit-box-decoration-break:clone}.qbFmt-linkIcon{margin-right:.12em;text-decoration:none!important}
 .qbFmtField{margin:8px 0;min-width:0}.qbFmtLabel{display:block;margin-bottom:5px;font-size:12px;font-weight:800;color:var(--text)}.qbFmtTools{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}.qbFmtTools button{min-height:44px;border:1px solid var(--accent-border,var(--line));border-radius:8px;padding:6px 9px;background:var(--card);color:var(--accent);font:inherit;font-size:12px;font-weight:700;cursor:pointer}.qbFmtTools button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.qbFmtHint{color:var(--muted);font-size:11px;line-height:1.5;margin:5px 0}.qbFmtPreview{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);border-left:2px solid var(--accent-border,var(--line));padding:5px 0 5px 10px;line-height:1.65;font-size:14px;min-height:28px}.qbFmtPreviewLabel{color:var(--muted);font-size:10px;margin-top:8px}.qbFmtTools button:disabled{opacity:.55;cursor:default}
+.qbFmtLinkDialog{position:fixed;inset:0;z-index:12100;display:flex;align-items:center;justify-content:center;padding:16px;background:#0008;color-scheme:light}.qbFmtLinkSheet{width:min(480px,100%);padding:18px;border-radius:16px;background:#fff;color:#172033;box-shadow:0 18px 60px #0008}.qbFmtLinkHead{display:flex;align-items:center;justify-content:space-between;gap:12px}.qbFmtLinkHead b{font-size:18px}.qbFmtLinkHead button{width:44px;height:44px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;font:24px/1 system-ui}.qbFmtLinkSheet label{display:block;margin-top:12px;font-size:13px;font-weight:800}.qbFmtLinkSheet input{display:block;width:100%;min-height:44px;margin-top:5px;padding:8px;border:1px solid #94a3b8;border-radius:8px;background:#fff;color:#172033;font:inherit}.qbFmtLinkActions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.qbFmtLinkActions button{min-height:44px;padding:7px 13px;border:1px solid #94a3b8;border-radius:8px;background:#fff;color:#172033;font:inherit;font-weight:800}.qbFmtLinkActions [data-save]{border-color:var(--accent,#126fb3);background:var(--accent,#126fb3);color:#fff}.qbFmtLinkError{min-height:20px;margin:8px 0 0;color:#b42318;font-size:12px}.qbFmtLinkDialog :focus-visible{outline:3px solid var(--accent,#126fb3);outline-offset:2px}
 `;document.head.appendChild(s);
+}
+function linkDialog({text='',href=''}={}){
+ return new Promise(resolve=>{const origin=document.activeElement,modal=document.createElement('div');modal.className='qbFmtLinkDialog';modal.innerHTML='<section class="qbFmtLinkSheet" role="dialog" aria-modal="true" aria-labelledby="qbFmtLinkTitle"><header class="qbFmtLinkHead"><b id="qbFmtLinkTitle">リンクを挿入・編集</b><button type="button" data-close aria-label="閉じる">×</button></header><label>表示する文字<input data-text maxlength="500" autocomplete="off"></label><label>リンク先<input data-href type="url" inputmode="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></label><p class="qbFmtLinkError" role="status"></p><div class="qbFmtLinkActions"><button type="button" data-cancel>キャンセル</button><button type="button" data-save>リンクを反映</button></div></section>';const sheet=modal.querySelector('section'),textInput=modal.querySelector('[data-text]'),hrefInput=modal.querySelector('[data-href]'),error=modal.querySelector('[role=status]');textInput.value=text;hrefInput.value=href;let done=false;const finish=value=>{if(done)return;done=true;modal.remove();origin?.isConnected&&origin.focus?.({preventScroll:true});resolve(value)};modal.querySelector('[data-close]').onclick=modal.querySelector('[data-cancel]').onclick=()=>finish(null);modal.querySelector('[data-save]').onclick=()=>{const label=textInput.value.trim(),url=validHref(hrefInput.value.trim());if(!label){error.textContent='表示する文字を入力してください。';textInput.focus();return}if(!url){error.textContent='https:// または http:// で始まるリンク先を入力してください。';hrefInput.focus();return}finish({text:label,href:url})};modal.addEventListener('click',e=>{if(e.target===modal)finish(null)});modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();modal.querySelector('[data-save]').click()}if(e.key==='Tab'){const list=[...sheet.querySelectorAll('button,input')],i=list.indexOf(document.activeElement);e.preventDefault();list[(i+(e.shiftKey?-1:1)+list.length)%list.length]?.focus()}});document.body.append(modal);textInput.focus({preventScroll:true});textInput.select()})
 }
 function mount(ta,field,record,initial){
   const w=document.createElement('div');w.className='qbFmtField';w.dataset.qbFormatField=field;
@@ -87,12 +93,12 @@ function mount(ta,field,record,initial){
   const draw=()=>{const out=html(raw,{version:1,source_text:raw,ranges});if(preview.innerHTML!==out)preview.innerHTML=out};
   const refresh=()=>{if(composing)return;sync();draw()};
   ta.addEventListener('compositionstart',()=>{composing=true});ta.addEventListener('compositionend',()=>{composing=false;refresh()});ta.addEventListener('input',refresh);
-  for(const [kind,text] of [['bold','太字'],['underline','下線'],['strike','取り消し線'],['marker','マーカー'],['accent','強調色'],['clear','書式解除']]){
+  for(const [kind,text] of [['bold','太字'],['underline','下線'],['strike','取り消し線'],['marker','マーカー'],['accent','強調色'],['link','🔗 リンク'],['clear','書式解除']]){
     const b=document.createElement('button');b.type='button';b.dataset.qbFormat=kind;const sample=document.createElement('span');sample.className='qbFmtToolLabel';sample.textContent=text;b.appendChild(sample);tools.appendChild(b);
     let selected=null;
     b.addEventListener('pointerdown',e=>{selected=[ta.selectionStart,ta.selectionEnd];if(e.pointerType==='mouse')e.preventDefault()});
     b.addEventListener('mousedown',e=>e.preventDefault());
-    b.addEventListener('click',()=>{if(composing)return;sync();const [start,end]=selected||[ta.selectionStart,ta.selectionEnd];selected=null;if(start===end){hint.textContent='装飾したい文字を先に選択してください。';return}try{ranges=kind==='clear'?normalize(raw,subtract(ranges,start,end)):toggle(raw,ranges,start,end,kind);draw();hint.textContent='装飾を変更しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,end)}catch(e){hint.textContent=e.message}});
+    b.addEventListener('click',async()=>{if(composing)return;sync();const [start,end]=selected||[ta.selectionStart,ta.selectionEnd];selected=null;if(kind==='link'){const current=ranges.find(r=>r.kind==='link'&&r.start<=start&&r.end>=end&&start<end),result=await linkDialog({text:raw.slice(start,end),href:current?.href||''});if(!result)return;const before=raw,after=before.slice(0,start)+result.text+before.slice(end);ranges=rebase(before,after,ranges);raw=after;ta.value=after;const finish=start+result.text.length;ranges=normalize(raw,[...subtract(ranges,start,finish,'link'),{kind:'link',start,end:finish,href:result.href}]);draw();hint.textContent='リンクを反映しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,finish);return}if(start===end){hint.textContent='装飾したい文字を先に選択してください。';return}try{ranges=kind==='clear'?normalize(raw,subtract(ranges,start,end)):toggle(raw,ranges,start,end,kind);draw();hint.textContent='装飾を変更しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,end)}catch(e){hint.textContent=e.message}});
   }
   refresh();return{field,textarea:ta,read(){sync();const spec=snapshot(raw,ranges,field!=='stem');return field==='stem'&&spec?{...spec,origin:'admin_display'}:spec}};
 }
@@ -127,7 +133,7 @@ async function saveEditor(ed,q,table,id,payload){
   return map;
 }
 function decorate(node,text,record){
-  if(!node||node.querySelector('img,button,input,textarea,a,[contenteditable]'))return;
+  if(!node||(!node.dataset.qbFormatted&&node.querySelector('img,button,input,textarea,a,[contenteditable]')))return;
   const active=rangesFor(text,record).length>0;if(!active&&!node.dataset.qbFormatted)return;
   const output=html(text,record);if(node.innerHTML!==output)node.innerHTML=output;
   if(active)node.dataset.qbFormatted='1';else delete node.dataset.qbFormatted;
@@ -166,7 +172,7 @@ async function render(){
     const meta=await load(id);
     if(qid(current())!==id||!stem.isConnected||document.querySelector('#view > .card > .qtext')!==stem)return;
     // Display-only spans; never infer emphasis from wording or rewrite a differently rendered stem.
-    if(stem.textContent===String(q.stem??''))decorate(stem,String(q.stem??''),meta[STEM_META]);
+    if(stem.textContent===String(q.stem??'')||stem.dataset.qbFormatted)decorate(stem,String(q.stem??''),meta[STEM_META]);
     if(root&&document.getElementById('ans')===root&&root.isConnected&&!root.classList.contains('hidden')&&root.querySelector('.resultcard'))apply(root,q,meta);
   }catch(e){console.warn('text formatting read',e.message)}
 }
@@ -175,8 +181,7 @@ function schedule(e){
   clearTimeout(timer);timer=setTimeout(render,50);
 }
 window.addEventListener('qb-data-refreshed',e=>{const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}});
-window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving};
+window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving,linkDialog,validHref};
 function boot(){css();['qb-question-ready','qb-screen-change','qb-retry-current','qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
-

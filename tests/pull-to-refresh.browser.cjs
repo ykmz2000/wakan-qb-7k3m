@@ -11,6 +11,7 @@ async function boot(browser,seed=null,userId='u1'){
   const errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.dismiss());
   await p.route('**/*',r=>r.request().url()==='https://qb-history.test/'?r.fulfill({contentType:'text/html',body:shell}):r.abort());
   await p.goto('https://qb-history.test/');
+  await p.addStyleTag({content:fs.readFileSync(path.join(root,'app-header-v1.css'),'utf8')});
   await p.evaluate(({seed,userId})=>{
     const copy=x=>JSON.parse(JSON.stringify(x));
     const question=(id,mode,order)=>({id,subject_id:'s1',unit_id:'unit1',status:'published',study_order:order,answer_mode:mode,stem:mode==='fill_blank'?'入力 [A] [B]':'設問 '+id,explanation_overview:'ポイントの本文',examiner_intent:'意図',exam_summary:'まとめ',medical_verification_note:'確認',question_occurrences:[{id:'o-'+id,academic_year:2025,exam_type:'本試',original_question_number:String(order),official_answer:{A:'正答A',B:'正答B'}}],choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'選択肢a',is_correct:true,sort_order:0,explanation:'aの解説'},{id:id+'-b',choice_key:'b',choice_text:'選択肢b',is_correct:false,sort_order:1,explanation:'bの解説'}]});
@@ -57,7 +58,7 @@ async function boot(browser,seed=null,userId='u1'){
       }return{data:null,error:null};
     }};
   },{seed,userId});
-  for(const f of ['answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js','pull-to-refresh-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
+  for(const f of ['answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js','app-header-v1.js','pull-to-refresh-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
   await p.locator('[data-s="s1"]').click();await p.locator('[data-u="unit1"]').click();await p.locator('#start').click();await p.locator('[data-mode="ordered"]').click();await p.locator('.choice[data-c="0"]').waitFor();
   return{p,errors};
 }
@@ -90,12 +91,14 @@ async function run(browser,name){
  await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').waitFor();
  await p.evaluate(()=>{testDB.subjects[0].name='新しい科目名';window.scrollTo(0,0)});
  assert.equal(await p.locator('.qbDataRefresh').count(),0);
+ const headerBefore=await p.locator('.app>.header').evaluate(n=>({position:getComputedStyle(n).position,top:Math.round(n.getBoundingClientRect().top),padding:parseFloat(getComputedStyle(n.closest('.app')).paddingTop)}));assert.equal(headerBefore.position,'fixed');assert.ok(Math.abs(headerBefore.top)<=1);assert.ok(headerBefore.padding>=headerBefore.top+80);
  // Touch event delivery on both engines, including threshold and pinch cancellation.
- const gesture=async(distance,count=1)=>p.evaluate(({distance,count})=>{const target=document.querySelector('#view .title');const fire=(type,y,n)=>{const e=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count);if(count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');}fire('touchend',100+distance,0)},{distance,count});
+ const gesture=async(distance,count=1,cancelable=true)=>p.evaluate(({distance,count,cancelable})=>{const target=document.querySelector('#view .title'),header=document.querySelector('.app>.header'),top=header.getBoundingClientRect().top;const fire=(type,y,n,can=true)=>{const e=new Event(type,{bubbles:true,cancelable:can});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count,cancelable);if(count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');if(Math.abs(header.getBoundingClientRect().top-top)>1||header.style.transform)throw Error('Header must stay anchored');}fire('touchend',100+distance,0)},{distance,count,cancelable});
  await gesture(35);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100,2);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
  await gesture(100);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('新しい'));
+ await p.evaluate(()=>testDB.subjects[0].name='キャンセル不可でも更新');await gesture(100,1,false);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('キャンセル不可でも更新'));
  assert.equal(await p.evaluate(()=>qbGetScreen()),'subjects');assert.deepEqual(errors,[]);
- await p.close();console.log(name+' PASS read-only refresh, same question and selection, revealed answer, fill draft, errors, editor guard, stale navigation, pull threshold and multitouch');
+ await p.close();console.log(name+' PASS anchored header, read-only refresh, noncancelable iOS move, same question and selection, revealed answer, fill draft, errors, editor guard, stale navigation, pull threshold and multitouch');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});

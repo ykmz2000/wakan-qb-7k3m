@@ -9,6 +9,7 @@
       const height = Math.ceil(header.getBoundingClientRect().height);
       if (!height || height === previousHeight) return;
       previousHeight = height;
+      document.documentElement.style.setProperty('--qb-header-height', `${height}px`);
       document.documentElement.style.setProperty('--qb-header-scroll-padding', `${height + 12}px`);
     }
     measure();

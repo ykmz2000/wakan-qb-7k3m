@@ -46,6 +46,15 @@ test('replaced marked text is not incorrectly assigned to new words',()=>{
 test('trim on save keeps offsets aligned with saved text',()=>{
   assert.deepEqual(F.snapshot('  keyword \n',[r('bold',2,9)]),record('keyword',[r('bold',0,7)]));assert.equal(F.snapshot('  ',[]),null);
 });
+test('links keep display text separate and reject unsafe protocols',()=>{
+  const text='公式資料',link={kind:'link',start:0,end:text.length,href:'https://example.com/path?q=1'};
+  const out=F.html(text,record(text,[link]));
+  assert.match(out,/class="qbFmt-link"/);assert.match(out,/href="https:\/\/example\.com\/path\?q=1"/);
+  assert.match(out,/target="_blank" rel="noopener noreferrer"/);assert.match(out,/🔗/);
+  assert.equal(out.replace(/<[^>]+>/g,''),'🔗'+text);
+  assert.equal(F.validHref('javascript:alert(1)'),null);assert.equal(F.validHref('data:text/html,x'),null);
+  assert.equal(F.html(text,record(text,[{...link,href:'javascript:alert(1)'}])),text);
+});
 test('no new global click handler or DOM observer',()=>{
   const src=fs.readFileSync(require.resolve('../explanation-format-v1.js'),'utf8');assert.ok(!src.includes('new MutationObserver'));assert.ok(!src.includes("document.addEventListener('click'"));assert.ok(!src.includes('innerHTML=`<div class="card'));
 });

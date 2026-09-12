@@ -58,7 +58,7 @@ async function open({context=null}={}){
    const data=e.clipboardData,files=window.QBFiles?.filesFromPaste(e)||[];
    if(!files.length)files.push(...[...(data?.items||[])].filter(i=>i.kind==='file'&&(i.type.startsWith('image/')||i.type==='application/pdf')).map(i=>i.getAsFile()).filter(Boolean));
    if(!files.length){if(e.target===pasteZone)uploadStatus.textContent='PDF・画像のファイルを受け取れませんでした。「ファイルを選択」から追加してください。';return}e.preventDefault();if(busy)return;pasteZone.hidden=true;register(files,f=>S.add(sb,f));
-  });overlay.addEventListener('click',e=>e.stopPropagation());
+  });overlay.addEventListener('click',e=>{if(e.target===overlay)close();else e.stopPropagation()});
   function setBusy(v){busy=v;listView.inert=v;detailView.inert=v;head.querySelector('button').disabled=v;useButton.disabled=v||!selected.size;uploadInput.disabled=v;setButton.disabled=v||!selected.size;}
   const footStatus=el('span','qbLibraryStatus'),useButton=btn('選択した画像を貼る',useSelected,'qbLibraryPrimary');useButton.hidden=!context;useButton.disabled=true;const setButton=btn('',()=>{});setButton.hidden=true;const selectModeButton=btn('✓',()=>{selectionMode=!selectionMode;syncSelection()},'qbLibrarySelectionMode');selectModeButton.setAttribute('aria-label','選択モード');selectModeButton.hidden=true;foot.append(footStatus,selectModeButton,setButton,useButton);
   function syncSelection(){
@@ -125,7 +125,7 @@ async function open({context=null}={}){
     const separate=btn(`別々のカードに追加（${count}枚）`,()=>finish('separate'),'qbLibraryUploadChoice'),together=btn(`1つのカードにまとめる（${count}ファイル）`,()=>finish('together'),'qbLibraryUploadChoice');
     body.append(separate,el('p','qbLibraryMeta','1ファイルにつき1枚のカード。タイトルや情報を個別に管理します。'),together,el('p','qbLibraryMeta','選んだ順に1枚のカードへ。カードを開いて各ファイルを見られます。'));
     const cancel=btn('キャンセル',()=>finish(null));head.append(cancel);box.append(head,body);modal.append(box);overlay.append(modal);panel.inert=true;separate.focus();
-    modal.addEventListener('click',e=>e.stopPropagation());modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Tab'){const buttons=[...modal.querySelectorAll('button')].filter(b=>!b.disabled&&b.getClientRects().length),i=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus()}});
+    modal.addEventListener('click',e=>{e.stopPropagation();if(e.target===modal)finish(null)});modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Tab'){const buttons=[...modal.querySelectorAll('button')].filter(b=>!b.disabled&&b.getClientRects().length),i=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus()}});
    });
   }
   async function register(values,save){
@@ -219,7 +219,7 @@ async function open({context=null}={}){
      e.stopPropagation();if(imeActive(e.target,e))return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!e.repeat&&!e.isComposing)confirmReview();return}
      if(e.key==='Escape'){e.preventDefault();if(!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('編集内容を破棄して閉じますか？アップロードした画像は残ります。')))finish();return}
      if(e.key==='Tab'){const nodes=[...box.querySelectorAll('button,input,select,textarea,summary')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===modal)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
-    });modal.addEventListener('paste',e=>e.stopPropagation());display();confirmButton.focus();
+    });modal.addEventListener('click',e=>{e.stopPropagation();if(e.target===modal&&!saving&&(!drafts.some(d=>Object.keys(C.changed(d.baseline,d.collect())).length)||confirm('編集内容を破棄して閉じますか？アップロードした画像は残ります。')))finish()});modal.addEventListener('paste',e=>e.stopPropagation());display();confirmButton.focus();
     // Local OCR never blocks confirmation or overwrites a field the user has touched.
     async function readDrafts(requested=drafts){
      const targets=requested.filter(d=>!d.ocrTouched);if(!targets.length||ocrRunning)return;ocrRunning=true;

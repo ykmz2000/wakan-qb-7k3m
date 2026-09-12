@@ -11,27 +11,28 @@ const MODES={
   overview:{field:'explanation_overview',meta:'explanation_formatting',label:'問題文のポイント',body:':scope > .line',launch:'[data-ade-v2="overview"]'},
   stem:{field:'stem',meta:'stem_formatting',label:'問題文',body:':scope > .qtext',launch:'.adeStemBtn'}
 };
-const KINDS=['bold','underline','strike','marker','accent'];
+const STYLE_KINDS=['bold','underline','strike','marker','accent'],KINDS=[...STYLE_KINDS,'link'];
 const LIMIT=512;
 const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
 const qid=q=>String(q?.id||q?.dbId||'');
 const current=()=>{try{return window.pq?.()||null}catch{return null}};
 const stable=x=>JSON.stringify(x,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v).sort().reduce((a,k)=>(a[k]=v[k],a),{}):v);
 const boundary=(t,n)=>!(n>0&&n<t.length&&/[\uD800-\uDBFF]/.test(t[n-1])&&/[\uDC00-\uDFFF]/.test(t[n]));
+const validHref=value=>window.QBExplanationFormat?.validHref?.(value)||null;
 const schema=new Schema({
   nodes:{doc:{content:'paragraph'},paragraph:{content:'text*',whitespace:'pre',toDOM:()=>['p',0],parseDOM:[{tag:'p',preserveWhitespace:'full'}]},text:{}},
-  marks:Object.fromEntries(KINDS.map(kind=>[kind,{toDOM:()=>['span',{class:'qbFmt-'+kind},0],parseDOM:[{tag:'span.qbFmt-'+kind}]}]))
+  marks:{...Object.fromEntries(STYLE_KINDS.map(kind=>[kind,{toDOM:()=>['span',{class:'qbFmt-'+kind},0],parseDOM:[{tag:'span.qbFmt-'+kind}]}])),link:{attrs:{href:{}},inclusive:false,toDOM:mark=>['a',{class:'qbFmt-link',href:mark.attrs.href,target:'_blank',rel:'noopener noreferrer'},0],parseDOM:[{tag:'a.qbFmt-link[href]',getAttrs:node=>({href:node.getAttribute('href')})}]}}
 });
 function validRanges(text,record){
   if(!record||record.version!==1||record.source_text!==text)return [];
   if(!Array.isArray(record.ranges)||record.ranges.length>LIMIT)throw new Error('装飾情報を確認できません。従来の編集画面で確認してください。');
-  return record.ranges.filter(r=>r&&KINDS.includes(r.kind)&&Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start>=0&&r.end<=text.length&&r.start<r.end&&boundary(text,r.start)&&boundary(text,r.end));
+  return record.ranges.filter(r=>r&&KINDS.includes(r.kind)&&Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start>=0&&r.end<=text.length&&r.start<r.end&&boundary(text,r.start)&&boundary(text,r.end)&&(r.kind!=='link'||validHref(r.href))).map(r=>r.kind==='link'?{...r,href:validHref(r.href)}:r);
 }
 function docFrom(text,record){
   const ranges=validRanges(text,record),points=[...new Set([0,text.length,...ranges.flatMap(r=>[r.start,r.end])])].sort((a,b)=>a-b),nodes=[];
   for(let i=0;i<points.length-1;i++){
     const start=points[i],end=points[i+1];if(start===end)continue;
-    const marks=KINDS.filter(k=>ranges.some(r=>r.kind===k&&r.start<=start&&r.end>=end)).map(k=>schema.marks[k].create());
+    const marks=KINDS.flatMap(k=>{const range=ranges.find(r=>r.kind===k&&r.start<=start&&r.end>=end);return range?[schema.marks[k].create(k==='link'?{href:range.href}:null)]:[]});
     nodes.push(schema.text(text.slice(start,end),marks));
   }
   return schema.node('doc',null,[schema.node('paragraph',null,nodes)]);
@@ -43,8 +44,9 @@ function readDoc(doc){
     doc.firstChild.forEach((node,start)=>{
       if(!node.marks.some(m=>m.type.name===kind))return;
       const end=start+node.nodeSize;
-      if(previous&&previous.end===start)previous.end=end;
-      else{previous={kind,start,end};ranges.push(previous)}
+      const mark=node.marks.find(m=>m.type.name===kind),href=kind==='link'?validHref(mark?.attrs.href):null;if(kind==='link'&&!href)return;
+      if(previous&&previous.end===start&&(kind!=='link'||previous.href===href))previous.end=end;
+      else{previous={kind,start,end,...(kind==='link'?{href}:{})};ranges.push(previous)}
     });
   }
   if(ranges.length>LIMIT)throw new Error('装飾が多すぎます。不要な書式を解除してから保存してください。');
@@ -88,7 +90,7 @@ function css(){
 .qbInlineTools kbd,.qbInlineActions kbd{font-size:10px;color:var(--muted);font-family:inherit;pointer-events:none}
 .qbInlineRich{position:relative;min-height:88px;padding:9px;border:1px solid var(--accent-border,var(--line));border-radius:7px;background:var(--card);color:var(--text);outline:none;white-space:pre-wrap;overflow-wrap:anywhere;word-wrap:break-word;font:inherit;line-height:1.65;font-weight:400;font-variant-ligatures:none;-webkit-font-variant-ligatures:none}
 .qbInlineRich:focus{outline:2px solid var(--accent-border,var(--line));outline-offset:1px}.qbInlineRich p{margin:0;white-space:pre-wrap;min-height:1.65em}.qbInlineRich .ProseMirror-trailingBreak{display:initial}.qbInlineRich .ProseMirror-separator{display:inline!important;border:none!important;margin:0!important;width:0!important;height:0!important}
-.qbInlineRich .qbFmt-bold{font-weight:800}.qbInlineRich .qbFmt-underline{text-decoration-line:underline}.qbInlineRich .qbFmt-strike{text-decoration-line:line-through}.qbInlineRich .qbFmt-underline.qbFmt-strike{text-decoration-line:underline line-through}
+.qbInlineRich .qbFmt-bold{font-weight:800}.qbInlineRich .qbFmt-underline{text-decoration-line:underline}.qbInlineRich .qbFmt-strike{text-decoration-line:line-through}.qbInlineRich .qbFmt-underline.qbFmt-strike{text-decoration-line:underline line-through}.qbInlineRich .qbFmt-link{color:var(--accent)!important;font-weight:800;background:var(--accent-soft);text-decoration:underline dotted 2px!important;text-underline-offset:.2em;border-radius:3px;padding:0 .08em}.qbInlineRich .qbFmt-link::before{content:'🔗';margin-right:.12em}
 .qbInlineActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:10px 0}
 .qbInlineActions button,.qbInlineImageToggle{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);min-height:44px;padding:7px 12px;font:inherit;font-size:13px;font-weight:700}
 .qbInlineActions .qbInlineSave{background:var(--accent);color:var(--card);border-color:var(--accent)}.qbInlineActions .qbInlineSave kbd{color:inherit}
@@ -188,6 +190,9 @@ function format(s,kind){
   s.view.dispatch(closeHistory(s.view.state.tr));
   cmd(s.view.state,s.view.dispatch,s.view);s.view.focus();
 }
+async function editLink(s){
+  if(s.closed||s.saving||s.view.composing)return;const {state}=s.view,{from,to,$from}=state.selection;let href=$from.marks().find(m=>m.type===schema.marks.link)?.attrs.href||'';state.doc.nodesBetween(from,Math.max(from,to),(node)=>{const mark=node.marks?.find(m=>m.type===schema.marks.link);if(mark&&!href)href=mark.attrs.href});const selected=state.doc.textBetween(from,to,'\n');const value=await window.QBExplanationFormat?.linkDialog?.({text:selected,href});if(!value||s.closed||s.saving)return;const finish=from+value.text.length,tr=s.view.state.tr.insertText(value.text,from,to).removeMark(from,finish,schema.marks.link).addMark(from,finish,schema.marks.link.create({href:value.href}));s.view.dispatch(tr.scrollIntoView());s.view.focus();
+}
 function keyAction(e){
   if(!(e.metaKey||e.ctrlKey)||e.altKey||e.isComposing)return null;
   const key=String(e.key).toLowerCase();
@@ -229,10 +234,10 @@ function toggleImages(s,toggle){
 function createTools(s){
     s.tools=el('div','qbInlineTools');s.tools.setAttribute('role','toolbar');s.tools.setAttribute('aria-label',s.config.label+'の文字装飾');
     const mac=/Mac|iPhone|iPad|iPod/.test(navigator.platform+' '+navigator.userAgent),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
-    for(const [kind,sample,label,keys] of [['bold','B','太字',mod+'B'],['underline','U','下線',mod+'U'],['strike','S','取り消し線',mod+shift+'S'],['marker','M','マーカー',mod+shift+'M'],['accent','A','強調色',mod+shift+'A'],['clear','×','選択範囲の書式解除',''],['undo','↶','元に戻す',mod+'Z'],['redo','↷','やり直す',mod+shift+'Z']]){
+    for(const [kind,sample,label,keys] of [['bold','B','太字',mod+'B'],['underline','U','下線',mod+'U'],['strike','S','取り消し線',mod+shift+'S'],['marker','M','マーカー',mod+shift+'M'],['accent','A','強調色',mod+shift+'A'],['link','🔗','リンクを挿入・編集',''],['clear','×','選択範囲の書式解除',''],['undo','↶','元に戻す',mod+'Z'],['redo','↷','やり直す',mod+shift+'Z']]){
       const b=button('qbInlineTool');b.dataset.qbInlineFormat=kind;b.title=label+(keys?'（'+keys+'）':'');b.setAttribute('aria-label',label);b.append(el('span','qbiSample '+kind,sample));if(keys)b.append(el('kbd','',keys));
-      b.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault()});b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=()=>format(s,kind);
-      if(KINDS.includes(kind)){b.setAttribute('aria-pressed','false');s.formatButtons.set(kind,b)}s.tools.append(b);
+      b.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault()});b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=()=>kind==='link'?editLink(s):format(s,kind);
+      if(STYLE_KINDS.includes(kind)){b.setAttribute('aria-pressed','false');s.formatButtons.set(kind,b)}s.tools.append(b);
     }
   return mod;
 }
@@ -376,5 +381,3 @@ function imageContext(target){
 }
 window.QBInlineOverview={imageContext,open,mountField,registerChoiceEditor,releaseChoiceEditor,requestLeave:mayLeave,isEditing:()=>!!active||!!choiceGroup,hasUnsavedChanges:()=>!!active?.dirty||!!choiceGroup?.dirty(),editingStem};
 if(window.QB_INLINE_TEST)window.QBInlineOverview.codec={docFrom,readDoc};
-
-

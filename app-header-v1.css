@@ -3,11 +3,18 @@ html {
   scroll-padding-top: var(--qb-header-scroll-padding, 100px);
 }
 
+.app {
+  padding-top: calc(var(--qb-header-height, 104px) + 12px) !important;
+}
+
 .app > .header {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 10;
-  margin: -12px -10px 12px;
+  left: 50%;
+  z-index: 100;
+  width: min(850px, 100%);
+  margin: 0;
+  transform: translateX(-50%);
   padding: calc(12px + env(safe-area-inset-top, 0px))
     max(10px, env(safe-area-inset-right, 0px)) 12px
     max(10px, env(safe-area-inset-left, 0px));
@@ -17,8 +24,11 @@ html {
 
 @media print {
   html { scroll-padding-top: 0; }
+  .app { padding-top: 12px !important; }
   .app > .header {
     position: static;
+    width: auto;
+    transform: none;
     padding-top: 12px;
   }
 }
