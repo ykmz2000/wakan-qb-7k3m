@@ -38,6 +38,7 @@ function css(){
 #view .choice[data-qb-choice-feedback]::after{content:attr(data-qb-choice-feedback);display:block;margin-top:6px;font-size:12px;font-weight:700;color:var(--text);white-space:normal}
 #view .choice.good[data-qb-choice-feedback]::after{color:var(--ok)}
 #view .choice.bad[data-qb-choice-feedback]::after{color:var(--bad)}
+#ans .exp.qbCorrectExplanationChoice{background:var(--accent-soft);padding-left:11px;padding-right:11px}
 .badge:not(.gray){background:var(--accent-soft)!important;color:var(--accent)!important}
 .resultcard.review{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 #qbGlobalDock .qbgdResume,#qbGlobalDock .qbgdStart{background:var(--accent-soft)!important;color:var(--accent)!important}
