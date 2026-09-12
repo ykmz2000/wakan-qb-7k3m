@@ -1,3 +1,3 @@
 curl_exit=0
-http_code=500
-upstream=403 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT SELECT ON public.questions TO service_role;","message":"permission denied for table questions"}
+http_code=200
+upstream=200 [{"id":"000a956e-d167-44d0-9200-810fd0e0f69e"}]
