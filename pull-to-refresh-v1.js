@@ -9,16 +9,15 @@ function blocked(){
 function boot(){
   const head=document.querySelector('.header');if(!head)return;
   const style=document.createElement('style');style.textContent=`
-html.qbPullReady .header{position:sticky;top:0;z-index:100;background:var(--bg)}
-html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:contain}
+html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:none}
 
-.qbRefreshStatus{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:99;max-width:85vw;padding:9px 14px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 10px #0002;font-size:13px;pointer-events:none}
+.qbRefreshStatus{position:fixed;top:var(--qb-header-scroll-padding,100px);left:50%;transform:translateX(-50%);z-index:99;max-width:85vw;padding:9px 14px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 10px #0002;font-size:13px;pointer-events:none}
 .qbRefreshStatus[hidden]{display:none}.qbRefreshStatus[data-busy="true"]::before{content:'';display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin-right:8px;vertical-align:-2px;animation:qbRefreshSpin .8s linear infinite}
 @keyframes qbRefreshSpin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.qbRefreshStatus[data-busy="true"]::before{animation:none}}
 `;document.head.append(style);document.documentElement.classList.add('qbPullReady');
   const content=document.getElementById('choices')||document.getElementById('view');
-  const move=(distance,animate=false)=>{if(content){content.style.transition=animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches?'transform 180ms ease-out':'';content.style.transform=distance?'translateY('+distance+'px)':'';}status.style.top=(head.getBoundingClientRect().bottom+12)+'px'};
+  const move=(distance,animate=false)=>{if(content){content.style.transition=animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches?'transform 180ms ease-out':'';content.style.transform=distance?'translateY('+distance+'px)':'';}}
   const status=document.createElement('div');status.className='qbRefreshStatus';status.hidden=true;status.setAttribute('role','status');status.setAttribute('aria-live','polite');document.body.append(status);
   function message(text){clearTimeout(resetTimer);status.hidden=false;status.textContent=text;status.dataset.busy=String(busy)}
   function hideLater(){clearTimeout(resetTimer);resetTimer=setTimeout(()=>{status.hidden=true},3000)}
@@ -39,12 +38,13 @@ html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:contain}
     for(let n=target;n&&n!==document.body;n=n.parentElement){const s=getComputedStyle(n);if(/auto|scroll/.test(s.overflowY)&&n.scrollHeight>n.clientHeight+1)return false}
     return true;
   }
-  document.addEventListener('touchstart',e=>{cancel();if(e.touches.length!==1||!eligible(e.target))return;pull={x:e.touches[0].clientX,y:e.touches[0].clientY,distance:0,active:false}},{passive:true});
+  document.addEventListener('touchstart',e=>{cancel();if(e.touches.length!==1||!eligible(e.target))return;pull={x:e.touches[0].clientX,y:e.touches[0].clientY,distance:0,active:false,axis:null}},{passive:true});
   document.addEventListener('touchmove',e=>{
     if(!pull)return;if(e.touches.length!==1||blocked()||scrollTop()>1){cancel();return}
     const dx=e.touches[0].clientX-pull.x,dy=e.touches[0].clientY-pull.y;
-    if(dy<0||Math.abs(dx)>Math.max(12,Math.abs(dy)*.7)){cancel();return}
-    if(dy<10)return;if(!e.cancelable){cancel();return}e.preventDefault();pull.active=true;pull.distance=dy;
+    if(!pull.axis&&Math.hypot(dx,dy)>=5)pull.axis=dy>0&&Math.abs(dy)>Math.abs(dx)*1.35?'vertical':'other';
+    if(pull.axis==='other'||dy<0){cancel();return}if(pull.axis!=='vertical')return;
+    if(e.cancelable)e.preventDefault();if(dy<10)return;pull.active=true;pull.distance=Math.max(pull.distance,dy);
     move(Math.min(140,dy*.5));message(dy>=80?'離して最新情報を取得':'下に引っ張って更新');
   },{passive:false});
   document.addEventListener('touchend',e=>{if(!pull)return;const go=pull.active&&pull.distance>=80&&!e.touches.length;pull=null;if(go)refresh();else if(!busy){move(0);status.hidden=true}},{passive:true});

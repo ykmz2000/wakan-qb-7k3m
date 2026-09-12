@@ -21,6 +21,7 @@ async function open({count,render}){
  }
  get('all').onclick=()=>{if(selected.size===order.length)selected.clear();else order.forEach(id=>selected.add(id));draw()};
  get('delete').onclick=()=>{if(!selected.size||selected.size===order.length)return;history.push([...order]);order=order.filter(id=>!selected.has(id));selected.clear();draw()};get('undo').onclick=()=>{if(!history.length)return;order=history.pop();selected.clear();draw()};get('cancel').onclick=()=>finish(null);get('apply').onclick=()=>finish(order);
+ modal.addEventListener('click',e=>{if(e.target===modal)finish(null)});
  modal.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Tab'){const buttons=[...modal.querySelectorAll('button')].filter(b=>!b.disabled),i=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus()}});
  draw();get('cancel').focus();
  void(async()=>{for(let id=0;id<count&&!closed;id++){try{const canvas=await render(id+1);if(closed){canvas.width=canvas.height=1;break}cards.get(id).querySelector('.qbPdfOrganizeThumb').append(canvas)}catch{if(!closed)cards.get(id).querySelector('.qbPdfOrganizeThumb').textContent='プレビューを読み込めません'}}})();

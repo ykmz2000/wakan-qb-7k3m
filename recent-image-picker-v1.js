@@ -112,6 +112,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       window.removeEventListener('blur',cancelPress);d.remove();document.documentElement.style.overflow=oldOverflow;
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
+    d.addEventListener('click',e=>{if(e.target===d){if(preview)closePreview();else close([])}else if(e.target===preview&&performance.now()>=previewGuard)closePreview()});
     function openPreview(row,b,fromHold=false){if(window.QBFiles?.isPDF(row.image_path)){void QBFiles.open(publicUrl(sb,row.image_path));return}
       if(closed||preview)return;
       previewOrigin=b;previewScroll=panel.scrollTop;previewGuard=fromHold?Infinity:performance.now()+100;
