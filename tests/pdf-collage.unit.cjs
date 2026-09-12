@@ -22,5 +22,12 @@ test('content-fit grows vertically and A4 modes stay fixed',()=>{
 
 test('layout is bounded for extreme source ratios',()=>{
   const rows=Array.from({length:6},()=>Array.from({length:4},()=>({aspect:.001}))),layout=M.calculate(rows,{mode:'fit'});
-  assert.ok(layout.height<=5000);assert.ok(layout.scale<1);for(const p of layout.placements){assert.ok(p.x>=0);assert.ok(p.top-p.height>=0);assert.ok(p.x+p.width<=layout.width)}
+  assert.ok(layout.height<=5000);assert.ok(layout.scale<1);for(const p of layout.placements){assert.ok(p.x>=0);assert.ok(p.y>=layout.margin-1e-6);assert.ok(p.y+p.height<=layout.height-layout.margin+1e-6);assert.ok(p.x+p.width<=layout.width)}
+});
+
+test('PDF coordinates place the first row at the top of the page instead of below it',()=>{
+  const layout=M.calculate([[{aspect:.8},{aspect:.7}]],{mode:'fit',margin:20,gap:8});
+  assert.equal(layout.placements[0].y,layout.placements[0].top-layout.placements[0].height);
+  assert.equal(layout.placements[1].y,layout.placements[1].top-layout.placements[1].height);
+  assert.ok(layout.placements.every(p=>p.y>=20&&p.y+p.height<=layout.height-20));
 });
