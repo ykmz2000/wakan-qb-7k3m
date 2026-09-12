@@ -67,6 +67,7 @@ jobs:
           node tests/editable-media.browser.cjs
           node tests/pdf-editor.browser.cjs
           node tests/file-media.browser.cjs
+          node tests/library-question-search.browser.cjs
           node tests/library-file-batch.browser.cjs
           node tests/image-crop-scene.browser.cjs
           node tests/image-crop.browser.cjs
@@ -80,6 +81,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
 
 

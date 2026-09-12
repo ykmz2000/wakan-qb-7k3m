@@ -5,19 +5,25 @@ const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http:
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
 async function run(browser,label,url){
  const page=await browser.newPage({viewport:{width:900,height:760}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
- await page.evaluate(()=>{window.QBFiles={validate:async file=>file,isPDF:file=>file.type==='application/pdf',clipboardFiles:async()=>[],filesFromPaste:e=>[...(e.clipboardData?.files||[])]}});
+ await page.evaluate(data=>{const bytes=Uint8Array.from(atob(data),c=>c.charCodeAt(0));window.QBFiles={validate:async file=>file,isPDF:file=>file.type==='application/pdf',clipboardFiles:async()=>[],filesFromPaste:e=>[...(e.clipboardData?.files||[])]};window.qbRecentImagePicker={pick:async options=>{window.recentParent=options.parent;return[{id:'recent-1',image_path:'recent.png'}]}};class Query{select(){return this}eq(){return this}maybeSingle(){return Promise.resolve({data:{image_path:'recent.png',annotation_base_image_path:null,annotation_result_image_path:null},error:null})}}window.qbSupabase={from:()=>new Query(),storage:{from:()=>({download:async()=>({data:new Blob([bytes],{type:'image/png'}),error:null})})}}},png.toString('base64'));
  await page.addScriptTag({url:url+'pdf-collage-model-v1.js'});await page.addScriptTag({url:url+'pdf-collage-v1.js'});
  await page.evaluate(()=>{window.collageResult='pending';QBPDFCollage.open().then(value=>window.collageResult=value)});
  assert.equal(await page.locator('.qbPdfCollageCell').count(),2);
  await page.locator('[data-layout="2,3"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),5);
+ await page.locator('[data-gap]').selectOption('0');await page.locator('[data-margin]').selectOption('32');
+ assert.deepEqual(await page.locator('.qbPdfCollageSheet').evaluate(sheet=>({padding:getComputedStyle(sheet).paddingTop,gap:getComputedStyle(sheet.querySelector('.qbPdfCollageRow')).columnGap})),{padding:'32px',gap:'0px'});
  await page.locator('.qbPdfCollageEmpty').first().click();
- await page.locator('[data-files]').setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);
+ await page.locator('[data-source="recent"]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===1);assert.equal(await page.evaluate(()=>recentParent===document.body),true);
+ await page.locator('.qbPdfCollageEmpty').first().click();
+ await page.locator('[data-files]').setInputFiles({name:'one.png',mimeType:'image/png',buffer:png});
  await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===2);
  await page.locator('.qbPdfCollageBorder:not(:disabled)').click();assert.equal(await page.locator('.qbPdfCollageBorder').getAttribute('aria-pressed'),'true');
  const item=page.locator('.qbPdfCollageItem').first(),box=await item.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(520);await page.mouse.up();await page.locator('[data-item=duplicate]').waitFor();await page.locator('[data-item=duplicate]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===3);
  await page.locator('[data-layout="2,2"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),4);
  await page.locator('[data-export]:not(:disabled)').click();await page.waitForFunction(()=>collageResult instanceof Blob);
  const result=await page.evaluate(async()=>{const L=await import('/vendor/pdfjs/pdf-lib.mjs'),doc=await L.PDFDocument.load(await collageResult.arrayBuffer()),p=doc.getPage(0);return{pages:doc.getPageCount(),width:p.getWidth(),height:p.getHeight(),type:collageResult.type}});
- assert.equal(result.pages,1);assert.equal(result.type,'application/pdf');assert.ok(result.width>500);assert.ok(result.height>100);assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS collage layout, upload, long-press duplicate and one-page export');
+ assert.equal(result.pages,1);assert.equal(result.type,'application/pdf');assert.ok(result.width>500);assert.ok(result.height>100);
+ await page.evaluate(()=>{window.collageResult='pending';QBPDFCollage.open().then(value=>window.collageResult=value)});assert.equal(await page.locator('[data-gap]').inputValue(),'0');assert.equal(await page.locator('[data-margin]').inputValue(),'32');await page.locator('[data-close]').click();await page.waitForFunction(()=>collageResult===null);
+ assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS collage layout, recent file, live spacing preview, remembered settings, long-press duplicate and one-page export');
 }
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,label,`http://127.0.0.1:${server.address().port}/`)}finally{await browser.close()}}}finally{server.close()}})().catch(e=>{console.error(e);process.exitCode=1});

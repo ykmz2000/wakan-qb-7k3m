@@ -11,6 +11,7 @@ async function run(browser,label,url){
  await p.waitForFunction(()=>document.querySelector('[data-inline-page="1"] canvas'));
  assert.ok(await p.locator('.qbPdfPoster canvas').first().evaluate(c=>c.width>=parseFloat(c.style.width)*1.9));
  assert.ok(await p.locator('[data-inline-page]').evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.width<=380.5&&r.height<=400.5})));
+ assert.equal(await p.locator('[data-inline-page]').evaluateAll(nodes=>Math.round(nodes[0].getBoundingClientRect().top)===Math.round(nodes[1].getBoundingClientRect().top)),true);
  assert.equal(await p.locator('#files img').count(),0);await p.locator('[data-inline-page="1"]').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  const waitForWholePage=()=>p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage')?.getBoundingClientRect(),s=document.querySelector('.qbPdfViewingStage')?.getBoundingClientRect();return c&&s&&c.left>=s.left+23&&c.right<=s.right-23&&c.top>=s.top+23&&c.bottom<=s.bottom-23});
  await waitForWholePage();await p.setViewportSize({width:390,height:700});await waitForWholePage();await p.screenshot({path:'test-results/ui/pdf-popup-fit-'+label+'.png'});
@@ -34,6 +35,13 @@ async function run(browser,label,url){
  assert.deepEqual(await color(),[255,0,0,255]);await p.getByRole('button',{name:'2ページを表示',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);
  await p.getByRole('button',{name:'＋',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='2 / 3ページ');assert.deepEqual(await color(),[0,255,0,255]);await p.waitForFunction(()=>document.querySelectorAll('.qbPdfPageStrip canvas').length===3);await p.getByRole('button',{name:'全体を表示',exact:true}).click();await waitForWholePage();
  await p.getByRole('button',{name:'閉じる',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});assert.equal(await p.locator('#origin').evaluate(n=>n.inert),false);
+ // Page numbers in the enlarged viewer can be dragged; the PDF editor receives
+ // the original page and the complete pending order instead of saving silently.
+ await p.evaluate(()=>{window.dragEdit=null;document.querySelector('#files').qbEditMedia=async(page,order)=>{window.dragEdit={page,order};return null}});
+ await p.locator('[data-inline-page="1"]').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
+ const dragFrom=await p.getByRole('button',{name:'1ページを表示',exact:true}).boundingBox(),dragTo=await p.getByRole('button',{name:'3ページを表示',exact:true}).boundingBox();
+ await p.mouse.move(dragFrom.x+dragFrom.width/2,dragFrom.y+dragFrom.height/2);await p.mouse.down();await p.mouse.move(dragTo.x+dragTo.width/2,dragTo.y+dragTo.height/2,{steps:8});await p.mouse.up();
+ await p.waitForFunction(()=>window.dragEdit);assert.deepEqual(await p.evaluate(()=>dragEdit),{page:1,order:[1,2,0]});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');await p.getByRole('button',{name:'閉じる',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
  await p.setViewportSize({width:1024,height:800});
  await p.addScriptTag({url:url+'image-viewer.js'});
  await p.evaluate(()=>{const files=document.querySelector('#files');files.className='qbMediaHostV2';const c=document.createElement('canvas');c.width=100;c.height=100;c.getContext('2d').fillRect(0,0,100,100);for(const where of ['prepend','append']){const img=document.createElement('img');img.className='qbMediaImg';img.src=c.toDataURL();img.alt=where;files[where](img)}document.body.insertAdjacentHTML('beforeend',`<div id="view"><div class="card"><div class="qtext">拡大中に確認する問題文</div><div class="qsiHost"><div class="qsiGrid"><div class="qsiImgWrap"><img class="qsiImg" alt="問題画像" src="${c.toDataURL()}"></div></div></div></div></div>`);window.qbGetScreen=()=> 'practice';window.qbResolveCurrentQuestion=()=>({id:'q1',stem:'拡大中に確認する問題文'})});
