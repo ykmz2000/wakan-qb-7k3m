@@ -79,7 +79,7 @@ async function exportPDF(rows,{mode,border,gap,margin=16,axis='rows'}){
 }
 function collageQuestionPreview(root,toolbar,before,button){
  let question=null;try{question=window.qbResolveCurrentQuestion?.()||window.pq?.()||null}catch{}
- const source=document.querySelector('#view > .card > .qtext'),stem=source?.textContent?.trim()||question?.stem||question?.question;button=button||document.createElement('button');button.type='button';button.className='qbQuestionPreviewButton';button.textContent='問題を確認';button.setAttribute('aria-expanded','false');if(!stem){button.hidden=true;return null}
+ const source=document.querySelector('#view .qtext,.qtext'),stem=source?.textContent?.trim()||question?.stem||question?.question||'問題文を取得できませんでした。';button=button||document.createElement('button');button.type='button';button.className='qbQuestionPreviewButton';button.textContent='問題を確認';button.setAttribute('aria-expanded','false');
  const panel=document.createElement('section');panel.className='qbQuestionPreviewPanel';panel.hidden=true;panel.setAttribute('aria-label','問題のプレビュー');
  const head=document.createElement('div');head.className='qbQuestionPreviewHead';const title=document.createElement('b'),close=document.createElement('button');title.textContent='問題';close.type='button';close.textContent='閉じる';head.append(title,close);
  const tabs=document.createElement('div'),problemTab=document.createElement('button'),answerTab=document.createElement('button');tabs.className='qbQuestionPreviewTabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','表示内容');for(const tab of [problemTab,answerTab]){tab.type='button';tab.setAttribute('role','tab')}problemTab.textContent='問題';answerTab.textContent='解答';tabs.append(problemTab,answerTab);
