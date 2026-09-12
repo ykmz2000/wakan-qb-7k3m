@@ -7,7 +7,7 @@ const nextId=()=>`qbc-${Date.now()}-${++sequence}`;
 const blobURL=blob=>URL.createObjectURL(blob);
 const toBlob=(canvas,type='image/png')=>new Promise(resolve=>canvas.toBlob(resolve,type));
 const fileName=(path,fallback)=>{const name=String(path||'').split('/').pop()?.split('?')[0];try{return decodeURIComponent(name)||fallback}catch{return name||fallback}};
-const mime=(blob,path)=>{if(QBFiles.isPDF(path))return'application/pdf';if(blob.type&&blob.type!=='application/octet-stream')return blob.type;const ext=String(path||'').split(/[?#]/)[0].split('.').pop()?.toLowerCase();return({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',heic:'image/heic',heif:'image/heif'}[ext]||blob.type||'application/octet-stream')};
+const mime=(blob,path)=>window.QBPDFCollageModel.mediaType(blob,path);
 const asFile=(blob,name,path)=>new File([blob],name,{type:mime(blob,path)});
 function css(){
  if(document.getElementById('qbPdfCollageCss'))return;

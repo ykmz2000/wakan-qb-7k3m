@@ -15,6 +15,12 @@
     const value=Number(item?.aspect);
     return Number.isFinite(value)&&value>0?clamp(value,.08,12):4/3;
   }
+  function mediaType(blob,path){
+    if(/\.pdf(?:[?#]|$)/i.test(String(path||'')))return'application/pdf';
+    if(blob?.type&&blob.type!=='application/octet-stream')return blob.type;
+    const ext=String(path||'').split(/[?#]/)[0].split('.').pop()?.toLowerCase();
+    return({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',heic:'image/heic',heif:'image/heif'}[ext]||blob?.type||'application/octet-stream');
+  }
   function calculate(rows,{mode='fit',margin=18,gap=8,pageWidth=595.28,maxHeight=5000}={}){
     rows=normalizeRows(rows);margin=clamp(Number(margin)||0,0,72);gap=clamp(Number(gap)||0,0,48);
     const fixed=A4[mode],baseWidth=fixed?fixed[0]:clamp(Number(pageWidth)||595.28,144,2000);
@@ -43,5 +49,5 @@
     });
     return{width,height,scale,margin,gap,contentHeight,placements};
   }
-  return{A4,normalizeRows,calculate};
+  return{A4,normalizeRows,mediaType,calculate};
 });
