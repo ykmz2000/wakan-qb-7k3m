@@ -1,0 +1,19 @@
+name: Temporary pediatric image import trigger
+on:
+  push:
+    branches: ["peds-image-import-20260913"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke fixed-purpose import function
+        env:
+          QB_ANON: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlYnZxY3VidHlmZ2Fha3J6YnpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1NzUzNTUsImV4cCI6MjEwNDE1MTM1NX0.cWPY0SQYMIdXQcbtAxp_9esuTKd7ljqxvC02s1sJC_E"
+        run: |
+          curl --fail-with-body --retry 2 \
+            -H "Authorization: Bearer $QB_ANON" \
+            -H "apikey: $QB_ANON" \
+            https://qebvqcubtyfgaakrzbzh.supabase.co/functions/v1/qb-peds-image-import-20260913
