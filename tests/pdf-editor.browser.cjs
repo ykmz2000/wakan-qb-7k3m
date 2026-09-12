@@ -87,7 +87,12 @@ async function run(browser,label,url){
  await p.evaluate(()=>{QBPDFEditor.open(original,{onSave:async()=>Promise.reject()})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent.startsWith('保存できませんでした：'));
  const saveFailure=await p.locator('.qbPdfStatus').textContent();assert.doesNotMatch(saveFailure,/undefined/);assert.match(saveFailure,/予期しないエラー/);assert.equal(await p.locator('.qbPdfModal').isVisible(),true);
- await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
- assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS editable multi-page PDF, original retained, transparent overlays, no whole crop, save and reopen');
+	await p.getByRole('button',{name:'キャンセル',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
+	// Storage may reject the history-bearing PDF at its global size cap. Retry once
+	// with the same visible PDF flattened, without embedding a second full original.
+	await p.evaluate(()=>{window.fallbackSaves=[];QBPDFEditor.open(beforeImport,{onSave:async b=>{fallbackSaves.push(b);if(fallbackSaves.length===1){const e=Error('413 Maximum size exceeded');e.code='STORAGE_FILE_TOO_LARGE';throw e}}})});await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
+	await p.getByRole('button',{name:'PDFを保存',exact:true}).click();await p.locator('.qbPdfModal').waitFor({state:'detached'});
+	const fallback=await p.evaluate(async()=>{const first=fallbackSaves[0],second=fallbackSaves[1],t=await QBFiles.documentTask(second),d=await t.promise,attachments=await d.getAttachments();await t.destroy();return{calls:fallbackSaves.length,smaller:second.size<first.size,hasHistory:Boolean(attachments?.get('qb-page-edits-v1.json'))}});assert.deepEqual(fallback,{calls:2,smaller:true,hasHistory:false});
+	assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS editable multi-page PDF, original retained, transparent overlays, no whole crop, save and reopen');
 }
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,label,`http://127.0.0.1:${server.address().port}/`)}finally{await b.close()}}}finally{server.close()}})().catch(e=>{console.error(e);process.exitCode=1});

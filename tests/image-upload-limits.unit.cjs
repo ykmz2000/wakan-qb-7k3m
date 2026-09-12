@@ -43,3 +43,8 @@ test('resumable PDF saves accept a URL-like storageUrl from the Supabase client'
  await w.QBImageLibraryStore.add(sb,{size:6*1024*1024+1,type:'application/pdf',name:'large.pdf'});
  assert.deepEqual(tasks.map(task=>task.options.endpoint),['https://project.supabase.co/storage/v1/upload/resumable','https://project.supabase.co/storage/v1/upload/resumable']);
 });
+test('editing identifies a resumable 413 as a storage size limit instead of a network failure',async()=>{
+ class Upload{constructor(file,options){this.options=options}start(){this.options.onError(Error('unexpected response: 413 Maximum size exceeded'))}}
+ const {sb,window:w}=fixture({tus:{Upload}}),context={sb,bucket:'question-media',questionId:'question',placement:'question',host:{isConnected:true}};
+ await assert.rejects(()=>w.QBImageStore.add(context,{size:6*1024*1024+1,type:'application/pdf'}),error=>error.code==='STORAGE_FILE_TOO_LARGE'&&/ファイルサイズの上限/.test(error.message));
+});
