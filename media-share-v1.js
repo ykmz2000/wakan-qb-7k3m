@@ -1,9 +1,9 @@
 /* Export an image or PDF as either PNG or PDF, without changing the source. */
 (()=>{
 'use strict';
-const IMAGE_TARGET='.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img,.qsiImg,.qbLibraryZoomImage,.qbLibraryDetailImage,.qbLibraryImageButton>img';
+const IMAGE_TARGET='.qbMediaImg,.qbNoteImageGrid img,.oeiGrid img,.qsiImg,.qbLibraryZoomImage,.qbLibraryDetailImage,.qbLibraryImageButton>img,.qbripItem>img';
 const MEDIA_TARGET=IMAGE_TARGET+',.qbPdfCard,.qbPdfInlinePage';
-const HOST_TARGET='.qbPublicImageWrap,.qbNoteImageWrap,.qsiImgWrap,.oeiItem,.qbLibraryItem,.qbLibraryDetailMedia';
+const HOST_TARGET='.qbPublicImageWrap,.qbNoteImageWrap,.qsiImgWrap,.oeiItem,.qbLibraryItem,.qbLibraryDetailMedia,.qbripItemHost';
 let active=null,press=null,suppressUntil=0;
 const el=(tag,cls,text)=>{const node=document.createElement(tag);node.className=cls||'';if(text!=null)node.textContent=text;return node};
 const safeName=(value,fallback)=>String(value||fallback).replace(/[\\/:*?"<>|\u0000-\u001f]+/g,'-').replace(/^\.+|\.+$/g,'').trim()||fallback;
