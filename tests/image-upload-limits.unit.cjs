@@ -30,3 +30,9 @@ test('library uses resumable upload for PDFs above 6MiB',async()=>{
  await w.QBImageLibraryStore.add(sb,file);assert.equal(uploads.length,0);assert.equal(tasks.length,1);
  assert.equal(tasks[0].options.endpoint,'https://project.supabase.co/storage/v1/upload/resumable');assert.equal(tasks[0].options.headers.authorization,'Bearer session-token');assert.equal(tasks[0].options.metadata.bucketName,'qb-image-library');assert.equal(tasks[0].options.metadata.contentType,'application/pdf');assert.match(tasks[0].options.metadata.objectName,/\.pdf$/);
 });
+test('editing saves PDFs above 6MiB with resumable upload',async()=>{
+ const tasks=[];class Upload{constructor(file,options){this.file=file;this.options=options;tasks.push(this)}start(){this.options.onSuccess()}}
+ const {sb,uploads,window:w}=fixture({tus:{Upload}}),context={sb,bucket:'question-media',questionId:'question',placement:'explanation_overview',host:{isConnected:true}};
+ await w.QBImageStore.add(context,{size:6*1024*1024+1,type:'application/pdf'});
+ assert.equal(uploads.length,0);assert.equal(tasks.length,1);assert.equal(tasks[0].options.metadata.bucketName,'question-media');assert.equal(tasks[0].options.metadata.contentType,'application/pdf');assert.match(tasks[0].options.metadata.objectName,/\.pdf$/);
+});

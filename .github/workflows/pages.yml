@@ -51,7 +51,7 @@ jobs:
           NODE_PATH: /tmp/qb-browser-tests/node_modules
         run: |
           npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 jsqr@1.4.0 cropperjs@1.6.2
-          node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs
+          node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs tests/image-upload-limits.unit.cjs
           node tests/recent-image-scope-preview.browser.cjs
           node tests/unit-pdf-export.browser.cjs
           node tests/pull-to-refresh.browser.cjs
@@ -85,4 +85,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
