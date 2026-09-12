@@ -26,11 +26,17 @@ function loadTusClient(){
   script.src='https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js';script.onload=()=>finish(root.tus?.Upload?null:Error('大きなPDFのアップロード機能を準備できませんでした。'));script.onerror=()=>finish(Error('大きなPDFのアップロード機能を読み込めませんでした。通信を確認してください。'));root.document.head.append(script);
  });return tusClientPromise;
 }
+function storageEndpoint(sb){
+ const configured=sb?.storageUrl,base=typeof configured==='string'?configured:(configured&&typeof configured.href==='string'?configured.href:'');
+ const fallback=typeof sb?.supabaseUrl==='string'?sb.supabaseUrl:(sb?.supabaseUrl&&typeof sb.supabaseUrl.href==='string'?sb.supabaseUrl.href:'');
+ const endpoint=String(base||(fallback.replace(/\/$/,'')+'/storage/v1')).replace(/\/$/,'');
+ if(!/^https?:\/\//.test(endpoint))throw Error('アップロード先を確認できません。画面を再読み込みしてください。');
+ return endpoint;
+}
 async function resumableUpload(sb,path,file,type){
  const client=await loadTusClient(),session=unwrap(await sb.auth.getSession())?.session,token=session?.access_token;
  if(!token)throw Error('ログイン状態を確認できません。もう一度ログインしてください。');
- const storageUrl=(sb.storageUrl||((sb.supabaseUrl||'').replace(/\/$/,'')+'/storage/v1')).replace(/\/$/,'');
- if(!/^https?:\/\//.test(storageUrl))throw Error('アップロード先を確認できません。画面を再読み込みしてください。');
+ const storageUrl=storageEndpoint(sb);
  await new Promise((resolve,reject)=>{
   const task=new client.Upload(file,{endpoint:storageUrl+'/upload/resumable',retryDelays:[0,3000,5000,10000,20000],headers:{authorization:'Bearer '+token,'x-upsert':'false'},uploadDataDuringCreation:true,removeFingerprintOnSuccess:true,chunkSize:6*1024*1024,metadata:{bucketName:BUCKET,objectName:path,contentType:type,cacheControl:'3600'},onError:error=>reject(Error('PDFのアップロードに失敗しました。通信を確認して再試行してください。'+(error?.message?' '+error.message:''))),onSuccess:resolve});
   task.start();
