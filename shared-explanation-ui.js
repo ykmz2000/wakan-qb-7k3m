@@ -38,7 +38,7 @@ function choiceBody(q){
   const ans=q.ans||choices.map((c,i)=>c.is_correct?i:null).filter(i=>i!==null);
   return choices.map((c,i)=>{
     const key=c.choice_key||String.fromCharCode(97+i),text=c.choice_text||String(c),ok=ans.includes(i),ex=c.explanation||'未登録';
-    return `<div class="exp"><b>${esc(key)}. ${ok?'【設問の正答】':''} ${esc(text)}</b>${choiceDetailHtml(c,true)}<div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
+    return `<div class="exp ${ok?'qbCorrectExplanationChoice':''}"><b>${esc(key)}. ${esc(text)}</b>${choiceDetailHtml(c,true)}<div class="line">${esc(ex)}</div>${choiceDetailHtml(c)}</div>`;
   }).join('');
 }
 function enhanceExistingChoiceCard(root,q){
@@ -48,12 +48,14 @@ function enhanceExistingChoiceCard(root,q){
   const exps=[...card.querySelectorAll(':scope > .exp')];
   (q.choices||[]).forEach((c,i)=>{
     const exp=exps[i];if(!exp)return;
+    const correct=(q.ans||[]).includes(i);
+    exp.classList.toggle('qbCorrectExplanationChoice',correct);
     // Move the existing note, including any draft/private images, before official images.
     const note=exp.querySelector(':scope > .qbPersonal'),media=exp.querySelector(':scope > .qbMediaHostV2');
     if(note&&media&&note.nextElementSibling!==media)exp.insertBefore(note,media);
     if(exp.dataset.qbInlineChoiceEditing)return;
     const h=exp.querySelector(':scope > b');
-    const title=`${c.choice_key||String.fromCharCode(97+i)}. ${(q.ans||[]).includes(i)?'【設問の正答】 ':''}${c.choice_text||''}`;
+    const title=`${c.choice_key||String.fromCharCode(97+i)}. ${c.choice_text||''}`;
     if(h&&h.textContent!==title)h.textContent=title;
     let status=exp.querySelector(':scope > .qbStatementStatus');
     const truth=c.statement_is_true;
@@ -149,4 +151,3 @@ window.addEventListener('qb-app-ready',schedule);
 if(V)new MutationObserver(schedule).observe(V,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
 })();
-

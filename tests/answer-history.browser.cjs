@@ -92,6 +92,8 @@ async function run(browser,name){
    await answer(p,[1]);assert.deepEqual(await states(),[{good:true,bad:false,label:'設問の正答'},{good:false,bad:true,label:'あなたの選択'}]);
    const colors=await p.locator('.choice[data-c]').evaluateAll(bs=>bs.map(b=>({bg:getComputedStyle(b).backgroundColor,opacity:getComputedStyle(b).opacity})));
    assert.notEqual(colors[0].bg,colors[1].bg);assert.ok(colors.every(x=>x.opacity==='1'));
+   const explanationChoices=await p.locator('#ans .exp').evaluateAll(rows=>rows.map(row=>({correct:row.classList.contains('qbCorrectExplanationChoice'),text:row.querySelector(':scope > b')?.textContent||'',background:getComputedStyle(row).backgroundColor})));
+   assert.deepEqual(explanationChoices.map(x=>x.correct),[true,false]);assert.ok(explanationChoices.every(x=>!x.text.includes('設問の正答')));assert.notEqual(explanationChoices[0].background,explanationChoices[1].background);
    await p.locator('#answer').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
    await answer(p,[0]);assert.equal((await states())[0].label,'設問の正答 ／ あなたの選択');
    await p.locator('#answer').click();await p.locator('[data-c="1"]').click();await p.locator('#review').click();await ready(p);
