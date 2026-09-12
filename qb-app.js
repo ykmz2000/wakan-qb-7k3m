@@ -165,6 +165,18 @@ M.querySelectorAll('[data-mode]').forEach(b=>b.onclick=async()=>{const mode=b.da
 M.addEventListener('click',e=>{if(e.target===M)M.classList.add('hidden')});
 H.onclick=()=>{if(screen==='subjects')return setScreen('grades');if(screen==='units')return setScreen('subjects');if(screen==='problems')return setScreen('units');return setScreen('subjects')};
 window.qbGetScreen=()=>screen;window.qbOpenSubjects=()=>setScreen('subjects');window.qbOpenProblemList=()=>setScreen('problems');window.showGradeScreen=()=>setScreen('grades');window.qbRetryCurrent=retryCurrent;window.qbGetPracticeState=()=>({subjectId:subject?.id||null,unitId,questionIds:[...practice],currentIndex:pi,mode:practiceMode,sessionId});window.qbResumeSession=resumeSession;window.qbEnsureQuestionDetail=ensureQuestionDetail;
+window.qbGetLibrarySubjects=()=>subjects.map(({id,name,sort_order})=>({id,name,sort_order}));
+window.qbOpenLibraryQuestion=async({questionId,subjectId,targetUnitId}={})=>{
+  const id=String(questionId||'');if(!id)throw new Error('問題IDがありません');
+  let sid=String(subjectId||''),uid=targetUnitId==null?'':String(targetUnitId);
+  if(!sid){const r=await sb.from('questions').select('id,subject_id,unit_id').eq('id',id).eq('status','published').maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('問題が見つかりません');sid=String(r.data.subject_id||'');uid=String(r.data.unit_id||'')}
+  const target=subjects.find(x=>String(x.id)===sid);if(!target)throw new Error('この問題の科目を開けません');
+  if(String(subject?.id||'')!==sid)await chooseSubject(target.id);
+  const scope=uid||'__all__';
+  if(unitId!==scope||!questions.some(q=>String(q.id)===id))await loadQuestionsForUnit(scope);
+  if(!questions.some(q=>String(q.id)===id)){const detail=await ensureQuestionDetail(id);questions=[detail];unitId=scope;window.QB_QUESTIONS=questions}
+  practice=[id];selected=new Set([id]);pi=0;submitted=false;reviewOnly=false;sel=new Set();practiceMode='ordered';sessionId=null;setScreen('practice');
+};
 window.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='practice')saveSession(false)});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
 window.addEventListener('qb-content-updated',e=>{const id=String(e.detail?.questionId||'');if(!id)return;detailCache.delete(id);detailPending.delete(id);const i=questions.findIndex(q=>String(q.id)===id);if(i>=0)questions[i]._detailLoaded=false;if(String(pq()?.id||'')===id)syncChoiceFeedback()});
 /* Fetch into a separate snapshot. Never submit an answer or write a session here. */
