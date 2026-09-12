@@ -10,7 +10,7 @@ async function run(browser,label,url){
  await page.evaluate(()=>{window.collageResult='pending';QBPDFCollage.open().then(value=>window.collageResult=value)});
  assert.equal(await page.locator('.qbPdfCollageCell').count(),2);
  await page.locator('[data-layout="2,3"]').click();assert.equal(await page.locator('.qbPdfCollageCell').count(),5);
- await page.getByLabel('資料どうしの隙間').selectOption('0');await page.getByLabel('用紙の外側余白').selectOption('32');
+ await page.locator('[data-gap]').selectOption('0');await page.locator('[data-margin]').selectOption('32');
  assert.deepEqual(await page.locator('.qbPdfCollageSheet').evaluate(sheet=>({padding:getComputedStyle(sheet).paddingTop,gap:getComputedStyle(sheet.querySelector('.qbPdfCollageRow')).columnGap})),{padding:'32px',gap:'0px'});
  await page.locator('.qbPdfCollageEmpty').first().click();
  await page.getByRole('button',{name:'最近の画像・PDFから選択',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===1);assert.equal(await page.evaluate(()=>recentParent===document.body),true);
@@ -23,7 +23,7 @@ async function run(browser,label,url){
  await page.locator('[data-export]:not(:disabled)').click();await page.waitForFunction(()=>collageResult instanceof Blob);
  const result=await page.evaluate(async()=>{const L=await import('/vendor/pdfjs/pdf-lib.mjs'),doc=await L.PDFDocument.load(await collageResult.arrayBuffer()),p=doc.getPage(0);return{pages:doc.getPageCount(),width:p.getWidth(),height:p.getHeight(),type:collageResult.type}});
  assert.equal(result.pages,1);assert.equal(result.type,'application/pdf');assert.ok(result.width>500);assert.ok(result.height>100);
- await page.evaluate(()=>{window.collageResult='pending';QBPDFCollage.open().then(value=>window.collageResult=value)});assert.equal(await page.getByLabel('資料どうしの隙間').inputValue(),'0');assert.equal(await page.getByLabel('用紙の外側余白').inputValue(),'32');await page.locator('[data-close]').click();await page.waitForFunction(()=>collageResult===null);
+ await page.evaluate(()=>{window.collageResult='pending';QBPDFCollage.open().then(value=>window.collageResult=value)});assert.equal(await page.locator('[data-gap]').inputValue(),'0');assert.equal(await page.locator('[data-margin]').inputValue(),'32');await page.locator('[data-close]').click();await page.waitForFunction(()=>collageResult===null);
  assert.deepEqual(errors,[]);await page.close();console.log(label+' PASS collage layout, recent file, live spacing preview, remembered settings, long-press duplicate and one-page export');
 }
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{for(const [label,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,label,`http://127.0.0.1:${server.address().port}/`)}finally{await browser.close()}}}finally{server.close()}})().catch(e=>{console.error(e);process.exitCode=1});
