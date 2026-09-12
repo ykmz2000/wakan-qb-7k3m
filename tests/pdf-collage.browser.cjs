@@ -13,7 +13,7 @@ async function run(browser,label,url){
  await page.locator('[data-gap]').selectOption('0');await page.locator('[data-margin]').selectOption('32');
  assert.deepEqual(await page.locator('.qbPdfCollageSheet').evaluate(sheet=>({padding:getComputedStyle(sheet).paddingTop,gap:getComputedStyle(sheet.querySelector('.qbPdfCollageRow')).columnGap})),{padding:'32px',gap:'0px'});
  await page.locator('.qbPdfCollageEmpty').first().click();
- await page.getByRole('button',{name:'最近の画像・PDFから選択',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===1);assert.equal(await page.evaluate(()=>recentParent===document.body),true);
+ await page.locator('[data-source="recent"]').click();await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===1);assert.equal(await page.evaluate(()=>recentParent===document.body),true);
  await page.locator('.qbPdfCollageEmpty').first().click();
  await page.locator('[data-files]').setInputFiles({name:'one.png',mimeType:'image/png',buffer:png});
  await page.waitForFunction(()=>document.querySelectorAll('.qbPdfCollageItem').length===2);
