@@ -139,11 +139,13 @@ function decorate(node,text,record){
   if(active)node.dataset.qbFormatted='1';else delete node.dataset.qbFormatted;
 }
 function apply(root,q,meta){
-  document.querySelectorAll('#view .choice[data-c] .qbInlineCorrectionText').forEach(body=>{
-    const c=q.choices?.[Number(body.closest('.choice').dataset.c)];if(!c)return;
-    const formats=(meta.choices||[]).find(x=>String(x.id)===String(c.id))?.[META];
-    decorate(body,String(c.correction_text??''),formats?.correction_text);
-  });
+  for(const [field,cls] of [['correction_text','qbInlineCorrectionText'],['correct_for_other_context','qbInlineOtherContextText']]){
+    document.querySelectorAll(`#view .choice[data-c] .${cls}`).forEach(body=>{
+      const c=q.choices?.[Number(body.closest('.choice').dataset.c)];if(!c)return;
+      const formats=(meta.choices||[]).find(x=>String(x.id)===String(c.id))?.[META];
+      decorate(body,String(c[field]??''),formats?.[field]);
+    });
+  }
   const cards=[...root.children].filter(c=>c.classList.contains('card'));
   const heading=c=>[...c.children].find(n=>n.tagName==='B')?.textContent.trim().replace(/^■\s*/,'')||'';
   for(const [field,title] of Object.entries(LABELS)){
