@@ -21,27 +21,42 @@ function markup(url,label='PDF',{passive=false}={}){return `<div class="qbPdfCar
 function present(img,url,interactive=true){const target=img.qbPdfReplacement?.isConnected?img.qbPdfReplacement:img;if(!isPDF(url)){if(target!==img)target.replaceWith(img);delete img.qbPdfReplacement;img.src=url;return img}const card=element('span','qbPdfCard');img.qbPdfReplacement=card;card.dataset.pdfSrc=url;card.dataset.pdfPassive=String(!interactive);card.innerHTML='<span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span>';card.qbEditMedia=img.qbEditMedia;target.replaceWith(card);scan(card);return card}
 let thumbnailQueue=[],thumbnailBusy=false;
 const visible=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){visible.unobserve(e.target);thumbnailQueue.push(e.target)}void drain()},{rootMargin:'120px'});
-// Only visible page surfaces hold a high-density bitmap; page order is always present.
+// A visible attachment loads its PDF once. Rendered inline pages stay mounted while the
+// attachment belongs to the current screen, so ordinary reading scroll never reloads it.
+const cardDocuments=new Map();
+async function cardDocument(card){
+ let state=cardDocuments.get(card);if(state)return state.promise;
+ state={task:null,promise:null};state.promise=(async()=>{state.task=await documentTask(card.dataset.pdfSrc);return state.task.promise})().catch(async e=>{cardDocuments.delete(card);await state.task?.destroy().catch(()=>{});throw e});cardDocuments.set(card,state);return state.promise
+}
+let cleanupTimer=null;
+function cleanupDocuments(){
+ cleanupTimer=null;
+ for(const [card,state] of cardDocuments)if(!card.isConnected){cardDocuments.delete(card);void state.task?.destroy().catch(()=>{})}
+ for(const [node] of inlineStates)if(!node.isConnected){inlineObserver.unobserve(node);inlineResize.unobserve(node);inlineStates.delete(node)}
+}
+function scheduleCleanup(){clearTimeout(cleanupTimer);cleanupTimer=setTimeout(cleanupDocuments,60)}
 const inlineStates=new Map();
-const inlineObserver=new IntersectionObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(!st)continue;st.visible=e.isIntersecting;if(st.visible){thumbnailQueue.push(e.target);void drain()}else{st.token++;const c=e.target.querySelector('canvas');if(c){c.width=c.height=1;c.remove()}}}},{rootMargin:'300px'});
-const inlineResize=new ResizeObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(st?.visible&&Math.abs(st.width-e.contentRect.width)>2){thumbnailQueue.push(e.target);void drain()}}});
+const inlineObserver=new IntersectionObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(!st)continue;st.visible=e.isIntersecting;if(st.visible&&!st.rendered&&!st.queued){st.queued=true;thumbnailQueue.push(e.target);void drain()}}},{rootMargin:'300px'});
+const inlineResize=new ResizeObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(st?.visible&&st.rendered&&!st.queued&&Math.abs(st.width-e.contentRect.width)>2){st.queued=true;thumbnailQueue.push(e.target);void drain()}}});
+const lifecycleObserver=new MutationObserver(scheduleCleanup);
+if(document.body)lifecycleObserver.observe(document.body,{childList:true,subtree:true});else document.addEventListener('DOMContentLoaded',()=>lifecycleObserver.observe(document.body,{childList:true,subtree:true}),{once:true});
 async function drain(){
  if(thumbnailBusy)return;thumbnailBusy=true;
- try{while(thumbnailQueue.length){const node=thumbnailQueue.shift();if(!node.isConnected)continue;let task;
+ try{while(thumbnailQueue.length){const node=thumbnailQueue.shift(),st=inlineStates.get(node);if(st)st.queued=false;if(!node.isConnected)continue;
  try{
-  const st=inlineStates.get(node);if(st&&!st.visible)continue;
-  const card=st?st.card:node;task=await documentTask(card.dataset.pdfSrc);const doc=await task.promise;if(!node.isConnected)continue;
+  if(st&&!st.visible&&!st.rendered)continue;
+  const card=st?st.card:node,doc=await cardDocument(card);if(!node.isConnected)continue;
   card.dataset.pdfPages=doc.numPages;
   if(!st&&card.dataset.pdfPassive!=='true'&&!card.closest('.qbLibraryImageButton,.qbripItem')){
    card.classList.add('qbPdfInline');card.setAttribute('role','group');card.removeAttribute('tabindex');const poster=card.querySelector('.qbPdfPoster');poster.replaceChildren();
-   for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n),vp=page.getViewport({scale:1}),slot=element('span','qbPdfInlinePage');slot.dataset.inlinePage=n;slot.setAttribute('role','button');slot.tabIndex=0;slot.setAttribute('aria-label',`${n}ページを拡大表示`);slot.style.aspectRatio=vp.width+'/'+vp.height;slot.style.setProperty('--qb-page-width',Math.min(380,400*vp.width/vp.height)+'px');poster.append(slot);inlineStates.set(slot,{card,visible:false,width:0,token:0});inlineObserver.observe(slot);inlineResize.observe(slot)}
+   for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n),vp=page.getViewport({scale:1}),slot=element('span','qbPdfInlinePage');slot.dataset.inlinePage=n;slot.setAttribute('role','button');slot.tabIndex=0;slot.setAttribute('aria-label',`${n}ページを拡大表示`);slot.style.aspectRatio=vp.width+'/'+vp.height;slot.style.setProperty('--qb-page-width',Math.min(380,400*vp.width/vp.height)+'px');poster.append(slot);inlineStates.set(slot,{card,visible:false,width:0,token:0,queued:false,rendered:false});inlineObserver.observe(slot);inlineResize.observe(slot)}
    card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ · タップして拡大`;continue;
   }
   const token=st?++st.token:0,page=await doc.getPage(st?Number(node.dataset.inlinePage):1),raw=page.getViewport({scale:1}),canvas=element('canvas');
   const cssScale=st?Math.max(1,node.clientWidth)/raw.width:Math.min(360/raw.width,480/raw.height),density=Math.min(devicePixelRatio||1,3),scale=Math.min(cssScale*density,Math.sqrt(8000000/(raw.width*raw.height)),8192/Math.max(raw.width,raw.height));
   const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-  if(node.isConnected&&(!st||(st.visible&&st.token===token))){if(st){st.width=node.clientWidth;node.replaceChildren(canvas)}else{card.querySelector('.qbPdfPoster').replaceChildren(canvas);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else canvas.width=canvas.height=1;
- }catch{if(node.isConnected){const caption=node.querySelector('.qbPdfCaption');if(caption)caption.textContent='PDF · タップして開く';else node.textContent='タップしてページを開く'}}finally{await task?.destroy().catch(()=>{})}
+  if(node.isConnected&&(!st||st.token===token)){if(st){st.width=node.clientWidth;st.rendered=true;node.replaceChildren(canvas)}else{card.querySelector('.qbPdfPoster').replaceChildren(canvas);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else canvas.width=canvas.height=1;
+ }catch{if(st)st.rendered=false;if(node.isConnected){const caption=node.querySelector('.qbPdfCaption');if(caption)caption.textContent='PDF · タップして開く';else node.textContent='タップしてページを開く'}}
  }}finally{thumbnailBusy=false}
 }
 function scan(root=document){const cards=[...(root.matches?.('[data-pdf-src]')?[root]:[]),...root.querySelectorAll('[data-pdf-src]')];for(const card of cards){if(card.dataset.pdfBound)continue;card.dataset.pdfBound='1';if(card.dataset.pdfPassive!=='true'){card.setAttribute('role','button');card.tabIndex=0;card.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();void open(card.dataset.pdfSrc,{mediaOrigin:card,initialPage:Number(e.target.closest('[data-inline-page]')?.dataset.inlinePage)||1})});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();e.target.click()}})}visible.observe(card)}}
