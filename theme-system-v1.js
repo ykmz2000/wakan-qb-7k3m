@@ -30,7 +30,8 @@ function css(){
 .progress>div,.qbPppFill{background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))!important}
 .primary,.filter.on,.authTabs button.on,.authPrimary,#qbPracticeDockV2 button.qbpdMain{background:var(--accent)!important}
 .acctAvatar,.acctAvatarLarge{background-color:var(--accent)!important}
-.secondary,.qid,.pwToggle,.qbComingSoonTitle,.qbRankBtn,.qbSubjectStatusToggle,#view .list[data-s] .lt,#view .list[data-u] .lt,.qbSubjectExamTitle,.qbExamItemButton,.choice:not(.good):not(.bad){color:var(--accent)!important}
+.secondary,.qid,.pwToggle,.qbComingSoonTitle,.qbRankBtn,.qbSubjectStatusToggle,#view .list[data-s] .lt,#view .list[data-u] .lt,.qbListChevron,.qbSubjectExamTitle,.qbExamItemButton,.choice:not(.good):not(.bad){color:var(--accent)!important}
+.qbListChevron{flex:0 0 auto;font-size:24px;font-weight:900;line-height:1}
 .choice.sel{border-color:var(--accent)!important;background:var(--accent-soft)!important;color:var(--accent)!important}
 #view .choice.good,#view .choice.bad{opacity:1!important;color:var(--text)!important;-webkit-text-fill-color:currentColor}
 #view .choice.good{border-color:var(--ok)!important;background:color-mix(in srgb,var(--ok) 10%,var(--card))!important}

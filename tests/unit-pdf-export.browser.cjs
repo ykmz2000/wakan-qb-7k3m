@@ -54,9 +54,10 @@ async function run(type,name){
         })}),destroy:async()=>{}})
       };
     });
-    for(const f of ['unit-pdf-layout-v1.js','unit-pdf-export-v1.js','vendor/pdf-lib-1.17.1.min.js','qb-app.js','unit-section-divider-v1.js','ui-polish.js','subject-coming-soon-v1.js'])await p.addScriptTag({content:source(f)});
+    for(const f of ['theme-system-v1.js','unit-pdf-layout-v1.js','unit-pdf-export-v1.js','vendor/pdf-lib-1.17.1.min.js','qb-app.js','unit-section-divider-v1.js','ui-polish.js','subject-coming-soon-v1.js'])await p.addScriptTag({content:source(f)});
     await p.waitForFunction(()=>window.QB_DB_READY);await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').click();await p.locator('[data-u="u1"]').waitFor();await p.waitForTimeout(150);
     assert.equal(await p.locator('.qbPdfIcon').count(),3);
+    assert.equal(await p.locator('[data-u="u1"] .qbListChevron').evaluate(node=>getComputedStyle(node).color),await p.locator('[data-u="u1"] .lt').evaluate(node=>getComputedStyle(node).color));
     for(const width of [375,768]){
       await p.setViewportSize({width,height:1024});await p.waitForTimeout(50);
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
