@@ -19,7 +19,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function markup(url,label='PDF',{passive=false}={}){return `<div class="qbPdfCard" data-pdf-passive="${passive}" data-pdf-src="${esc(url)}" aria-label="${esc(label)}を開く"><span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span></div>`}
 // Replace only the media element. Attachment wrappers and row IDs stay intact.
 function present(img,url,interactive=true){const target=img.qbPdfReplacement?.isConnected?img.qbPdfReplacement:img;if(!isPDF(url)){if(target!==img)target.replaceWith(img);delete img.qbPdfReplacement;img.src=url;return img}const card=element('span','qbPdfCard');img.qbPdfReplacement=card;card.dataset.pdfSrc=url;card.dataset.pdfPassive=String(!interactive);card.innerHTML='<span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span>';card.qbEditMedia=img.qbEditMedia;target.replaceWith(card);scan(card);return card}
-let thumbnailQueue=[],thumbnailBusy=false,activeThumbnailRender=null;
+let thumbnailQueue=[],thumbnailWorkers=0;
+const MAX_THUMBNAIL_WORKERS=2,activeThumbnailRenders=new Map();
 const queuedNodes=new WeakSet(),retryCounts=new WeakMap(),previewUrls=new Map();
 function nearViewport(node,margin=300){const r=node.getBoundingClientRect();return r.bottom>=-margin&&r.top<=innerHeight+margin}
 function thumbnailTimeout(){const configured=Number(window.QB_PDF_THUMBNAIL_TIMEOUT);return Number.isFinite(configured)&&configured>=100?configured:12000}
@@ -58,8 +59,9 @@ const inlineObserver=new IntersectionObserver(entries=>{for(const e of entries){
 const inlineResize=new ResizeObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target),width=e.contentRect.width;if(st?.visible&&width>=32&&(!st.rendered||Math.abs(st.width-width)>2))enqueueThumbnail(e.target,true)}});
 const lifecycleObserver=new MutationObserver(scheduleCleanup);
 if(document.body)lifecycleObserver.observe(document.body,{childList:true,subtree:true});else document.addEventListener('DOMContentLoaded',()=>lifecycleObserver.observe(document.body,{childList:true,subtree:true}),{once:true});
-async function drain(){
- if(thumbnailBusy)return;thumbnailBusy=true;
+function drain(){while(thumbnailWorkers<MAX_THUMBNAIL_WORKERS&&thumbnailQueue.length)void drainWorker()}
+async function drainWorker(){
+ thumbnailWorkers++;
  try{while(thumbnailQueue.length){const node=thumbnailQueue.shift(),st=inlineStates.get(node);if(!node.isConnected){queuedNodes.delete(node);if(st)st.queued=false;continue}
  try{
   if(st&&!st.visible&&!st.rendered)continue;
@@ -77,10 +79,10 @@ async function drain(){
   if(st)st.measureRetries=0;
   const token=st?++st.token:0,page=await doc.getPage(st?Number(node.dataset.inlinePage):1),raw=page.getViewport({scale:1}),canvas=element('canvas');
   const cssScale=st?measuredWidth/raw.width:Math.min(360/raw.width,480/raw.height),density=Math.min(devicePixelRatio||1,3),scale=Math.min(cssScale*density,Math.sqrt(8000000/(raw.width*raw.height)),8192/Math.max(raw.width,raw.height));
-  const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';const renderJob=page.render({canvasContext:canvas.getContext('2d'),viewport});activeThumbnailRender={node,job:renderJob};try{await boundedThumbnail(renderJob.promise,()=>renderJob.cancel())}finally{if(activeThumbnailRender?.job===renderJob)activeThumbnailRender=null}
+  const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';const renderJob=page.render({canvasContext:canvas.getContext('2d'),viewport});activeThumbnailRenders.set(node,renderJob);try{await boundedThumbnail(renderJob.promise,()=>renderJob.cancel())}finally{if(activeThumbnailRenders.get(node)===renderJob)activeThumbnailRenders.delete(node)}
   const frozen=await freezePreview(canvas);if(node.isConnected&&(!st||st.token===token)){retryCounts.delete(node);if(st){st.width=measuredWidth;st.rendered=true;keepPreview(node,frozen.img,frozen.url)}else{visible.unobserve(card);keepPreview(card.querySelector('.qbPdfPoster'),frozen.img,frozen.url);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else URL.revokeObjectURL(frozen.url);
  }catch{if(st)st.rendered=false;if(node.isConnected){const count=(retryCounts.get(node)||0)+1;retryCounts.set(node,count);const caption=node.querySelector('.qbPdfCaption');if(count<=2){if(caption)caption.textContent='PDF · 再読み込み中…';else node.textContent='ページを再読み込み中…';setTimeout(()=>enqueueThumbnail(node,true),400*count)}else{if(caption)caption.textContent='PDF · タップして開く';else node.textContent='タップしてページを開く'}}}finally{queuedNodes.delete(node);if(st)st.queued=false}
- }}finally{thumbnailBusy=false}
+ }}finally{thumbnailWorkers--;if(thumbnailQueue.length)drain()}
 }
 function resumeCard(card){
  if(!card.isConnected)return;const slots=[...card.querySelectorAll('[data-inline-page]')];
@@ -166,6 +168,6 @@ async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
  await loadDocument();
  return result;
 }
-function boot(){scan();new MutationObserver(ms=>{if(activeThumbnailRender&&!activeThumbnailRender.node.isConnected)activeThumbnailRender.job.cancel();for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)scan(n);for(const [node,st] of inlineStates)if(!node.isConnected){st.token++;inlineObserver.unobserve(node);inlineResize.unobserve(node);inlineStates.delete(node)}}).observe(document.body,{childList:true,subtree:true})}
+function boot(){scan();new MutationObserver(ms=>{for(const [node,job] of activeThumbnailRenders)if(!node.isConnected){activeThumbnailRenders.delete(node);job.cancel()}for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)scan(n);for(const [node,st] of inlineStates)if(!node.isConnected){st.token++;inlineObserver.unobserve(node);inlineResize.unobserve(node);inlineStates.delete(node)}}).observe(document.body,{childList:true,subtree:true})}
 window.QBFiles={documentTask,isPDF,supported,validate,filesFromPaste,clipboardFiles,markup,present,open,previewPage};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
