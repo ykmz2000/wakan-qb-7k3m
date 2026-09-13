@@ -8,22 +8,22 @@ const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http:
 async function run(browser,label,url){
  const p=await browser.newPage({viewport:{width:1024,height:800},deviceScaleFactor:2}),errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(label+' PDF console: '+m.text())});p.setDefaultTimeout(20000);await p.goto(url);await p.addStyleTag({url:url+'file-media-v1.css'});await p.addScriptTag({url:url+'file-media-v1.js'});await p.addScriptTag({url:url+'media-share-v1.js'});
  await p.evaluate(()=>document.querySelector('#files').innerHTML=QBFiles.markup('/fixture.pdf'));
- await p.waitForFunction(()=>document.querySelector('[data-inline-page="1"] canvas'));
- for(const page of ['2','3','1']){await p.locator(`[data-inline-page="${page}"]`).scrollIntoViewIfNeeded();await p.waitForFunction(page=>document.querySelector(`[data-inline-page="${page}"] canvas`),page)}
- const stableInline=await p.evaluate(()=>({canvases:document.querySelectorAll('[data-inline-page] canvas').length,loads:performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).pathname==='/fixture.pdf').length}));
- assert.deepEqual(stableInline,{canvases:3,loads:1});
+ await p.waitForFunction(()=>document.querySelector('[data-inline-page="1"] .qbPdfRaster')?.complete);
+ for(const page of ['2','3','1']){await p.locator(`[data-inline-page="${page}"]`).scrollIntoViewIfNeeded();await p.waitForFunction(page=>document.querySelector(`[data-inline-page="${page}"] .qbPdfRaster`)?.complete,page)}
+ const stableInline=await p.evaluate(()=>({rasters:document.querySelectorAll('[data-inline-page] .qbPdfRaster').length,canvases:document.querySelectorAll('[data-inline-page] canvas').length,loads:performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).pathname==='/fixture.pdf').length}));
+ assert.deepEqual(stableInline,{rasters:3,canvases:0,loads:1});
  let flakyLoads=0;await p.route('**/flaky-inline.pdf',route=>{flakyLoads++;return flakyLoads===1?route.fulfill({status:503,body:'temporary unavailable'}):route.fulfill({contentType:'application/pdf',body:fixture})});
  await p.evaluate(()=>{const host=document.createElement('div');host.id='flakyInline';host.innerHTML=QBFiles.markup('/flaky-inline.pdf');document.body.append(host)});
- await p.waitForFunction(()=>document.querySelector('#flakyInline [data-inline-page="1"] canvas'));
+ await p.waitForFunction(()=>document.querySelector('#flakyInline [data-inline-page="1"] .qbPdfRaster')?.complete);
  assert.equal(flakyLoads,2);assert.doesNotMatch(await p.locator('#flakyInline .qbPdfCaption').textContent(),/読み込み待ち|再読み込み中/);
  await p.locator('#flakyInline').evaluate(n=>n.remove());
  await p.waitForFunction(()=>document.querySelectorAll('.qbPdfCard>.qbMediaShareButton').length===1);assert.equal(await p.locator('.qbPdfInlinePage>.qbMediaShareButton').count(),0);
  await p.locator('.qbPdfCard>.qbMediaShareButton').click();await p.locator('.qbMediaShareDialog').waitFor();assert.equal(await p.getByRole('button',{name:'画像としてコピー'}).count(),1);assert.equal(await p.getByRole('button',{name:'PDFとして保存'}).count(),1);await p.waitForFunction(()=>[...document.querySelectorAll('.qbMediaShareAction')].every(button=>!button.disabled));await p.locator('.qbMediaShareDialog').click({position:{x:2,y:2}});await p.locator('.qbMediaShareDialog').waitFor({state:'detached'});
  const converted=await p.evaluate(async()=>{const image=await QBMediaShare.output({source:'/fixture.pdf',kind:'pdf',page:2},'image'),pdf=await QBMediaShare.output({source:'/fixture.pdf',kind:'pdf'},'pdf'),bitmap=await createImageBitmap(image.blob),canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;canvas.getContext('2d').drawImage(bitmap,0,0);return{imageType:image.blob.type,pdfType:pdf.blob.type,pages:(await (await import('./vendor/pdfjs/pdf-lib.mjs')).PDFDocument.load(await pdf.blob.arrayBuffer())).getPageCount(),pixel:[...canvas.getContext('2d').getImageData(10,10,1,1).data]}});assert.deepEqual(converted,{imageType:'image/png',pdfType:'application/pdf',pages:3,pixel:[0,255,0,255]});
- assert.ok(await p.locator('.qbPdfPoster canvas').first().evaluate(c=>c.width>=parseFloat(c.style.width)*1.9));
+ assert.ok(await p.locator('.qbPdfPoster .qbPdfRaster').first().evaluate(img=>img.naturalWidth>=parseFloat(img.style.width)*1.9));
  assert.ok(await p.locator('[data-inline-page]').evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.width<=380.5&&r.height<=400.5})));
  assert.equal(await p.locator('[data-inline-page]').evaluateAll(nodes=>Math.round(nodes[0].getBoundingClientRect().top)===Math.round(nodes[1].getBoundingClientRect().top)),true);
- assert.equal(await p.locator('#files img').count(),0);await p.locator('[data-inline-page="1"]').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
+ assert.equal(await p.locator('#files img:not(.qbPdfRaster)').count(),0);await p.locator('[data-inline-page="1"]').click();await p.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');
  const waitForWholePage=()=>p.waitForFunction(()=>{const c=document.querySelector('.qbPdfPage')?.getBoundingClientRect(),s=document.querySelector('.qbPdfViewingStage')?.getBoundingClientRect();return c&&s&&c.left>=s.left+23&&c.right<=s.right-23&&c.top>=s.top+23&&c.bottom<=s.bottom-23});
  await waitForWholePage();await p.setViewportSize({width:390,height:700});await waitForWholePage();await p.screenshot({path:'test-results/ui/pdf-popup-fit-'+label+'.png'});
  // Pinch zoom changes only the PDF; the remaining single finger must not pan or navigate.

@@ -20,7 +20,14 @@ function markup(url,label='PDF',{passive=false}={}){return `<div class="qbPdfCar
 // Replace only the media element. Attachment wrappers and row IDs stay intact.
 function present(img,url,interactive=true){const target=img.qbPdfReplacement?.isConnected?img.qbPdfReplacement:img;if(!isPDF(url)){if(target!==img)target.replaceWith(img);delete img.qbPdfReplacement;img.src=url;return img}const card=element('span','qbPdfCard');img.qbPdfReplacement=card;card.dataset.pdfSrc=url;card.dataset.pdfPassive=String(!interactive);card.innerHTML='<span class="qbPdfPoster"></span><span class="qbPdfCaption">PDF · 読み込み待ち</span>';card.qbEditMedia=img.qbEditMedia;target.replaceWith(card);scan(card);return card}
 let thumbnailQueue=[],thumbnailBusy=false;
-const queuedNodes=new WeakSet(),retryCounts=new WeakMap();
+const queuedNodes=new WeakSet(),retryCounts=new WeakMap(),previewUrls=new Map();
+async function freezePreview(canvas){
+ const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(Error('PDFの描画結果を保持できません。')),'image/png'));
+ const url=URL.createObjectURL(blob),img=element('img','qbPdfRaster');img.alt='';img.decoding='async';img.style.width=canvas.style.width;img.style.height=canvas.style.height;
+ try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('PDFの描画結果を表示できません。'));img.src=url})}catch(e){URL.revokeObjectURL(url);throw e}finally{canvas.width=canvas.height=1}
+ return{img,url}
+}
+function keepPreview(node,img,url){const old=previewUrls.get(node);node.replaceChildren(img);previewUrls.set(node,url);if(old)URL.revokeObjectURL(old)}
 function enqueueThumbnail(node,force=false){
  if(!node?.isConnected||queuedNodes.has(node))return;const st=inlineStates.get(node);
  if(st?.rendered&&!force)return;if(!st&&node.dataset.pdfPages)return;
@@ -39,6 +46,7 @@ function cleanupDocuments(){
  cleanupTimer=null;
  for(const [card,state] of cardDocuments)if(!card.isConnected){cardDocuments.delete(card);void state.task?.destroy().catch(()=>{})}
  for(const [node] of inlineStates)if(!node.isConnected){inlineObserver.unobserve(node);inlineResize.unobserve(node);inlineStates.delete(node)}
+ for(const [node,url] of previewUrls)if(!node.isConnected){previewUrls.delete(node);URL.revokeObjectURL(url)}
 }
 function scheduleCleanup(){clearTimeout(cleanupTimer);cleanupTimer=setTimeout(cleanupDocuments,60)}
 const inlineStates=new Map();
@@ -61,7 +69,7 @@ async function drain(){
   const token=st?++st.token:0,page=await doc.getPage(st?Number(node.dataset.inlinePage):1),raw=page.getViewport({scale:1}),canvas=element('canvas');
   const cssScale=st?Math.max(1,node.clientWidth)/raw.width:Math.min(360/raw.width,480/raw.height),density=Math.min(devicePixelRatio||1,3),scale=Math.min(cssScale*density,Math.sqrt(8000000/(raw.width*raw.height)),8192/Math.max(raw.width,raw.height));
   const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-  if(node.isConnected&&(!st||st.token===token)){retryCounts.delete(node);if(st){st.width=node.clientWidth;st.rendered=true;node.replaceChildren(canvas)}else{visible.unobserve(card);card.querySelector('.qbPdfPoster').replaceChildren(canvas);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else canvas.width=canvas.height=1;
+  const frozen=await freezePreview(canvas);if(node.isConnected&&(!st||st.token===token)){retryCounts.delete(node);if(st){st.width=node.clientWidth;st.rendered=true;keepPreview(node,frozen.img,frozen.url)}else{visible.unobserve(card);keepPreview(card.querySelector('.qbPdfPoster'),frozen.img,frozen.url);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else URL.revokeObjectURL(frozen.url);
  }catch{if(st)st.rendered=false;if(node.isConnected){const count=(retryCounts.get(node)||0)+1;retryCounts.set(node,count);const caption=node.querySelector('.qbPdfCaption');if(count<=2){if(caption)caption.textContent='PDF · 再読み込み中…';else node.textContent='ページを再読み込み中…';setTimeout(()=>enqueueThumbnail(node,true),400*count)}else{if(caption)caption.textContent='PDF · タップして開く';else node.textContent='タップしてページを開く'}}}finally{queuedNodes.delete(node);if(st)st.queued=false}
  }}finally{thumbnailBusy=false}
 }
