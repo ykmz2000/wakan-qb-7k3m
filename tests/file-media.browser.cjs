@@ -12,6 +12,9 @@ async function run(browser,label,url){
  for(const page of ['2','3','1']){await p.locator(`[data-inline-page="${page}"]`).scrollIntoViewIfNeeded();await p.waitForFunction(page=>document.querySelector(`[data-inline-page="${page}"] .qbPdfRaster`)?.complete,page)}
  const stableInline=await p.evaluate(()=>({rasters:document.querySelectorAll('[data-inline-page] .qbPdfRaster').length,canvases:document.querySelectorAll('[data-inline-page] canvas').length,loads:performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).pathname==='/fixture.pdf').length}));
  assert.deepEqual(stableInline,{rasters:3,canvases:0,loads:1});
+ await p.evaluate(async()=>{const card=document.querySelector('#files .qbPdfCard');card.remove();await new Promise(resolve=>setTimeout(resolve,20));document.querySelector('#files').append(card)});
+ await p.waitForFunction(()=>document.querySelector('#files [data-inline-page="1"] .qbPdfRaster')?.complete);
+ assert.doesNotMatch(await p.locator('#files .qbPdfCaption').textContent(),/読み込み待ち|再読み込み中/);
  let flakyLoads=0;await p.route('**/flaky-inline.pdf',route=>{flakyLoads++;return flakyLoads===1?route.fulfill({status:503,body:'temporary unavailable'}):route.fulfill({contentType:'application/pdf',body:fixture})});
  await p.evaluate(()=>{const host=document.createElement('div');host.id='flakyInline';host.innerHTML=QBFiles.markup('/flaky-inline.pdf');document.body.append(host)});
  await p.waitForFunction(()=>document.querySelector('#flakyInline [data-inline-page="1"] .qbPdfRaster')?.complete);
