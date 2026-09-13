@@ -144,7 +144,7 @@ function apply(root,q,meta){
     const occurrence=q.occ?.[0],formats=occurrence?.official_answer_formatting||q.source_answer_formatting||{};
     officialGroup.querySelectorAll(':scope > .fbAnswerLine[data-answer-key]').forEach(line=>{const key=line.dataset.answerKey,body=line.querySelector(':scope > strong');decorate(body,line.dataset.answerText||'',formats?.[key])});
   }
-  for(const [field,cls] of [['correction_text','qbInlineCorrectionText'],['correct_for_other_context','qbInlineOtherContextText']]){
+  for(const [field,cls] of [['correction_text','qbInlineCorrectionText'],['correct_for_other_context','qbInlineOtherContextText'],['examiner_distinction','qbInlineDistinctionText']]){
     document.querySelectorAll(`#view .choice[data-c] .${cls}`).forEach(body=>{
       const c=q.choices?.[Number(body.closest('.choice').dataset.c)];if(!c)return;
       const formats=(meta.choices||[]).find(x=>String(x.id)===String(c.id))?.[META];

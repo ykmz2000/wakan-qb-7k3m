@@ -103,34 +103,38 @@ async function run(browser,name){
    await p.locator('#prev').click();assert.ok((await states()).every(x=>!x.good&&!x.bad&&!x.label));
    await p.locator('#review').click();await ready(p);assert.equal((await states())[0].label,'設問の正答');
    await p.locator('#answer').click();
-   await p.evaluate(()=>{const q=window.QB_QUESTIONS.find(q=>q.id==='q1');q.choices[0].statement_is_true=false;q.choices[0].correction_text='修正文';q.choices[0].correct_for_other_context='別文脈の本文';q.choices[1].statement_is_true=null;});
+   await p.evaluate(()=>{const q=window.QB_QUESTIONS.find(q=>q.id==='q1');q.choices[0].statement_is_true=false;q.choices[0].correction_text='修正文';q.choices[0].correct_for_other_context='別文脈の本文';q.choices[0].examiner_distinction='区別する本文';q.choices[1].statement_is_true=null;});
    await p.evaluate(()=>{
     const q=testDB.questions.find(q=>q.id==='q1');
     q.stem_formatting={version:1,source_text:q.stem,ranges:[{kind:'underline',start:0,end:2}]};
     q.choices[0].explanation_formatting={
       correction_text:{version:1,source_text:'修正文',ranges:[{kind:'accent',start:0,end:1},{kind:'bold',start:0,end:1},{kind:'underline',start:1,end:2}]},
-      correct_for_other_context:{version:1,source_text:'別文脈の本文',ranges:[{kind:'accent',start:0,end:3},{kind:'bold',start:0,end:3},{kind:'underline',start:4,end:6}]}
+      correct_for_other_context:{version:1,source_text:'別文脈の本文',ranges:[{kind:'accent',start:0,end:3},{kind:'bold',start:0,end:3},{kind:'underline',start:4,end:6}]},
+      examiner_distinction:{version:1,source_text:'区別する本文',ranges:[{kind:'marker',start:0,end:2},{kind:'bold',start:2,end:4}]}
     };
     testDB.question_images=[{id:'image1',question_id:'q1',placement:'explanation_overview',choice_id:null,image_path:'fixture.png',sort_order:0}];
     qbSupabase.storage={from:()=>({getPublicUrl:()=>({data:{publicUrl:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}})})};
    });
    for(const f of ['current-question-identity-v1.js','qb-media-notes-v2.js','explanation-format-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
    await answer(p,[0]);
-   await p.waitForFunction(()=>document.querySelector('.qbInlineCorrectionText .qbFmt-accent')&&document.querySelector('.qbInlineOtherContextText .qbFmt-accent')&&document.querySelector('.qbMediaHostV2 img')?.naturalWidth>0&&document.querySelector('.qtext .qbFmt-underline'));
+   await p.waitForFunction(()=>document.querySelector('.qbInlineCorrectionText .qbFmt-accent')&&document.querySelector('.qbInlineOtherContextText .qbFmt-accent')&&document.querySelector('.qbInlineDistinctionText .qbFmt-marker')&&document.querySelector('.qbMediaHostV2 img')?.naturalWidth>0&&document.querySelector('.qtext .qbFmt-underline'));
    assert.equal(await p.evaluate(()=>qbCurrentQuestionId()),'q1');
    assert.equal(await p.locator('.qbInlineCorrectionText').innerHTML(),await p.locator('.qbChoiceCorrection .qbFmtDetailText').innerHTML());
    assert.equal(await p.locator('.qbInlineOtherContextText').innerHTML(),await p.locator('.qbChoiceOtherContext .qbFmtDetailText').innerHTML());
+   assert.equal(await p.locator('.qbInlineDistinctionText').innerHTML(),await p.locator('.qbChoiceDistinction .qbFmtDetailText').innerHTML());
    assert.equal(await p.locator('.choice[data-c="0"] .qbInlineOtherContext').textContent(),'別の文脈では別文脈の本文');
+   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineDistinction').textContent(),'区別ポイント区別する本文');
    assert.equal(await p.locator('.choice[data-c="0"] .qbInlineOtherContext img,.choice[data-c="0"] .qbInlineOtherContext .qbMediaHostV2').count(),0);
-   assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext) .qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).color),'rgb(0, 0, 0)');
-   assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext) .qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).display),'inline');
+   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineDistinction img,.choice[data-c="0"] .qbInlineDistinction .qbMediaHostV2').count(),0);
+   assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction) .qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).color),'rgb(0, 0, 0)');
+   assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction) .qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).display),'inline');
    assert.deepEqual(await states(),[{good:true,bad:false,label:'設問の正答 ／ あなたの選択'},{good:false,bad:false,label:''}]);
    assert.match(await p.locator('.resultcard').textContent(),/正解/);
    await p.waitForFunction(()=>document.querySelector('.qbChoiceCorrection')?.textContent.includes('正しくすると'));
-   assert.match(await p.locator('.qbChoiceCorrection').first().textContent(),/修正文/);assert.equal(await p.locator('.choice[data-c="0"] .qbInlineCorrection:not(.qbInlineOtherContext)').textContent(),'正しくすると修正文');await p.locator('#answer').click();assert.equal(await p.locator('.qbInlineCorrection').count(),0);await p.locator('#review').click();await ready(p);assert.match(await p.locator('.choice .qbInlineCorrection:not(.qbInlineOtherContext)').textContent(),/修正文/);assert.match(await p.locator('.choice .qbInlineOtherContext').textContent(),/別文脈の本文/);
+   assert.match(await p.locator('.qbChoiceCorrection').first().textContent(),/修正文/);assert.equal(await p.locator('.choice[data-c="0"] .qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction)').textContent(),'正しくすると修正文');await p.locator('#answer').click();assert.equal(await p.locator('.qbInlineCorrection').count(),0);await p.locator('#review').click();await ready(p);assert.match(await p.locator('.choice .qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction)').textContent(),/修正文/);assert.match(await p.locator('.choice .qbInlineOtherContext').textContent(),/別文脈の本文/);assert.match(await p.locator('.choice .qbInlineDistinction').textContent(),/区別する本文/);
    for(const value of [null,'','  ','未登録']){
     await p.locator('#answer').click();await p.evaluate(value=>{window.QB_QUESTIONS.find(q=>q.id==='q1').choices[0].correction_text=value},value);await answer(p,[0]);
-    assert.equal(await p.locator('.qbChoiceCorrection').count(),0);assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext)').count(),0);assert.equal(await p.locator('.qbInlineOtherContext').count(),1);
+    assert.equal(await p.locator('.qbChoiceCorrection').count(),0);assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction)').count(),0);assert.equal(await p.locator('.qbInlineOtherContext').count(),1);assert.equal(await p.locator('.qbInlineDistinction').count(),1);
    }
    assert.deepEqual(errors,[]);await p.close();console.log(name+' PASS correct/wrong/missed answer colors, review-only, retry and question navigation reset');
   }
