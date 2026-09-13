@@ -15,7 +15,7 @@ async function run(browser,label,url){
  await p.evaluate(()=>{const host=document.createElement('div');host.id='delayedLayout';host.style.width='0';host.innerHTML=QBFiles.markup('/fixture.pdf');document.body.append(host)});
  await p.waitForFunction(()=>document.querySelector('#delayedLayout [data-inline-page="1"]'));await p.waitForTimeout(250);assert.equal(await p.locator('#delayedLayout .qbPdfRaster').count(),0);
  await p.locator('#delayedLayout').evaluate(host=>host.style.width='300px');await p.waitForFunction(()=>document.querySelector('#delayedLayout [data-inline-page="1"] .qbPdfRaster')?.complete);
- assert.ok(await p.locator('#delayedLayout .qbPdfRaster').first().evaluate(img=>img.naturalWidth>=590));await p.locator('#delayedLayout').evaluate(host=>host.remove());
+ assert.ok(await p.locator('#delayedLayout .qbPdfRaster').first().evaluate(img=>img.naturalWidth>=parseFloat(img.style.width)*1.9));await p.locator('#delayedLayout').evaluate(host=>host.remove());
  await p.evaluate(async()=>{const card=document.querySelector('#files .qbPdfCard');card.remove();await new Promise(resolve=>setTimeout(resolve,20));document.querySelector('#files').append(card)});
  await p.waitForFunction(()=>document.querySelector('#files [data-inline-page="1"] .qbPdfRaster')?.complete);
  assert.doesNotMatch(await p.locator('#files .qbPdfCaption').textContent(),/読み込み待ち|再読み込み中/);
