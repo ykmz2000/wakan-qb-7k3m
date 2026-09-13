@@ -22,6 +22,8 @@ function present(img,url,interactive=true){const target=img.qbPdfReplacement?.is
 let thumbnailQueue=[],thumbnailBusy=false,activeThumbnailRender=null;
 const queuedNodes=new WeakSet(),retryCounts=new WeakMap(),previewUrls=new Map();
 function nearViewport(node,margin=300){const r=node.getBoundingClientRect();return r.bottom>=-margin&&r.top<=innerHeight+margin}
+function thumbnailTimeout(){const configured=Number(window.QB_PDF_THUMBNAIL_TIMEOUT);return Number.isFinite(configured)&&configured>=100?configured:12000}
+async function boundedThumbnail(promise,cancel){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>{try{cancel?.()}catch{}const error=Error('PDFサムネイルの処理が時間内に完了しませんでした。');error.name='TimeoutError';reject(error)},thumbnailTimeout())})])}finally{clearTimeout(timer)}}
 async function freezePreview(canvas){
  const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(Error('PDFの描画結果を保持できません。')),'image/png'));
  const url=URL.createObjectURL(blob),img=element('img','qbPdfRaster');img.alt='';img.decoding='async';img.style.width=canvas.style.width;img.style.height=canvas.style.height;
@@ -42,10 +44,11 @@ async function cardDocument(card){
  let state=cardDocuments.get(card);if(state)return state.promise;
  state={task:null,promise:null};state.promise=(async()=>{state.task=await documentTask(card.dataset.pdfSrc);return state.task.promise})().catch(async e=>{cardDocuments.delete(card);await state.task?.destroy().catch(()=>{});throw e});cardDocuments.set(card,state);return state.promise
 }
+function releaseCardDocument(card){const state=cardDocuments.get(card);if(!state)return;cardDocuments.delete(card);void state.task?.destroy().catch(()=>{})}
 let cleanupTimer=null;
 function cleanupDocuments(){
  cleanupTimer=null;
- for(const [card,state] of cardDocuments)if(!card.isConnected){cardDocuments.delete(card);void state.task?.destroy().catch(()=>{})}
+ for(const [card] of cardDocuments)if(!card.isConnected)releaseCardDocument(card)
  for(const [node] of inlineStates)if(!node.isConnected){inlineObserver.unobserve(node);inlineResize.unobserve(node);inlineStates.delete(node)}
  for(const [node,url] of previewUrls)if(!node.isConnected){previewUrls.delete(node);URL.revokeObjectURL(url)}
 }
@@ -60,7 +63,7 @@ async function drain(){
  try{while(thumbnailQueue.length){const node=thumbnailQueue.shift(),st=inlineStates.get(node);if(!node.isConnected){queuedNodes.delete(node);if(st)st.queued=false;continue}
  try{
   if(st&&!st.visible&&!st.rendered)continue;
-  const card=st?st.card:node,doc=await cardDocument(card);if(!node.isConnected)continue;
+  const card=st?st.card:node,doc=await boundedThumbnail(cardDocument(card),()=>releaseCardDocument(card));if(!node.isConnected)continue;
   card.dataset.pdfPages=doc.numPages;
   if(!st&&card.dataset.pdfPassive!=='true'&&!card.closest('.qbLibraryImageButton,.qbripItem')){
    card.classList.add('qbPdfInline');card.setAttribute('role','group');card.removeAttribute('tabindex');const poster=card.querySelector('.qbPdfPoster');poster.replaceChildren();
@@ -74,7 +77,7 @@ async function drain(){
   if(st)st.measureRetries=0;
   const token=st?++st.token:0,page=await doc.getPage(st?Number(node.dataset.inlinePage):1),raw=page.getViewport({scale:1}),canvas=element('canvas');
   const cssScale=st?measuredWidth/raw.width:Math.min(360/raw.width,480/raw.height),density=Math.min(devicePixelRatio||1,3),scale=Math.min(cssScale*density,Math.sqrt(8000000/(raw.width*raw.height)),8192/Math.max(raw.width,raw.height));
-  const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';const renderJob=page.render({canvasContext:canvas.getContext('2d'),viewport});activeThumbnailRender={node,job:renderJob};try{await renderJob.promise}finally{if(activeThumbnailRender?.job===renderJob)activeThumbnailRender=null}
+  const viewport=page.getViewport({scale});canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.style.width=raw.width*cssScale+'px';canvas.style.height=raw.height*cssScale+'px';const renderJob=page.render({canvasContext:canvas.getContext('2d'),viewport});activeThumbnailRender={node,job:renderJob};try{await boundedThumbnail(renderJob.promise,()=>renderJob.cancel())}finally{if(activeThumbnailRender?.job===renderJob)activeThumbnailRender=null}
   const frozen=await freezePreview(canvas);if(node.isConnected&&(!st||st.token===token)){retryCounts.delete(node);if(st){st.width=measuredWidth;st.rendered=true;keepPreview(node,frozen.img,frozen.url)}else{visible.unobserve(card);keepPreview(card.querySelector('.qbPdfPoster'),frozen.img,frozen.url);card.querySelector('.qbPdfCaption').textContent=`PDF · ${doc.numPages}ページ`}}else URL.revokeObjectURL(frozen.url);
  }catch{if(st)st.rendered=false;if(node.isConnected){const count=(retryCounts.get(node)||0)+1;retryCounts.set(node,count);const caption=node.querySelector('.qbPdfCaption');if(count<=2){if(caption)caption.textContent='PDF · 再読み込み中…';else node.textContent='ページを再読み込み中…';setTimeout(()=>enqueueThumbnail(node,true),400*count)}else{if(caption)caption.textContent='PDF · タップして開く';else node.textContent='タップしてページを開く'}}}finally{queuedNodes.delete(node);if(st)st.queued=false}
  }}finally{thumbnailBusy=false}
