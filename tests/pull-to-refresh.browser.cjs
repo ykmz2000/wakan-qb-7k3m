@@ -93,7 +93,7 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('#view').innerHTML(),old);await p.evaluate(()=>testReadFail=false);
  await p.evaluate(()=>{const e=document.createElement('textarea');e.className='adeEditor';e.value='未保存';document.querySelector('#view').append(e)});
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('.adeEditor').inputValue(),'未保存');await p.locator('.adeEditor').evaluate(e=>e.remove());
- await p.evaluate(()=>{testDB.questions[0].explanation_overview='回答欄から取得した最新の解説';window.scrollTo(0,0)});
+ await p.evaluate(()=>{testDB.questions[0].explanation_overview='回答欄から取得した最新の解説';document.documentElement.style.scrollBehavior='auto';document.scrollingElement.scrollTop=0});
  await gesture({distance:100,selector:'#ans [data-qb-rate="△"]',stopPropagation:true});await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('回答欄から取得した最新の解説'));
  await p.evaluate(()=>{testDB.questions[0].explanation_overview='下までスクロールした状態から取得';document.documentElement.style.scrollBehavior='auto';document.scrollingElement.scrollTop=document.scrollingElement.scrollHeight});assert.ok(await p.evaluate(()=>scrollY>10),'answer view must be scrollable');
  await gesture({distance:100,selector:'#ans .line',reachTop:true});await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('下までスクロールした状態から取得'));
