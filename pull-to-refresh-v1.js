@@ -2,6 +2,7 @@
 (()=>{
 'use strict';
 let busy=false,pull=null,resetTimer=0;
+const TOP_TOLERANCE=2,AXIS_SLOP=6,PULL_START=10,PULL_THRESHOLD=80;
 const visible=n=>!!n?.getClientRects().length;
 function blocked(){
   return [...document.querySelectorAll('.adeEditor,.fbAdminPanel,.qbNoteEditor,[contenteditable="true"],.qbDrawModal,.qbCropModal,[role="dialog"],.authOverlay,#modal:not(.hidden)')].some(visible);
@@ -32,23 +33,37 @@ html.qbPullReady,html.qbPullReady body{overscroll-behavior-y:none}
   }
   function cancel(){pull=null;if(!busy)move(0,true);if(!busy)status.hidden=true}
   function scrollTop(){return Math.max(0,window.scrollY||document.scrollingElement?.scrollTop||0)}
-  function eligible(target){
-    if(blocked()||busy||scrollTop()>1||window.visualViewport?.scale>1.01)return false;
-    if(target.closest('input,textarea,select,button,a,[contenteditable],canvas,svg,.qsiGrid,.qbMediaHostV2,.qbNoteImageGrid'))return false;
-    for(let n=target;n&&n!==document.body;n=n.parentElement){const s=getComputedStyle(n);if(/auto|scroll/.test(s.overflowY)&&n.scrollHeight>n.clientHeight+1)return false}
-    return true;
+  function scrollOwner(target){
+    for(let n=target;n&&n!==document.body&&n!==document.documentElement;n=n.parentElement){
+      const s=getComputedStyle(n);if(/auto|scroll|overlay/.test(s.overflowY)&&n.scrollHeight>n.clientHeight+1)return n;
+    }
+    return null;
   }
-  document.addEventListener('touchstart',e=>{cancel();if(e.touches.length!==1||!eligible(e.target))return;pull={x:e.touches[0].clientX,y:e.touches[0].clientY,distance:0,active:false,axis:null}},{passive:true});
+  function eligible(target){
+    if(blocked()||busy||window.visualViewport?.scale>1.01||!(target instanceof Element))return false;
+    return !target.closest('input,textarea,select,[contenteditable],[data-qb-no-pull]');
+  }
+  function atTop(owner){return scrollTop()<=TOP_TOLERANCE&&(!owner||owner.scrollTop<=TOP_TOLERANCE)}
+  document.addEventListener('touchstart',e=>{
+    cancel();if(e.touches.length!==1||!eligible(e.target))return;
+    const t=e.touches[0],owner=scrollOwner(e.target);
+    pull={x:t.clientX,y:t.clientY,anchorY:atTop(owner)?t.clientY:null,distance:0,active:false,axis:null,owner};
+  },{passive:true,capture:true});
   document.addEventListener('touchmove',e=>{
-    if(!pull)return;if(e.touches.length!==1||blocked()||scrollTop()>1){cancel();return}
-    const dx=e.touches[0].clientX-pull.x,dy=e.touches[0].clientY-pull.y;
-    if(!pull.axis&&Math.hypot(dx,dy)>=5)pull.axis=dy>0&&Math.abs(dy)>Math.abs(dx)*1.35?'vertical':'other';
-    if(pull.axis==='other'||dy<0){cancel();return}if(pull.axis!=='vertical')return;
-    if(e.cancelable)e.preventDefault();if(dy<10)return;pull.active=true;pull.distance=Math.max(pull.distance,dy);
-    move(Math.min(140,dy*.5));message(dy>=80?'離して最新情報を取得':'下に引っ張って更新');
-  },{passive:false});
-  document.addEventListener('touchend',e=>{if(!pull)return;const go=pull.active&&pull.distance>=80&&!e.touches.length;pull=null;if(go)refresh();else if(!busy){move(0);status.hidden=true}},{passive:true});
-  document.addEventListener('touchcancel',cancel,{passive:true});window.addEventListener('blur',cancel);window.addEventListener('qb-screen-change',cancel);
+    if(!pull)return;if(e.touches.length!==1||blocked()||window.visualViewport?.scale>1.01){cancel();return}
+    const t=e.touches[0],dx=t.clientX-pull.x,totalDy=t.clientY-pull.y;
+    if(!pull.axis&&Math.hypot(dx,totalDy)>=AXIS_SLOP)pull.axis=totalDy>0&&Math.abs(totalDy)>Math.abs(dx)*1.25?'vertical':'other';
+    if(pull.axis==='other'||totalDy<0){cancel();return}if(pull.axis!=='vertical')return;
+    if(!atTop(pull.owner)){pull.anchorY=null;pull.distance=0;pull.active=false;return}
+    if(pull.anchorY===null){pull.anchorY=t.clientY;return}
+    const distance=Math.max(0,t.clientY-pull.anchorY);
+    pull.distance=distance;
+    if(distance<PULL_START){if(pull.active){pull.active=false;move(0);status.hidden=true}return}
+    if(e.cancelable)e.preventDefault();pull.active=true;
+    move(Math.min(140,distance*.5));message(distance>=PULL_THRESHOLD?'離して最新情報を取得':'下に引っ張って更新');
+  },{passive:false,capture:true});
+  document.addEventListener('touchend',e=>{if(!pull)return;const go=pull.active&&pull.distance>=PULL_THRESHOLD&&!e.touches.length;pull=null;if(go)refresh();else if(!busy){move(0);status.hidden=true}},{passive:true,capture:true});
+  document.addEventListener('touchcancel',cancel,{passive:true,capture:true});window.addEventListener('blur',cancel);window.addEventListener('qb-screen-change',cancel);
   window.QBDataRefresh.refresh=refresh;
 }
 window.QBDataRefresh={blocked};
