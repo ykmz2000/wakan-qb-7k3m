@@ -64,6 +64,15 @@ async function boot(browser,seed=null,userId='u1'){
 }
 async function run(browser,name){
  const {p,errors}=await boot(browser);
+ const gesture=async({distance,count=1,cancelable=true,selector='#view .title',reachTop=false,stopPropagation=false,expectPull=true})=>p.evaluate(({distance,count,cancelable,selector,reachTop,stopPropagation,expectPull})=>{
+  const target=document.querySelector(selector),header=document.querySelector('.app>.header'),top=header.getBoundingClientRect().top;if(!target)throw Error('Missing gesture target: '+selector);
+  if(stopPropagation)for(const type of ['touchstart','touchmove','touchend'])target.addEventListener(type,e=>e.stopImmediatePropagation(),{once:true});
+  const fire=(type,y,n,can=true)=>{const e=new Event(type,{bubbles:true,cancelable:can});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};
+  fire('touchstart',100,count);
+  if(reachTop&&count===1){fire('touchmove',130,count,cancelable);document.scrollingElement.scrollTop=0;fire('touchmove',155,count,cancelable);fire('touchmove',155+distance,count,cancelable)}else fire('touchmove',100+distance,count,cancelable);
+  if(expectPull&&count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');if(Math.abs(header.getBoundingClientRect().top-top)>1||header.style.transform)throw Error('Header must stay anchored')}
+  fire('touchend',reachTop?155+distance:100+distance,0);
+ },{distance,count,cancelable,selector,reachTop,stopPropagation,expectPull});
  await p.locator('[data-c="0"]').click();
  await p.evaluate(()=>{testDB.questions[0].stem='更新後の問題';testDB.questions[0].explanation_overview='最新の解説';testWrites=[]});
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),true);
@@ -84,21 +93,25 @@ async function run(browser,name){
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('#view').innerHTML(),old);await p.evaluate(()=>testReadFail=false);
  await p.evaluate(()=>{const e=document.createElement('textarea');e.className='adeEditor';e.value='未保存';document.querySelector('#view').append(e)});
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),false);assert.equal(await p.locator('.adeEditor').inputValue(),'未保存');await p.locator('.adeEditor').evaluate(e=>e.remove());
+ await p.evaluate(()=>{testDB.questions[0].explanation_overview='回答欄から取得した最新の解説';window.scrollTo(0,0)});
+ await gesture({distance:100,selector:'#ans [data-qb-rate="△"]',stopPropagation:true});await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('回答欄から取得した最新の解説'));
+ await p.evaluate(()=>{testDB.questions[0].explanation_overview='下までスクロールした状態から取得';document.documentElement.style.scrollBehavior='auto';document.scrollingElement.scrollTop=document.scrollingElement.scrollHeight});assert.ok(await p.evaluate(()=>scrollY>10),'answer view must be scrollable');
+ await gesture({distance:100,selector:'#ans .line',reachTop:true});await p.waitForFunction(()=>document.querySelector('#ans')?.textContent.includes('下までスクロールした状態から取得'));
  await p.evaluate(()=>{testReadDelay=150;window.refreshPending=QBDataRefresh.refresh();document.getElementById('next').click()});assert.equal(await p.evaluate(()=>refreshPending),false);await p.evaluate(()=>testReadDelay=0);
  assert.equal(await p.evaluate(()=>qbGetPracticeState().currentIndex),1);
  await p.locator('#next').click();await p.locator('.fbInput').first().waitFor();await p.locator('.fbInput').first().fill('入力を保持');
  assert.equal(await p.evaluate(()=>QBDataRefresh.refresh()),true);assert.equal(await p.locator('.fbInput').first().inputValue(),'入力を保持');
+ await p.evaluate(()=>{testDB.questions[2].stem='入力欄の操作では更新しない';window.scrollTo(0,0)});await gesture({distance:100,selector:'.fbInput',expectPull:false});assert.doesNotMatch(await p.locator('#view > .card > .qtext').textContent(),/入力欄の操作では更新しない/);
  await p.evaluate(()=>qbOpenSubjects());await p.locator('[data-s="s1"]').waitFor();
  await p.evaluate(()=>{testDB.subjects[0].name='新しい科目名';window.scrollTo(0,0)});
  assert.equal(await p.locator('.qbDataRefresh').count(),0);
  const headerBefore=await p.locator('.app>.header').evaluate(n=>({position:getComputedStyle(n).position,top:Math.round(n.getBoundingClientRect().top),padding:parseFloat(getComputedStyle(n.closest('.app')).paddingTop)}));assert.equal(headerBefore.position,'fixed');assert.ok(Math.abs(headerBefore.top)<=1);assert.ok(headerBefore.padding>=headerBefore.top+80);
  // Touch event delivery on both engines, including threshold and pinch cancellation.
- const gesture=async(distance,count=1,cancelable=true)=>p.evaluate(({distance,count,cancelable})=>{const target=document.querySelector('#view .title'),header=document.querySelector('.app>.header'),top=header.getBoundingClientRect().top;const fire=(type,y,n,can=true)=>{const e=new Event(type,{bubbles:true,cancelable:can});Object.defineProperty(e,'touches',{value:Array.from({length:n},(_,i)=>({clientX:120+i*30,clientY:y}))});target.dispatchEvent(e)};fire('touchstart',100,count);fire('touchmove',100+distance,count,cancelable);if(count===1&&distance>10){const content=document.getElementById('choices');if(!content.style.transform)throw Error('Pull must move the content');if(Math.abs(header.getBoundingClientRect().top-top)>1||header.style.transform)throw Error('Header must stay anchored');}fire('touchend',100+distance,0)},{distance,count,cancelable});
- await gesture(35);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
- await gesture(100,2);assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
- await gesture(100);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('新しい'));
- await p.evaluate(()=>testDB.subjects[0].name='キャンセル不可でも更新');await gesture(100,1,false);await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('キャンセル不可でも更新'));
+ await gesture({distance:35});assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
+ await gesture({distance:100,count:2,expectPull:false});assert.doesNotMatch(await p.locator('[data-s="s1"]').textContent(),/新しい/);
+ await gesture({distance:100});await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('新しい'));
+ await p.evaluate(()=>testDB.subjects[0].name='キャンセル不可でも更新');await gesture({distance:100,cancelable:false});await p.waitForFunction(()=>document.querySelector('[data-s="s1"]')?.textContent.includes('キャンセル不可でも更新'));
  assert.equal(await p.evaluate(()=>qbGetScreen()),'subjects');assert.deepEqual(errors,[]);
- await p.close();console.log(name+' PASS anchored header, read-only refresh, noncancelable iOS move, same question and selection, revealed answer, fill draft, errors, editor guard, stale navigation, pull threshold and multitouch');
+ await p.close();console.log(name+' PASS full-surface pull, captured child events, pull after scrolling to top, anchored header, read-only refresh, noncancelable iOS move, same question and selection, revealed answer, fill draft, errors, editor guard, stale navigation, pull threshold and multitouch');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
