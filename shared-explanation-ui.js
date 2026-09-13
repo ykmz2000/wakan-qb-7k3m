@@ -15,7 +15,8 @@ function currentQuestion(){
 }
 window.pq=currentQuestion;
 function css(){if(document.getElementById('qbSharedRatingCss'))return;const s=document.createElement('style');s.id='qbSharedRatingCss';s.textContent=`.qbSharedRating .rate.on{color:#fff!important;border-color:transparent!important}.qbSharedRating .rate[data-qb-rate="◎"].on{background:#154fa3!important}.qbSharedRating .rate[data-qb-rate="○"].on{background:#2e9de8!important}.qbSharedRating .rate[data-qb-rate="△"].on{background:#f5a623!important}.qbSharedRating .rate[data-qb-rate="×"].on{background:#ef476f!important}.qbSharedRating .rate[data-qb-rate="-"].on{background:#777!important}.qbChoiceDetail{margin-top:7px;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:13px;line-height:1.6;white-space:pre-wrap}.qbChoiceDetail b{font-size:12px;margin-right:5px}#ans .exp .qbChoiceCorrection{font-size:14px;line-height:1.65}#ans .exp .qbChoiceCorrection>b{font-size:inherit;font-weight:700}`;document.head.appendChild(s)}
-function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>(x.textContent||'').trim()===title)}
+function visibleHeadingText(node){return (node?.querySelector?.(':scope > .adeHeadingText')?.textContent||node?.firstChild?.textContent||'').trim()}
+function hasHeading(root,title){return [...root.querySelectorAll('.card b')].some(x=>visibleHeadingText(x)===title)}
 function addCard(root,title,body,cls='line'){
   if(hasHeading(root,title))return;
   const d=document.createElement('div');d.className='card qbSharedExplanationCard';
@@ -56,7 +57,9 @@ function enhanceExistingChoiceCard(root,q){
     if(exp.dataset.qbInlineChoiceEditing)return;
     const h=exp.querySelector(':scope > b');
     const title=`${c.choice_key||String.fromCharCode(97+i)}. ${c.choice_text||''}`;
-    if(h&&h.textContent!==title)h.textContent=title;
+    const headingLabel=h?.querySelector(':scope > .adeHeadingText');
+    if(headingLabel){if(headingLabel.textContent!==title)headingLabel.textContent=title}
+    else if(h&&visibleHeadingText(h)!==title)h.textContent=title;
     let status=exp.querySelector(':scope > .qbStatementStatus');
     const truth=c.statement_is_true;
     if(typeof truth==='boolean'){

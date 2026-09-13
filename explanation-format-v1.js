@@ -79,11 +79,11 @@ function css(){
 function linkDialog({text='',href=''}={}){
  return new Promise(resolve=>{const origin=document.activeElement,modal=document.createElement('div');modal.className='qbFmtLinkDialog';modal.innerHTML='<section class="qbFmtLinkSheet" role="dialog" aria-modal="true" aria-labelledby="qbFmtLinkTitle"><header class="qbFmtLinkHead"><b id="qbFmtLinkTitle">リンクを挿入・編集</b><button type="button" data-close aria-label="閉じる">×</button></header><label>表示する文字<input data-text maxlength="500" autocomplete="off"></label><label>リンク先<input data-href type="url" inputmode="url" maxlength="2048" placeholder="https://example.com" autocomplete="url"></label><p class="qbFmtLinkError" role="status"></p><div class="qbFmtLinkActions"><button type="button" data-cancel>キャンセル</button><button type="button" data-save>リンクを反映</button></div></section>';const sheet=modal.querySelector('section'),textInput=modal.querySelector('[data-text]'),hrefInput=modal.querySelector('[data-href]'),error=modal.querySelector('[role=status]');textInput.value=text;hrefInput.value=href;let done=false;const finish=value=>{if(done)return;done=true;modal.remove();origin?.isConnected&&origin.focus?.({preventScroll:true});resolve(value)};modal.querySelector('[data-close]').onclick=modal.querySelector('[data-cancel]').onclick=()=>finish(null);modal.querySelector('[data-save]').onclick=()=>{const label=textInput.value.trim(),url=validHref(hrefInput.value.trim());if(!label){error.textContent='表示する文字を入力してください。';textInput.focus();return}if(!url){error.textContent='https:// または http:// で始まるリンク先を入力してください。';hrefInput.focus();return}finish({text:label,href:url})};modal.addEventListener('click',e=>{if(e.target===modal)finish(null)});modal.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();finish(null)}if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();modal.querySelector('[data-save]').click()}if(e.key==='Tab'){const list=[...sheet.querySelectorAll('button,input')],i=list.indexOf(document.activeElement);e.preventDefault();list[(i+(e.shiftKey?-1:1)+list.length)%list.length]?.focus()}});document.body.append(modal);textInput.focus({preventScroll:true});textInput.select()})
 }
-function mount(ta,field,record,initial){
+function mount(ta,field,record,initial,labelText=LABELS[field]||field){
   const w=document.createElement('div');w.className='qbFmtField';w.dataset.qbFormatField=field;
-  const label=document.createElement('label');label.className='qbFmtLabel';label.textContent=LABELS[field]||field;
+  const label=document.createElement('label');label.className='qbFmtLabel';label.textContent=labelText;
   if(!ta.id)ta.id='qbFmt-'+Math.random().toString(36).slice(2);label.htmlFor=ta.id;
-  const tools=document.createElement('div');tools.className='qbFmtTools';tools.setAttribute('role','group');tools.setAttribute('aria-label',`${LABELS[field]}の文字装飾`);
+  const tools=document.createElement('div');tools.className='qbFmtTools';tools.setAttribute('role','group');tools.setAttribute('aria-label',`${labelText}の文字装飾`);
   const hint=document.createElement('div');hint.className='qbFmtHint';hint.setAttribute('role','status');hint.textContent='文字を選択して装飾。表示は下のプレビューで確認できます。';
   const pl=document.createElement('div');pl.className='qbFmtPreviewLabel';pl.textContent='表示プレビュー';const preview=document.createElement('div');preview.className='qbFmtPreview';
   ta.before(w);w.append(label,tools,ta,hint,pl,preview);
@@ -100,7 +100,7 @@ function mount(ta,field,record,initial){
     b.addEventListener('mousedown',e=>e.preventDefault());
     b.addEventListener('click',async()=>{if(composing)return;sync();const [start,end]=selected||[ta.selectionStart,ta.selectionEnd];selected=null;if(kind==='link'){const current=ranges.find(r=>r.kind==='link'&&r.start<=start&&r.end>=end&&start<end),result=await linkDialog({text:raw.slice(start,end),href:current?.href||''});if(!result)return;const before=raw,after=before.slice(0,start)+result.text+before.slice(end);ranges=rebase(before,after,ranges);raw=after;ta.value=after;const finish=start+result.text.length;ranges=normalize(raw,[...subtract(ranges,start,finish,'link'),{kind:'link',start,end:finish,href:result.href}]);draw();hint.textContent='リンクを反映しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,finish);return}if(start===end){hint.textContent='装飾したい文字を先に選択してください。';return}try{ranges=kind==='clear'?normalize(raw,subtract(ranges,start,end)):toggle(raw,ranges,start,end,kind);draw();hint.textContent='装飾を変更しました。「保存」で本文と一緒に保存します。';ta.focus({preventScroll:true});ta.setSelectionRange(start,end)}catch(e){hint.textContent=e.message}});
   }
-  refresh();return{field,textarea:ta,read(){sync();const spec=snapshot(raw,ranges,field!=='stem');return field==='stem'&&spec?{...spec,origin:'admin_display'}:spec}};
+  refresh();return{field,textarea:ta,read(){sync();const spec=snapshot(raw,ranges,field!=='stem');return field==='stem'&&spec?{...spec,origin:'admin_display'}:spec},isComposing(){return composing},setSaving(saving){ta.disabled=!!saving;tools.querySelectorAll('button').forEach(b=>b.disabled=!!saving)},destroy(){}};
 }
 function prepareEditor(ed,q){
   if(editors.has(ed))return;
@@ -139,6 +139,11 @@ function decorate(node,text,record){
   if(active)node.dataset.qbFormatted='1';else delete node.dataset.qbFormatted;
 }
 function apply(root,q,meta){
+  const officialGroup=[...root.querySelectorAll('.fbAnswerGroup')].find(group=>{const h=group.querySelector(':scope > b'),label=h?.querySelector(':scope > .oaiHeadingText');return (label?.textContent||h?.firstChild?.textContent||'').trim()==='解答'});
+  if(officialGroup){
+    const occurrence=q.occ?.[0],formats=occurrence?.official_answer_formatting||q.source_answer_formatting||{};
+    officialGroup.querySelectorAll(':scope > .fbAnswerLine[data-answer-key]').forEach(line=>{const key=line.dataset.answerKey,body=line.querySelector(':scope > strong');decorate(body,line.dataset.answerText||'',formats?.[key])});
+  }
   for(const [field,cls] of [['correction_text','qbInlineCorrectionText'],['correct_for_other_context','qbInlineOtherContextText']]){
     document.querySelectorAll(`#view .choice[data-c] .${cls}`).forEach(body=>{
       const c=q.choices?.[Number(body.closest('.choice').dataset.c)];if(!c)return;
@@ -147,7 +152,7 @@ function apply(root,q,meta){
     });
   }
   const cards=[...root.children].filter(c=>c.classList.contains('card'));
-  const heading=c=>[...c.children].find(n=>n.tagName==='B')?.textContent.trim().replace(/^■\s*/,'')||'';
+  const heading=c=>{const h=[...c.children].find(n=>n.tagName==='B'),label=h?.querySelector(':scope > .adeHeadingText');return (label?.textContent||h?.firstChild?.textContent||'').trim().replace(/^■\s*/,'')};
   for(const [field,title] of Object.entries(LABELS)){
     if(!Object.values(QUESTION_FIELDS).includes(field))continue;
     const card=cards.find(c=>heading(c)===title);if(!card)continue;
@@ -183,7 +188,7 @@ function schedule(e){
   clearTimeout(timer);timer=setTimeout(render,50);
 }
 window.addEventListener('qb-data-refreshed',e=>{const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}});
-window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving,linkDialog,validHref};
+window.QBExplanationFormat={html,snapshot,prepareEditor,saveEditor,destroyEditor,setEditorSaving,linkDialog,validHref,mountStandalone(ta,field,record,label){return mount(ta,field,record,ta.value,label)}};
 function boot(){css();['qb-question-ready','qb-screen-change','qb-retry-current','qb-answer-shown','qb-explanation-ready','qb-content-updated'].forEach(ev=>window.addEventListener(ev,schedule));schedule()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
