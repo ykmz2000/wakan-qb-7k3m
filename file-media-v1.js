@@ -52,7 +52,7 @@ function cleanupDocuments(){
 function scheduleCleanup(){clearTimeout(cleanupTimer);cleanupTimer=setTimeout(cleanupDocuments,60)}
 const inlineStates=new Map();
 const inlineObserver=new IntersectionObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(!st)continue;st.visible=e.isIntersecting;if(st.visible&&!st.rendered)enqueueThumbnail(e.target)}},{rootMargin:'300px'});
-const inlineResize=new ResizeObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target);if(st?.visible&&st.rendered&&Math.abs(st.width-e.contentRect.width)>2)enqueueThumbnail(e.target,true)}});
+const inlineResize=new ResizeObserver(entries=>{for(const e of entries){const st=inlineStates.get(e.target),width=e.contentRect.width;if(st?.visible&&width>=32&&(!st.rendered||Math.abs(st.width-width)>2))enqueueThumbnail(e.target,true)}});
 const lifecycleObserver=new MutationObserver(scheduleCleanup);
 if(document.body)lifecycleObserver.observe(document.body,{childList:true,subtree:true});else document.addEventListener('DOMContentLoaded',()=>lifecycleObserver.observe(document.body,{childList:true,subtree:true}),{once:true});
 async function drain(){
