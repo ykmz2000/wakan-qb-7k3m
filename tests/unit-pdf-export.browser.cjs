@@ -39,7 +39,7 @@ async function run(type,name){
           rows=rows.slice(0,this.signal?Math.min(2,this.n):this.n);return{data:this.one?(rows[0]||null):rows,error:null};
         }
       }
-      window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'user1'}}})},from:t=>new Query(t),rpc:async()=>({data:[],error:null}),storage:{from:()=>({download:async file=>{
+      window.qbSupabase={auth:{getUser:async()=>({data:{user:{id:'user1'}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},from:t=>new Query(t),rpc:async()=>({data:[],error:null}),storage:{from:()=>({download:async file=>{
         if(file==='verification-only.png')throw Error('Excluded verification image must not be downloaded');
         if(failPDF)return{data:null,error:{message:'synthetic missing image'}};
         if(file==='two-pages.pdf')return{data:new Blob(['%PDF-synthetic'],{type:'application/pdf'}),error:null};
