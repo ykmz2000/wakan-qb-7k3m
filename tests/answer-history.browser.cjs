@@ -150,8 +150,8 @@ async function run(browser,name){
    assert.equal(await p.locator('.qbInlineCorrectionText').innerHTML(),await p.locator('.qbChoiceCorrection .qbFmtDetailText').innerHTML());
    assert.equal(await p.locator('.qbInlineOtherContextText').innerHTML(),await p.locator('.qbChoiceOtherContext .qbFmtDetailText').innerHTML());
    assert.equal(await p.locator('.qbInlineDistinctionText').innerHTML(),await p.locator('.qbChoiceDistinction .qbFmtDetailText').innerHTML());
-   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineOtherContext').textContent(),'別の文脈では別文脈の本文');
-   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineDistinction').textContent(),'区別ポイント区別する本文');
+   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineOtherContext').textContent(),'類題・補足別文脈の本文');
+   assert.equal(await p.locator('.choice[data-c="0"] .qbInlineDistinction').textContent(),'見分けるポイント区別する本文');
    assert.equal(await p.locator('.choice[data-c="0"] .qbInlineOtherContext img,.choice[data-c="0"] .qbInlineOtherContext .qbMediaHostV2').count(),0);
    assert.equal(await p.locator('.choice[data-c="0"] .qbInlineDistinction img,.choice[data-c="0"] .qbInlineDistinction .qbMediaHostV2').count(),0);
    assert.equal(await p.locator('.qbInlineCorrection:not(.qbInlineOtherContext):not(.qbInlineDistinction) .qbInlineCorrectionLabel').evaluate(n=>getComputedStyle(n).color),'rgb(0, 0, 0)');
