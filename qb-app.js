@@ -150,8 +150,8 @@ function syncChoiceFeedback(){
   if(revealed){
    const c=q?.choices[i]||{};
    appendInlineChoiceDetail(b,{label:'正しくすると',text:inlineChoiceText(c.correction_text),cls:'qbInlineCorrectionTextRow',textCls:'qbInlineCorrectionText'});
-   appendInlineChoiceDetail(b,{label:'別の文脈では',text:inlineChoiceText(c.correct_for_other_context),cls:'qbInlineOtherContext',textCls:'qbInlineOtherContextText'});
-   appendInlineChoiceDetail(b,{label:'区別ポイント',text:inlineChoiceText(c.examiner_distinction),cls:'qbInlineDistinction',textCls:'qbInlineDistinctionText'});
+   appendInlineChoiceDetail(b,{label:'類題・補足',text:inlineChoiceText(c.correct_for_other_context),cls:'qbInlineOtherContext',textCls:'qbInlineOtherContextText'});
+   appendInlineChoiceDetail(b,{label:'見分けるポイント',text:inlineChoiceText(c.examiner_distinction),cls:'qbInlineDistinction',textCls:'qbInlineDistinctionText'});
   }
   if(label){b.dataset.qbChoiceFeedback=label;b.setAttribute('aria-description',label)}
   else{delete b.dataset.qbChoiceFeedback;b.removeAttribute('aria-description')}
