@@ -54,7 +54,7 @@ function snapshot(raw,ranges,trim=true){
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={normalize,rangesFor,html,toggle,subtract,rebase,snapshot,validHref};
 if(typeof document==='undefined')return;
-const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap(),embeddedSeeds=new WeakSet();
+const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap(),embeddedSeeds=new WeakSet(),freshOnReveal=new Set(),revealRefreshes=new Map();
 const META='explanation_formatting',STEM_META='stem_formatting';
 const QUESTION_FIELDS={overview:'explanation_overview',intent:'examiner_intent',summary:'exam_summary',verify:'medical_verification_note'};
 const CHOICE_FIELDS={cexp:'explanation',ccorr:'correction_text',calt:'correct_for_other_context',cdist:'examiner_distinction'};
@@ -184,7 +184,7 @@ async function render(){
   if(window.qbGetScreen?.()!=='practice')return;
   const q=current(),root=document.getElementById('ans'),stem=document.querySelector('#view > .card > .qtext'),id=qid(q);if(!id||!stem)return;
   try{
-    const meta=cache.get(id)||takeEmbedded(q,id)||await load(id);
+    const meta=freshOnReveal.delete(id)?await load(id,true):cache.get(id)||takeEmbedded(q,id)||await load(id);
     if(qid(current())!==id||!stem.isConnected||document.querySelector('#view > .card > .qtext')!==stem)return;
     // Display-only spans; never infer emphasis from wording or rewrite a differently rendered stem.
     if(stem.textContent===String(q.stem??'')||stem.dataset.qbFormatted)decorate(stem,String(q.stem??''),meta[STEM_META]);
@@ -193,6 +193,7 @@ async function render(){
 }
 function schedule(e){
   if(e?.type==='qb-content-updated'&&!/^(personal-note|personal-note-image|official-image)/.test(e.detail?.type||'')){const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}}
+  if(e&&/^(qb-answer-shown|qb-explanation-ready)$/.test(e.type)){const id=String(e.detail?.questionId||qid(current())||''),now=performance.now(),last=revealRefreshes.get(id)??-Infinity;if(id&&now-last>250){freshOnReveal.add(id);revealRefreshes.set(id,now)}}
   clearTimeout(timer);timer=setTimeout(render,50);
 }
 window.addEventListener('qb-data-refreshed',e=>{const id=String(e.detail?.questionId||'');if(id){cache.delete(id);versions.set(id,(versions.get(id)||0)+1);pending.delete(id)}});
