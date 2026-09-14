@@ -54,7 +54,7 @@ function snapshot(raw,ranges,trim=true){
 }
 if(typeof module!=='undefined'&&module.exports)module.exports={normalize,rangesFor,html,toggle,subtract,rebase,snapshot,validHref};
 if(typeof document==='undefined')return;
-const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap();
+const cache=new Map(),pending=new Map(),versions=new Map(),editors=new WeakMap(),embeddedSeeds=new WeakSet();
 const META='explanation_formatting',STEM_META='stem_formatting';
 const QUESTION_FIELDS={overview:'explanation_overview',intent:'examiner_intent',summary:'exam_summary',verify:'medical_verification_note'};
 const CHOICE_FIELDS={cexp:'explanation',ccorr:'correction_text',calt:'correct_for_other_context',cdist:'examiner_distinction'};
@@ -67,6 +67,14 @@ async function load(id,force=false){
   const version=versions.get(id)||0;
   const task=(async()=>{const sb=window.qbSupabase;if(!sb)throw new Error('ログイン情報を読み込み中です');const r=await sb.from('questions').select('stem_formatting,explanation_formatting,choices(id,explanation_formatting)').eq('id',id).maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('装飾情報を取得できません');if(version!==(versions.get(id)||0))return load(id);cache.set(id,r.data);return r.data})();
   pending.set(id,task);try{return await task}finally{if(pending.get(id)===task)pending.delete(id)}
+}
+function takeEmbedded(q,id){
+  if(!q||!q._detailLoaded||embeddedSeeds.has(q))return null;
+  const own=(obj,key)=>Object.prototype.hasOwnProperty.call(obj||{},key);
+  if(!own(q,STEM_META)||!own(q,META)||(q.choices||[]).some(c=>!own(c,META)))return null;
+  // The detail request returned matching text and formatting atomically. Seed it once;
+  // a later content-update invalidation must still use the dedicated fresh read.
+  embeddedSeeds.add(q);cache.set(id,q);return q;
 }
 function css(){
   if(document.getElementById('qbExplanationFormatCss'))return;
@@ -176,7 +184,7 @@ async function render(){
   if(window.qbGetScreen?.()!=='practice')return;
   const q=current(),root=document.getElementById('ans'),stem=document.querySelector('#view > .card > .qtext'),id=qid(q);if(!id||!stem)return;
   try{
-    const meta=await load(id);
+    const meta=cache.get(id)||takeEmbedded(q,id)||await load(id);
     if(qid(current())!==id||!stem.isConnected||document.querySelector('#view > .card > .qtext')!==stem)return;
     // Display-only spans; never infer emphasis from wording or rewrite a differently rendered stem.
     if(stem.textContent===String(q.stem??'')||stem.dataset.qbFormatted)decorate(stem,String(q.stem??''),meta[STEM_META]);

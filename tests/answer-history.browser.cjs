@@ -6,15 +6,15 @@ const path=require('node:path');
 const {chromium,webkit}=require('playwright');
 const root=path.resolve(__dirname,'..');
 const shell=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script\b[\s\S]*?<\/script>/g,'').replace('class="qb-auth-pending"','');
-async function boot(browser,seed=null,userId='u1'){
+async function boot(browser,seed=null,userId='u1',withInitialFormatting=false){
   const p=await browser.newPage({viewport:{width:390,height:844}});p.setDefaultTimeout(12000);
   const errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.dismiss());
   await p.route('**/*',r=>r.request().url()==='https://qb-history.test/'?r.fulfill({contentType:'text/html',body:shell}):r.abort());
   await p.goto('https://qb-history.test/');
-  await p.evaluate(({seed,userId})=>{
+  await p.evaluate(({seed,userId,withInitialFormatting})=>{
     const copy=x=>JSON.parse(JSON.stringify(x));
     const question=(id,mode,order)=>({id,subject_id:'s1',unit_id:'unit1',status:'published',study_order:order,answer_mode:mode,stem:mode==='fill_blank'?'入力 [A] [B]':'設問 '+id,explanation_overview:'ポイントの本文',examiner_intent:'意図',exam_summary:'まとめ',medical_verification_note:'確認',question_occurrences:[{id:'o-'+id,academic_year:2025,exam_type:'本試',original_question_number:String(order),official_answer:{A:'正答A',B:'正答B'}}],choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'選択肢a',is_correct:true,statement_is_true:true,sort_order:0,explanation:'aの解説'},{id:id+'-b',choice_key:'b',choice_text:'選択肢b',is_correct:false,statement_is_true:false,sort_order:1,explanation:'bの解説'}]});
-    window.testUser=userId;window.testDelayAttempt=0;window.testFailRating=false;window.testFailHistory=false;window.testWrites=[];
+    window.testUser=userId;window.testDelayAttempt=0;window.testFailRating=false;window.testFailHistory=false;window.testWrites=[];window.testStandaloneFormattingReads=0;window.testFailStandaloneFormatting=withInitialFormatting;
     window.testDB=seed||{
       grades:[{id:'g1',code:'M4',name:'M4'}],subjects:[{id:'s1',grade_id:'g1',slug:'test',name:'検証科目',is_active:true}],units:[{id:'unit1',subject_id:'s1',name:'検証単元',is_active:true}],
       questions:[question('q1','single',1),question('q2','multiple',2),question('q3','fill_blank',3)],profiles:[{id:'u1',role:'user'}],practice_sessions:[],user_question_state:[],question_ratings:[{user_id:'u1',question_id:'q1',rating:'△'}],
@@ -28,6 +28,10 @@ async function boot(browser,seed=null,userId='u1'){
       insert(p){this.mode='insert';this.payload=p;return this}update(p){this.mode='update';this.payload=p;return this}upsert(p){this.mode='upsert';this.payload=p;return this}
       single(){this.one=true;return this.execute()}maybeSingle(){this.one=true;return this.execute()}then(a,b){return this.execute().then(a,b)}
       async execute(){
+        if(this.table==='questions'&&this.mode==='read'&&this.cols==='stem_formatting,explanation_formatting,choices(id,explanation_formatting)'){
+          testStandaloneFormattingReads++;
+          if(testFailStandaloneFormatting)return{data:null,error:{message:'standalone formatting fetch must not be needed'}};
+        }
         if(this.table==='attempts'&&this.mode==='read'&&testFailHistory)return{data:null,error:{message:'history fixture failure'}};
         if(this.table==='attempts'&&this.mode==='insert'&&testDelayAttempt)await new Promise(r=>setTimeout(r,testDelayAttempt));
         const rows=testDB[this.table]||(testDB[this.table]=[]);let found=rows.filter(x=>this.filters.every(f=>f(x)));
@@ -54,8 +58,10 @@ async function boot(browser,seed=null,userId='u1'){
         if(a.id===latest&&args.p_rating){let global=testDB.question_ratings.find(x=>x.user_id===testUser&&x.question_id===a.question_id);if(!global){global={user_id:testUser,question_id:a.question_id};testDB.question_ratings.push(global)}global.rating=args.p_rating;}
       }return{data:null,error:null};
     }};
-  },{seed,userId});
-  for(const f of ['theme-system-v1.js','answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
+  },{seed,userId,withInitialFormatting});
+  const scripts=['theme-system-v1.js','answer-history-v1.js','qb-app.js','shared-explanation-ui.js','fill-blank-v2.js'];
+  if(withInitialFormatting)scripts.push('current-question-identity-v1.js','explanation-format-v1.js');
+  for(const f of scripts)await p.addScriptTag({content:fs.readFileSync(path.join(root,f),'utf8')});
   await p.locator('[data-s="s1"]').click();await p.locator('[data-u="unit1"]').click();await p.locator('#start').click();await p.locator('[data-mode="ordered"]').click();await p.locator('.choice[data-c="0"]').waitFor();
   return{p,errors};
 }
@@ -63,6 +69,28 @@ async function ready(p){await p.waitForFunction(()=>{const d=document.querySelec
 async function rate(p,value){await p.locator(`[data-qb-rate="${value}"]`).click();await p.waitForFunction(()=>document.querySelector('.qbRateMsg')?.textContent==='保存しました')}
 async function answer(p,keys=[0]){for(const key of keys)await p.locator(`[data-c="${key}"]`).click();await p.locator('#answer').click();await ready(p)}
 async function run(browser,name){
+  // Formatting travels with the first question-detail response. It must render without
+  // the old second fetch (and therefore without asking the user to pull to refresh).
+  {
+   const initial=await boot(browser),seed=await initial.p.evaluate(()=>testDB);await initial.p.close();
+   const q=seed.questions[0],c=q.choices[0];
+   q.choices.forEach(choice=>choice.explanation_formatting=null);
+   q.stem_formatting={version:1,source_text:q.stem,ranges:[{kind:'underline',start:0,end:2}]};
+   q.explanation_formatting={explanation_overview:{version:1,source_text:q.explanation_overview,ranges:[{kind:'accent',start:0,end:4}]}};
+   c.correct_for_other_context='別文脈の本文';c.examiner_distinction='区別する本文';
+   c.explanation_formatting={
+    correct_for_other_context:{version:1,source_text:c.correct_for_other_context,ranges:[{kind:'accent',start:0,end:3}]},
+    examiner_distinction:{version:1,source_text:c.examiner_distinction,ranges:[{kind:'marker',start:0,end:2}]}
+   };
+   const {p,errors}=await boot(browser,seed,'u1',true);
+   await p.locator('.qtext .qbFmt-underline').waitFor();
+   await answer(p,[0]);
+   await p.locator('.qbInlineOtherContextText .qbFmt-accent').waitFor();
+   await p.locator('.qbInlineDistinctionText .qbFmt-marker').waitFor();
+   assert.equal(await p.evaluate(()=>testStandaloneFormattingReads),0);
+   assert.deepEqual(errors,[]);await p.close();
+   console.log(name+' PASS initial question load renders formatting without pull-to-refresh or a second formatting request');
+  }
   // Answer feedback uses the current attempt only, never previous saved answers.
   {
    let setup=await boot(browser);
