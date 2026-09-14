@@ -59,7 +59,7 @@ async function run(browser,name){
  await p.evaluate(()=>{const q=structuredClone(testDB.questions[3]);q.id='q7';q.study_order=7;q.question_occurrences=[{academic_year:2010,exam_type:'本試'}];testDB.questions.push(q)});
  await scope(p,'__all__');assert.equal(await p.locator('[data-source="year"][data-value="2010"]').count(),1);assert.deepEqual(await selected(p),['q1','q2','q3','q4','q5','q6','q7'],'all-years default includes older and unknown-year data');
  await p.setViewportSize({width:320,height:800});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await p.locator('[data-source="year"][data-value="2010"]').click();assert.equal((await selected(p)).includes('q7'),true);
+ await p.locator('[data-source="year"][data-value="2010"]').click();assert.equal((await selected(p)).includes('q7'),false,'clicking an active year removes it from the all-years selection');
  await p.locator('[data-source-all="year"]').click();assert.equal((await selected(p)).includes('q7'),true);
  await p.evaluate(()=>{const template=structuredClone(testDB.questions[0]);for(const year of [2021,2022,2026,2027])testDB.questions.push({...structuredClone(template),id:'year-'+year,unit_id:'unit1',question_occurrences:[{academic_year:year,exam_type:'本試'}]})});
  await scope(p,'__all__');assert.deepEqual(await selected(p),['q1','q2','q3','q4','q5','q6','q7','year-2021','year-2022','year-2026','year-2027'],'all-years default remains stable across past and future years');
