@@ -14,7 +14,7 @@ async function boot(browser,seed=null,userId='u1',withInitialFormatting=false){
   await p.evaluate(({seed,userId,withInitialFormatting})=>{
     const copy=x=>JSON.parse(JSON.stringify(x));
     const question=(id,mode,order)=>({id,subject_id:'s1',unit_id:'unit1',status:'published',study_order:order,answer_mode:mode,stem:mode==='fill_blank'?'入力 [A] [B]':'設問 '+id,explanation_overview:'ポイントの本文',examiner_intent:'意図',exam_summary:'まとめ',medical_verification_note:'確認',question_occurrences:[{id:'o-'+id,academic_year:2025,exam_type:'本試',original_question_number:String(order),official_answer:{A:'正答A',B:'正答B'}}],choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'選択肢a',is_correct:true,statement_is_true:true,sort_order:0,explanation:'aの解説'},{id:id+'-b',choice_key:'b',choice_text:'選択肢b',is_correct:false,statement_is_true:false,sort_order:1,explanation:'bの解説'}]});
-    window.testUser=userId;window.testDelayAttempt=0;window.testFailRating=false;window.testFailHistory=false;window.testWrites=[];window.testStandaloneFormattingReads=0;window.testFailStandaloneFormatting=withInitialFormatting;
+    window.testUser=userId;window.testDelayAttempt=0;window.testFailRating=false;window.testFailHistory=false;window.testWrites=[];window.testStandaloneFormattingReads=0;window.testFailStandaloneFormatting=false;
     window.testDB=seed||{
       grades:[{id:'g1',code:'M4',name:'M4'}],subjects:[{id:'s1',grade_id:'g1',slug:'test',name:'検証科目',is_active:true}],units:[{id:'unit1',subject_id:'s1',name:'検証単元',is_active:true}],
       questions:[question('q1','single',1),question('q2','multiple',2),question('q3','fill_blank',3)],profiles:[{id:'u1',role:'user'}],practice_sessions:[],user_question_state:[],question_ratings:[{user_id:'u1',question_id:'q1',rating:'△'}],
@@ -69,14 +69,14 @@ async function ready(p){await p.waitForFunction(()=>{const d=document.querySelec
 async function rate(p,value){await p.locator(`[data-qb-rate="${value}"]`).click();await p.waitForFunction(()=>document.querySelector('.qbRateMsg')?.textContent==='保存しました')}
 async function answer(p,keys=[0]){for(const key of keys)await p.locator(`[data-c="${key}"]`).click();await p.locator('#answer').click();await ready(p)}
 async function run(browser,name){
-  // Formatting travels with the first question-detail response. It must render without
-  // the old second fetch (and therefore without asking the user to pull to refresh).
+  // The stem can use the atomic detail response. When the answer opens, explanation
+  // formatting is revalidated so a prefetched stale snapshot never requires pull-to-refresh.
   {
    const initial=await boot(browser),seed=await initial.p.evaluate(()=>testDB);await initial.p.close();
    const q=seed.questions[0],c=q.choices[0];
    q.choices.forEach(choice=>choice.explanation_formatting=null);
    q.stem_formatting={version:1,source_text:q.stem,ranges:[{kind:'underline',start:0,end:2}]};
-   q.explanation_formatting={explanation_overview:{version:1,source_text:q.explanation_overview,ranges:[{kind:'accent',start:0,end:4}]}};
+   q.explanation_formatting=null;
    c.correct_for_other_context='別文脈の本文';c.examiner_distinction='区別する本文';
    c.explanation_formatting={
     correct_for_other_context:{version:1,source_text:c.correct_for_other_context,ranges:[{kind:'accent',start:0,end:3}]},
@@ -84,10 +84,23 @@ async function run(browser,name){
    };
    const {p,errors}=await boot(browser,seed,'u1',true);
    await p.locator('.qtext .qbFmt-underline').waitFor();
+   await p.evaluate(()=>{const q=testDB.questions[0],c=q.choices[0];q.explanation_formatting={
+    explanation_overview:{version:1,source_text:q.explanation_overview,ranges:[{kind:'accent',start:0,end:4}]},
+    examiner_intent:{version:1,source_text:q.examiner_intent,ranges:[{kind:'bold',start:0,end:2}]},
+    exam_summary:{version:1,source_text:q.exam_summary,ranges:[{kind:'underline',start:0,end:2}]},
+    medical_verification_note:{version:1,source_text:q.medical_verification_note,ranges:[{kind:'marker',start:0,end:2}]}
+   };c.explanation_formatting={
+    correct_for_other_context:{version:1,source_text:c.correct_for_other_context,ranges:[{kind:'accent',start:0,end:3}]},
+    examiner_distinction:{version:1,source_text:c.examiner_distinction,ranges:[{kind:'marker',start:0,end:2}]}
+   }});
    await answer(p,[0]);
+   await p.locator('#ans > .card > .line .qbFmt-accent').waitFor();
+   await p.locator('#ans > .card > .line .qbFmt-bold').waitFor();
+   await p.locator('#ans > .card > .summary .qbFmt-underline').waitFor();
+   await p.locator('#ans > .card > .line .qbFmt-marker').waitFor();
    await p.locator('.qbInlineOtherContextText .qbFmt-accent').waitFor();
    await p.locator('.qbInlineDistinctionText .qbFmt-marker').waitFor();
-   assert.equal(await p.evaluate(()=>testStandaloneFormattingReads),0);
+   assert.equal(await p.evaluate(()=>testStandaloneFormattingReads),1);
    assert.deepEqual(errors,[]);await p.close();
    console.log(name+' PASS initial question load renders formatting without pull-to-refresh or a second formatting request');
   }
