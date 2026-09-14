@@ -122,7 +122,7 @@ async function inject(force=false){
   clearTimeout(timer);timer=0;if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
   const xs=inputs();if(!xs.length)return;
   const fp=currentFingerprint();
-  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=recentYears();exams=null;ratingByQuestion=new Map();defaultSelectionPending=true;}
+  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=null;exams=null;ratingByQuestion=new Map();defaultSelectionPending=true;}
   if(loading)return;
   if(force||loadedFingerprint!==fp){
     loading=true;
