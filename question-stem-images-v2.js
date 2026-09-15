@@ -4,7 +4,11 @@ let timer=null,adminCache=null,lastId=null,renderToken=0,forceRefresh=false;
 const BUCKET='question-media',PLACEMENT='question',MAX_BYTES=100*1024*1024,SOURCE='question-stem-images-v2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function currentQ(){
-  try{return window.qbResolveCurrentQuestion?.()||window.pq?.()||null}
+  try{
+    const state=window.qbGetPracticeState?.(),id=state?.questionIds?.[state.currentIndex];
+    const exact=id?(window.QB_QUESTIONS||[]).find(q=>String(q?.id||q?.dbId)===String(id)):null;
+    return exact||window.qbResolveCurrentQuestion?.()||window.pq?.()||null
+  }
   catch{return null}
 }
 const qid=q=>q?.id||q?.dbId||null;
