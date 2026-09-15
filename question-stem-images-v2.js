@@ -3,7 +3,10 @@
 let timer=null,adminCache=null,lastId=null,renderToken=0,forceRefresh=false;
 const BUCKET='question-media',PLACEMENT='question',MAX_BYTES=100*1024*1024,SOURCE='question-stem-images-v2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function currentQ(){try{return window.pq?.()||null}catch{return null}}
+function currentQ(){
+  try{return window.qbResolveCurrentQuestion?.()||window.pq?.()||null}
+  catch{return null}
+}
 const qid=q=>q?.id||q?.dbId||null;
 async function isAdmin(){if(adminCache!==null)return adminCache;const sb=window.qbSupabase;if(!sb)return false;const a=await sb.auth.getUser(),u=a.data?.user;if(!u)return adminCache=false;if((u.email||'').toLowerCase()==='otohaykm@gmail.com')return adminCache=true;const r=await sb.from('profiles').select('role').eq('id',u.id).maybeSingle();return adminCache=r.data?.role==='admin'}
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
