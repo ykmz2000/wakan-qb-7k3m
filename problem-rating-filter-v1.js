@@ -11,7 +11,6 @@ function hasUnknownSource(q){return occurrences(q).some(o=>yearOf(o)==='unknown'
 function scopedQuestions(){const ids=new Set(inputs().map(x=>x.dataset.q));return (window.QB_QUESTIONS||[]).filter(q=>ids.has(String(q.id)))}
 function sourceMatches(q){return occurrences(q).some(o=>(years===null||years.has(yearOf(o)))&&(exams===null||exams.has(examOf(o))))}
 function availableYears(){return [...new Set(scopedQuestions().flatMap(q=>occurrences(q).map(yearOf)))].sort((a,b)=>a==='unknown'?1:b==='unknown'?-1:Number(b)-Number(a))}
-function maxYearSelection(){const max=availableYears().find(y=>y!=='unknown');return max?new Set([max]):null}
 const screen=()=>window.qbGetScreen?.()||'';
 const allInputs=()=>[...document.querySelectorAll('#view .problem input[data-q]')];
 const inputs=()=>{
@@ -118,7 +117,7 @@ async function inject(force=false){
   clearTimeout(timer);timer=0;if(screen()!=='problems'){document.getElementById('qbRatingFilterPanel')?.remove();return}
   const xs=inputs();if(!xs.length)return;
   const fp=currentFingerprint();
-  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=maxYearSelection();exams=null;ratingByQuestion=new Map();defaultSelectionPending=true;}
+  if(fp!==fingerprint){fingerprint=fp;loadedFingerprint='';active=new Set(CATEGORIES);years=null;exams=null;ratingByQuestion=new Map();defaultSelectionPending=true;}
   if(loading)return;
   if(force||loadedFingerprint!==fp){
     loading=true;
