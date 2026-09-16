@@ -83,7 +83,7 @@ async function boot(browser){
    throw Error('unexpected RPC '+name);
   }};
  });
- for(const s of ['image-library-store-v1.js','image-library-ui-v1.js','image-library-integration-v1.js'])await page.addScriptTag({content:read(s)});
+ for(const s of ['authenticated-media-v1.js','image-library-store-v1.js','image-library-ui-v1.js','image-library-integration-v1.js'])await page.addScriptTag({content:read(s)});
  await page.locator('.qbLibraryEntry').waitFor();return{page,errors};
 }
 async function edit(p){
@@ -155,4 +155,3 @@ async function runPagination(browser,name){
 }
 module.exports={boot,edit,peek};
 if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);await runPagination(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
-

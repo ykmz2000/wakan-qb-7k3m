@@ -54,7 +54,7 @@ async function boot(browser){
     }};
     window.pickerOriginal=JSON.stringify(testDB);
   });
-  for(const script of ['recent-image-picker-v1.js','image-library-tools-v1.js','media-share-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
+  for(const script of ['authenticated-media-v1.js','recent-image-picker-v1.js','image-library-tools-v1.js','media-share-v1.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
   await p.waitForTimeout(150);return ctx;
 }
 async function open(p){
