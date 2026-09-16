@@ -1,12 +1,12 @@
 (()=>{
 'use strict';
 const BUCKET='question-media',DEFAULT_PAGE_SIZE=30,HOLD_MS=500,MOVE_PX=10;
-const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
+const IMAGE_COLUMNS='id,image_path,storage_bucket,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
 const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-annotation':row.id;
 function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
 const imageLabel=row=>(row.image_variant==='before-annotation'?'書き込み前・':row.image_variant==='current'?'現在の画像・':'')+placementLabel(row.placement);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
+function assetUrl(row){return row.image_url||''}
 function css(){
   if(document.getElementById('qbripCss'))return;
   const s=document.createElement('style');s.id='qbripCss';s.textContent=`
@@ -113,11 +113,11 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
     d.addEventListener('click',e=>{if(e.target===d){if(preview)closePreview();else close([])}else if(e.target===preview&&performance.now()>=previewGuard)closePreview()});
-    function openPreview(row,b,fromHold=false){if(window.QBFiles?.isPDF(row.image_path)){void QBFiles.open(publicUrl(sb,row.image_path));return}
+    function openPreview(row,b,fromHold=false){if(window.QBFiles?.isPDF(row.image_path)){void QBFiles.open(assetUrl(row));return}
       if(closed||preview)return;
       previewOrigin=b;previewScroll=panel.scrollTop;previewGuard=fromHold?Infinity:performance.now()+100;
       preview=document.createElement('div');preview.className='qbripPreview';preview.setAttribute('role','dialog');preview.setAttribute('aria-modal','true');preview.setAttribute('aria-label','画像の拡大表示');
-      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(imageLabel(row))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(publicUrl(sb,row.image_path))}" alt="拡大した画像" draggable="false"></div>`;
+      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(imageLabel(row))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(assetUrl(row))}" alt="拡大した画像" draggable="false"></div>`;
       d.appendChild(preview);panel.inert=true;panel.setAttribute('aria-hidden','true');
       // The pointer release which triggered a long press must not close the preview.
       preview.addEventListener('click',e=>{if(performance.now()<previewGuard){e.preventDefault();e.stopImmediatePropagation()}},true);
@@ -126,12 +126,13 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     }
     function syncUse(){use.disabled=!selected.size;use.textContent=selected.size?`選択した${selected.size}件を追加`:`選択した${noun}を追加`;const order=new Map([...selected.keys()].map((key,i)=>[key,i+1]));for(const b of grid.querySelectorAll('.qbripItem')){const n=order.get(b.dataset.id);b.querySelector('.qbripCheck').textContent=n||'';b.setAttribute('aria-label',imageLabel(rowByButton.get(b))+(n?`、${n}番目に追加`:'')+'。長押しまたはAlt+Enterで拡大')}}
     function selectRow(row,b){const key=selectionKey(row);selected.has(key)?selected.delete(key):selected.set(key,row);b.classList.toggle('on',selected.has(key));b.setAttribute('aria-pressed',String(selected.has(key)));syncUse()}
-    function appendRows(rows){
-      for(const row of rows.flatMap(variants)){
+    async function appendRows(rows){
+      const prepared=await window.QBAuthenticatedMedia.prepare(sb,rows.flatMap(variants));
+      for(const row of prepared){
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(publicUrl(sb,row.image_path),'PDF',{passive:true}):`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(assetUrl(row),'PDF',{passive:true}):`<img loading="lazy" draggable="false" src="${esc(assetUrl(row))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
@@ -164,7 +165,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       try{
         const rows=cursor?await pageAfter(sb,cursor,pageSize,snapshot):await initialPage(sb,pageSize,snapshot);
         if(closed||token!==generation)return;
-        if(rows.length)cursor=rows[rows.length-1];hasMore=rows.length===pageSize;appendRows(rows);
+        if(rows.length)cursor=rows[rows.length-1];hasMore=rows.length===pageSize;await appendRows(rows);
         loader.dataset.state=hasMore?'more':'end';loader.disabled=!hasMore;empty.classList.toggle('hidden',seenPaths.size>0||hasMore);
       }catch(e){if(!closed&&token===generation){loader.dataset.state='error';loader.disabled=false;loader.title=e?.message||'読み込み失敗'}}
       finally{if(!closed&&token===generation){loading=false;if(hasMore&&loader.dataset.state!=='error')maybeContinue()}}

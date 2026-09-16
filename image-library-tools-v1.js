@@ -4,13 +4,11 @@ let raf=0;
 const BUCKET='question-media';
 const q=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=Q=>Q?.id||Q?.dbId||null;
-function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
 function ext(path,blob){return window.qbRecentImagePicker?.extFromPath?.(path,blob)||((String(path||'').match(/\.([a-zA-Z0-9]+)$/)||[])[1]||'png').toLowerCase().replace('jpeg','jpg')}
 async function recentFiles(sb,rows){
   const out=[];
   for(const row of rows){
-    const d=await sb.storage.from(BUCKET).download(row.image_path);if(d.error)throw new Error(`元画像の取得に失敗: ${d.error.message}`);
-    const b=d.data,e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif','pdf':'application/pdf'}[e]||'application/octet-stream');
+    const b=await window.QBAuthenticatedMedia.download(sb,row),e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif','pdf':'application/pdf'}[e]||'application/octet-stream');
     out.push(new File([b],`recent-${crypto.randomUUID()}.${e}`,{type}));
   }
   return out;
@@ -38,9 +36,9 @@ async function cropStem(button){
   try{
     button.disabled=true;button.textContent='準備中…';
     const r=await sb.from('question_images').select('*').eq('id',rowId).eq('question_id',id).maybeSingle();if(r.error||!r.data)throw r.error||new Error('画像情報がありません');
-    const blob=await cropModal(publicUrl(sb,r.data.image_path));if(!blob)return;
+    const src=await window.QBAuthenticatedMedia.objectUrl(sb,r.data),blob=await cropModal(src);if(!blob)return;
     button.textContent='保存中…';
-    await window.QBImageStore.replace({sb,bucket:BUCKET,questionId:String(id),placement:'question',choiceId:null,host:wrap.closest('.qsiHost')},r.data,blob);
+    await window.QBImageStore.replace({sb,bucket:r.data.storage_bucket||BUCKET,questionId:String(id),placement:'question',choiceId:null,host:wrap.closest('.qsiHost')},r.data,blob);
     window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:id,type:'question-image-crop'}}));
   }catch(e){alert('トリミング失敗: '+(e?.message||e))}finally{if(button.isConnected){button.disabled=false;button.textContent=oldText}}
 }

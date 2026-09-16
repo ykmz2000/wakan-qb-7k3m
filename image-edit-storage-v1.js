@@ -65,6 +65,7 @@ async function add(c,blob,original){
     if(original)originalPath=await upload(c,original);path=await upload(c,blob);await authorize(c);
     const existing=await scoped(c,c.sb.from(table(c)).select('sort_order').eq('placement',c.placement)).order('sort_order',{ascending:false}).limit(1);if(existing.error)throw existing.error;
     const payload={question_id:c.questionId,choice_id:c.choiceId||null,placement:c.placement,image_path:path,original_image_path:originalPath,sort_order:(existing.data?.[0]?.sort_order||0)+10};
+    if(!c.userId)payload.storage_bucket=c.bucket;
     if(c.userId)Object.assign(payload,{user_id:c.userId,note_id:c.noteId});
     const r=await c.sb.from(table(c)).insert(payload).select('id,image_path,original_image_path').single();
     if(r.error||!r.data){const check=await scoped(c,c.sb.from(table(c)).select('id,image_path,original_image_path').eq('image_path',path)).maybeSingle();if(check.error||!check.data)throw r.error||Error('保存結果を確認できません。');return check.data}return r.data;

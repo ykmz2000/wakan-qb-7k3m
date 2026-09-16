@@ -118,7 +118,7 @@ async function loadImages(sb,rows,signal,pdf){
   try{
     for(const row of rows){
       aborted(signal);
-      const file=await cancellable(sb.storage.from('question-media').download(row.image_path),signal);
+      const file=await cancellable(sb.storage.from(row.storage_bucket||'question-media').download(row.image_path),signal);
       if(file.error||!file.data)throw Error('画像を取得できませんでした。画像を省略せず、出力を中止しました。');
       if(window.QBFiles?.isPDF(row.image_path))await addPdfPages(row,file.data);else await addImage(row,file.data);
     }
@@ -180,7 +180,7 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
         const unit=scope.units.find(u=>String(u.id)===String(q.unit_id))||{name:'単元未分類'};
         if(scope.all&&currentUnit!==String(q.unit_id)){await cover(scope.subject.name,unit.name,'unit-cover');currentUnit=String(q.unit_id)}
         onProgress({done:start+n,total:scope.index.length});
-        let rows=await readAll(()=>sb.from('question_images').select('id,image_path,caption,alt_text,placement,choice_id,sort_order,created_at').eq('question_id',q.id),signal);
+        let rows=await readAll(()=>sb.from('question_images').select('id,image_path,storage_bucket,caption,alt_text,placement,choice_id,sort_order,created_at').eq('question_id',q.id),signal);
         rows.sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)||String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
         rows=rows.filter(r=>r.placement!=='medical_verification');
         if(mode!=='full')rows=rows.filter(r=>r.placement==='question');

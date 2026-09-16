@@ -53,10 +53,10 @@ async function add(sb,file){
 }
 async function addRecent(sb,row){
  await authorize(sb);
- const source=unwrap(await sb.from('question_images').select('id,image_path,annotation_base_image_path,annotation_result_image_path').eq('id',row.id).maybeSingle());
+ const source=unwrap(await sb.from('question_images').select('id,image_path,storage_bucket,annotation_base_image_path,annotation_result_image_path').eq('id',row.id).maybeSingle());
  const path=row.image_path,before=row.image_variant==='before-annotation';
  if(!source||!path||(before?(source.annotation_base_image_path!==path||source.annotation_result_image_path!==source.image_path):source.image_path!==path))throw Error('元画像が更新されています。最近の画像から選び直してください。');
- const blob=unwrap(await sb.storage.from(DESTINATION).download(path));
+ const blob=await window.QBAuthenticatedMedia.download(sb,{...source,image_path:path});
  const ext=path.split('.').pop().toLowerCase(),type=Object.keys(TYPES).find(t=>TYPES[t]===ext)||(ext==='jpeg'?'image/jpeg':'');
  const file=new File([blob],(before?'書き込み前の画像':'最近の画像')+'.'+(TYPES[blob.type]||ext),{type:TYPES[blob.type]?blob.type:type});
  return add(sb,file);

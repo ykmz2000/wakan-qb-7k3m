@@ -124,7 +124,7 @@ async function open(source,options={}){
       if(source==='recent'){
         if(!window.qbRecentImagePicker||!window.qbSupabase)throw Error('最近の画像を読み込めません。');
         const rows=await window.qbRecentImagePicker.pick({sb:window.qbSupabase,title:'最近の画像から',parent:modal,context:questionSnapshot});
-        for(const row of rows||[]){const latest=await window.qbSupabase.from('question_images').select('image_path,annotation_base_image_path,annotation_result_image_path').eq('id',row.id).maybeSingle();if(latest.error)throw latest.error;const r0=latest.data,before=row.image_variant==='before-annotation';if(!r0||(before?(r0.annotation_base_image_path!==row.image_path||r0.annotation_result_image_path!==r0.image_path):r0.image_path!==row.image_path))throw Error('元画像が更新されています。最近の画像から選び直してください。');const r=await window.qbSupabase.storage.from('question-media').download(row.image_path);if(r.error)throw r.error;blobs.push(r.data)}
+        for(const row of rows||[]){const latest=await window.qbSupabase.from('question_images').select('image_path,storage_bucket,annotation_base_image_path,annotation_result_image_path').eq('id',row.id).maybeSingle();if(latest.error)throw latest.error;const r0=latest.data,before=row.image_variant==='before-annotation';if(!r0||(before?(r0.annotation_base_image_path!==row.image_path||r0.annotation_result_image_path!==r0.image_path):r0.image_path!==row.image_path))throw Error('元画像が更新されています。最近の画像から選び直してください。');blobs.push(await window.QBAuthenticatedMedia.download(window.qbSupabase,{...r0,image_path:row.image_path}))}
       }else if(source==='library'){
         if(!window.QBImageLibraryStore||!window.qbSupabase)throw Error('画像ライブラリを読み込めません。');
         const rows=await window.QBImageEditorSources.pickLibrary({sb:window.qbSupabase});
