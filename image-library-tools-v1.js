@@ -36,7 +36,7 @@ async function cropStem(button){
   try{
     button.disabled=true;button.textContent='準備中…';
     const r=await sb.from('question_images').select('*').eq('id',rowId).eq('question_id',id).maybeSingle();if(r.error||!r.data)throw r.error||new Error('画像情報がありません');
-    const src=await window.QBAuthenticatedMedia.signedUrl(sb,r.data),blob=await cropModal(src);if(!blob)return;
+    const src=await window.QBAuthenticatedMedia.objectUrl(sb,r.data),blob=await cropModal(src);if(!blob)return;
     button.textContent='保存中…';
     await window.QBImageStore.replace({sb,bucket:r.data.storage_bucket||BUCKET,questionId:String(id),placement:'question',choiceId:null,host:wrap.closest('.qsiHost')},r.data,blob);
     window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:id,type:'question-image-crop'}}));

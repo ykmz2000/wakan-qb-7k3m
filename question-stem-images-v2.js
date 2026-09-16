@@ -13,7 +13,7 @@ function currentQ(){
 }
 const qid=q=>q?.id||q?.dbId||null;
 async function isAdmin(){if(adminCache!==null)return adminCache;const sb=window.qbSupabase;if(!sb)return false;const a=await sb.auth.getUser(),u=a.data?.user;if(!u)return adminCache=false;if((u.email||'').toLowerCase()==='otohaykm@gmail.com')return adminCache=true;const r=await sb.from('profiles').select('role').eq('id',u.id).maybeSingle();return adminCache=r.data?.role==='admin'}
-async function assetUrl(sb,row){return window.QBAuthenticatedMedia.signedUrl(sb,row)}
+async function assetUrl(sb,row){return window.QBAuthenticatedMedia.objectUrl(sb,row)}
 function emit(id,type){window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:id,type,source:SOURCE}}))}
 function imageRequired(meta,q){const note=String(meta?.source_note||'');if(note.includes('[IMAGE_REQUIRED]'))return true;const s=String(q?.stem||'');return /(?:以下|次|上|右|左)?(?:の)?(?:画像|写真|図\d*|模式図|標本|MRI|CT|X線|レントゲン)を?(?:提示|示す|示した|以下に示す)/.test(s)}
 function fileInfo(file){if(!file)throw new Error('画像を取得できません');if(file.size>MAX_BYTES)throw new Error('画像は100MB以下にしてください');if(!String(file.type||'').startsWith('image/')&&file.type!=='application/pdf')throw new Error('画像ファイルを選択してください');const ext=((file.name||'').split('.').pop()||file.type.split('/')[1]||'png').toLowerCase().replace('jpeg','jpg');return{file,ext}}
