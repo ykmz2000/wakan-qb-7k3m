@@ -118,7 +118,7 @@ async function run(browser,name){
   await p.locator('.qbripItem').first().click();const colors=await p.evaluate(()=>{
     const out=[];for(const [key,t] of Object.entries(QB_THEME_PALETTE)){document.documentElement.style.setProperty('--accent',t.accent);const probe=document.createElement('span');probe.style.color='var(--accent)';document.body.appendChild(probe);out.push([key,getComputedStyle(document.querySelector('.qbripUse')).backgroundColor,getComputedStyle(document.querySelector('.qbripItem.on')).borderTopColor,getComputedStyle(probe).color]);probe.remove()}return out;
   });for(const [key,bg,border,accent] of colors){assert.equal(bg,accent,key);assert.equal(border,accent,key)}pass('selection and add controls follow all seven system colors without hardcoded blue');
-  await p.locator('.qbripCancel').click();assert.deepEqual(await p.evaluate(()=>pickerResult),[]);assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),await p.evaluate(()=>pickerOriginal));assert.equal(await p.evaluate(()=>testDownloads.length+testUploadPaths.length),0);pass('browsing, filtering, previewing and cancelling cause no DB or Storage writes');
+  await p.locator('.qbripCancel').click();assert.deepEqual(await p.evaluate(()=>pickerResult),[]);assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),await p.evaluate(()=>pickerOriginal));assert.equal(await p.evaluate(()=>testUploadPaths.length),0);assert.ok(await p.evaluate(()=>testDownloads.length)>0);pass('browsing uses authenticated reads, while filtering, previewing and cancelling cause no DB or Storage writes');
   await p.evaluate(()=>failPickerCatalog=true);await p.evaluate(()=>{qbRecentImagePicker.pick({sb:qbSupabase}).then(r=>pickerResult=r)});await p.locator('.qbripFilterRetry:not(.hidden)').waitFor();assert.equal(await p.locator('.qbripItem').count(),0);await p.locator('.qbripFilterRetry').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');await p.locator('.qbripCancel').click();pass('catalog errors have an explicit retry path and preserve the intended initial subject');
   // The real existing image button -> picker -> independent file copy route.
   await p.locator('.adeStemBtn').click();const rich=p.locator('.qtext .qbInlineRich[contenteditable="true"]');await rich.waitFor();await rich.press('End');await p.keyboard.insertText(' 未保存の本文');const draft=await rich.textContent();
@@ -163,11 +163,11 @@ async function run(browser,name){
   await open(p);await finish(p);const versionIds=await ids(p);
   assert.ok(versionIds.includes('versioned')&&versionIds.includes('versioned:before-annotation'));
   assert.ok(!versionIds.includes('legacy:before-annotation')&&!versionIds.includes('stale:before-annotation'));
-  const sources=await p.evaluate(()=>testPublicPaths);
+  const sources=await p.evaluate(()=>testDownloads);
   for(const absent of ['before-crop.png','unknown-original.png','obsolete-base.png'])assert.ok(sources.every(s=>!s.endsWith(absent)));
   const beforeVersion=p.locator('[data-id="versioned:before-annotation"]');assert.ok((await beforeVersion.textContent()).includes('書き込み前'));
   await beforeVersion.focus();await p.keyboard.press('Alt+Enter');await p.locator('.qbripPreview').waitFor();
-  assert.equal(await p.evaluate(()=>testPublicPaths.at(-1)),'after-crop.png');await p.keyboard.press('Escape');await p.locator('.qbripPreview').waitFor({state:'detached'});
+  assert.ok(await p.evaluate(()=>testDownloads.includes('after-crop.png')));await p.keyboard.press('Escape');await p.locator('.qbripPreview').waitFor({state:'detached'});
   await beforeVersion.click();await p.locator('[data-id="versioned"]').click();assert.equal(await p.locator('.qbripItem.on').count(),2);
   await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
   pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
