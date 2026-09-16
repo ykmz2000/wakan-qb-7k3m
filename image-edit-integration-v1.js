@@ -32,7 +32,7 @@ async function actions(w,c,rowId,original){if(!rowId||!c||w.dataset.qbActionPend
 function scan(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;
   document.querySelectorAll('.qbPublicImageWrap').forEach(w=>{const questionId=w.dataset.question,placement=w.dataset.placement,choiceId=w.dataset.choice||null;actions(w,{sb:window.qbSupabase,bucket:'question-media',questionId,placement,choiceId,host:w,onSaved:()=>notify(questionId,placement,choiceId)},w.dataset.row,w.dataset.original==='1')});
   document.querySelectorAll('.oeiItem').forEach(w=>{const ed=w.closest('.adeEditor');actions(w,editorContext(ed),w.dataset.id,w.dataset.original==='1')});
-  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(!w.querySelector('.qsiDelete'))return;const questionId=qid(q()),host=w.closest('.qsiHost');actions(w,{sb:window.qbSupabase,bucket:'question-media',questionId,placement:'question',choiceId:null,host,onSaved:()=>notify(questionId,'question',null)},w.dataset.row,w.dataset.original==='1')});
+  document.querySelectorAll('.qsiImgWrap').forEach(w=>{if(!w.querySelector('.qsiDelete'))return;const questionId=qid(q()),host=w.closest('.qsiHost');actions(w,{sb:window.qbSupabase,bucket:w.dataset.bucket||'question-media',questionId,placement:'question',choiceId:null,host,onSaved:()=>notify(questionId,'question',null)},w.dataset.row,w.dataset.original==='1')});
   document.querySelectorAll('.qbNoteImageWrap').forEach(w=>{const note=w.closest('.qbPersonal');actions(w,note?.qbImageContext?.(),w.dataset.row,w.dataset.original==='1')});
 })}
 function boot(){
