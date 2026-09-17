@@ -1,7 +1,7 @@
 window.addEventListener('DOMContentLoaded',()=>{
-  document.title='定期テスト対策QB';
+  document.title='定期テスト対策プール';
   const brand=document.querySelector('.brand');
-  if(brand) brand.textContent='定期テスト対策QB';
+  if(brand) brand.textContent='定期テスト対策プール';
   const view=document.getElementById('view');
   const crumb=document.getElementById('crumb');
   const home=document.getElementById('home');

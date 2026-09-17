@@ -38,6 +38,9 @@ jobs:
           node --check explanation-format-v1.js
           node --check pull-to-refresh-v1.js
           node --check app-header-v1.js
+          node --check qb-practice-dock-v2.js
+          node --check tests/practice-keyboard-shortcuts.browser.cjs
+          node --check tests/brand-name.unit.cjs
           node --check recent-image-picker-v1.js
           node --check editable-media-v1.js
           node --check image-annotation-editor-v1.js
@@ -52,6 +55,7 @@ jobs:
         run: |
           npm install --prefix /tmp/qb-browser-tests --no-save --package-lock=false playwright@1.63.0 jsqr@1.4.0 cropperjs@1.6.2
           node --test tests/image-annotation.unit.cjs tests/unit-pdf-layout.unit.cjs tests/image-upload-limits.unit.cjs tests/pdf-collage.unit.cjs
+          node --test tests/brand-name.unit.cjs
           node tests/recent-image-scope-preview.browser.cjs
           node tests/unit-pdf-export.browser.cjs
           node tests/pull-to-refresh.browser.cjs
@@ -67,6 +71,7 @@ jobs:
           node tests/inline-stem.browser.cjs
           node tests/inline-enter.browser.cjs
           node tests/fill-blank-reference.browser.cjs
+          node tests/practice-keyboard-shortcuts.browser.cjs
           node tests/question-image-add-theme.browser.cjs
           node tests/editable-media.browser.cjs
           node tests/pdf-editor.browser.cjs

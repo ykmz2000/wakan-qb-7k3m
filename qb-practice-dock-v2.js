@@ -64,6 +64,29 @@ function doMain(){
   if(tap('review'))return;
   tap('showTextAnswer');
 }
+function visibleDialog(){
+  return [...document.querySelectorAll('dialog[open],[role="dialog"],[aria-modal="true"]')].some(node=>{
+    return node instanceof HTMLElement&&node.isConnected&&!node.hidden&&!node.classList.contains('hidden')&&node.getClientRects().length>0
+  })
+}
+function editableTarget(target){
+  return target instanceof Element?target.closest('input:not([type="checkbox"]):not([type="radio"]),textarea,select,[contenteditable="true"],[contenteditable="plaintext-only"]'):null
+}
+function keyboardShortcut(e){
+  if(screen()!=='practice'||e.defaultPrevented||e.repeat||e.isComposing||e.keyCode===229||visibleDialog())return;
+  const editable=editableTarget(e.target);
+  const shiftEnter=e.key==='Enter'&&e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey;
+  if(shiftEnter){
+    // Short-answer fields intentionally reserve Shift+Enter for the requested
+    // answer/explanation action; Enter by itself remains a line break.
+    if(editable&&!editable.classList.contains('fbInput'))return;
+    e.preventDefault();e.stopPropagation();doMain();return
+  }
+  if(editable||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey||!['ArrowLeft','ArrowRight'].includes(e.key))return;
+  const button=document.getElementById(e.key==='ArrowRight'?'next':'prev');
+  if(!button||button.disabled)return;
+  e.preventDefault();e.stopPropagation();button.click()
+}
 function render(){
   css();
   let d=document.getElementById('qbPracticeDockV2');
@@ -94,6 +117,7 @@ function boot(){
   ['qb-screen-change','qb-answer-shown','qb-retry-current','qb-app-ready','qb-question-change'].forEach(ev=>window.addEventListener(ev,schedule));
   document.addEventListener('click',e=>{if(e.target.closest?.('#view .choice,#answer,#review,#showTextAnswer,#prev,#next'))setTimeout(schedule,20)},true);
   document.addEventListener('input',e=>{if(e.target.matches?.('.fbInput'))schedule()},true);
+  document.addEventListener('keydown',keyboardShortcut);
   const v=document.getElementById('view');if(v)new MutationObserver(schedule).observe(v,{childList:true,subtree:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
