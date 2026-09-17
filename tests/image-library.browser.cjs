@@ -84,7 +84,14 @@ async function boot(browser){
   }};
  });
  for(const s of ['image-library-store-v1.js','image-library-ui-v1.js','image-library-integration-v1.js'])await page.addScriptTag({content:read(s)});
- await page.locator('.qbLibraryEntry').waitFor();return{page,errors};
+ await page.locator('.qbLibraryEntry').waitFor();
+ // These shared regressions exercise the file library. The product entry now opens
+ // on problem search, so express the file intent once for every entry click.
+ await page.locator('.qbLibraryEntry').evaluate(entry=>entry.addEventListener('click',()=>{
+  const chooseFileTab=()=>{const tab=[...document.querySelectorAll('[role="tab"]')].find(node=>node.textContent==='ファイル');if(!tab)return false;tab.click();return true};
+  if(chooseFileTab())return;let attempts=0;const timer=setInterval(()=>{if(chooseFileTab()||++attempts>=200)clearInterval(timer)},10);
+ }));
+ return{page,errors};
 }
 async function edit(p){
  const button=p.getByRole('button',{name:'編集',exact:true});if(await button.count())await button.click();
@@ -155,4 +162,3 @@ async function runPagination(browser,name){
 }
 module.exports={boot,edit,peek};
 if(require.main===module)(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const b=await type.launch();try{await run(b,name);await runPagination(b,name)}finally{await b.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
-
