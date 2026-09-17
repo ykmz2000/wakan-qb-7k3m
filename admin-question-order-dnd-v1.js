@@ -18,17 +18,18 @@ function css(){
 #qsoBar .qsoMsg{font-size:11px;color:#6f7786;margin-right:auto;line-height:1.45}#qsoBar button{border-radius:9px;padding:8px 11px;font-weight:900}
 #qsoSave{border:0;background:var(--accent,#126fb3);color:#fff}#qsoUndo{border:1px solid #dce3ec;background:#fff;color:#536174}#qsoSave:disabled,#qsoUndo:disabled{opacity:.35}
 .problem.qsoRow .qid{display:flex;align-items:center;gap:5px;min-width:0}.qsoNum{min-width:16px}.qsoHandle{touch-action:none;-webkit-user-select:none;user-select:none;border:0;background:#edf4f9;color:var(--accent,#126fb3);border-radius:9px;width:42px;height:42px;padding:0;font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;flex:0 0 auto}
-.qsoHandle:active{cursor:grabbing}body.qbQuestionReorderMode .problem.qsoRow{cursor:grab;touch-action:pan-y;-webkit-user-select:none;user-select:none}body.qbQuestionReorderMode .problem.qsoRow.qsoPressing{background:#f4f8fb}body.qbQuestionReorderMode .problem.qsoRow:active{cursor:grabbing}
+.qsoHandle:active{cursor:grabbing}body.qbQuestionReorderMode .problem.qsoRow{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}body.qbQuestionReorderMode .problem.qsoRow.qsoPressing{background:#f4f8fb}body.qbQuestionReorderMode .problem.qsoRow:active{cursor:grabbing}
 .problem.qsoSourceHidden{position:fixed!important;left:-10000px!important;top:0!important;width:1px!important;height:1px!important;margin:0!important;opacity:0!important;pointer-events:none!important}.qsoDropIndicator{height:4px;margin:5px 2px;border-radius:999px;background:var(--accent,#126fb3);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent,#126fb3) 22%,transparent);pointer-events:none}
 .qsoDragGhost{position:fixed!important;z-index:10000!important;margin:0!important;opacity:.76!important;pointer-events:none!important;box-sizing:border-box!important;transform:scale(1.01);transform-origin:center;box-shadow:0 12px 30px #17324d38!important;background:#fff!important;border-radius:10px!important}
-body.qsoIsDragging,body.qsoIsDragging *{cursor:grabbing!important}body.qsoIsDragging{overscroll-behavior:none}
+html.qsoDirectScroll{scroll-behavior:auto!important}body.qsoIsDragging,body.qsoIsDragging *{cursor:grabbing!important}body.qsoIsDragging{overscroll-behavior:none}
 @media(max-width:520px){.problem.qsoRow{grid-template-columns:66px 1fr}.qsoHandle{width:44px;height:44px}.problem.qsoRow .pick{grid-column:2}}
 `;document.head.appendChild(s)
 }
 function stopAutoScroll(){cancelAnimationFrame(autoScrollFrame);autoScrollFrame=0}
-function removeDragUi(){stopAutoScroll();document.body.classList.remove('qsoIsDragging');drag?.timer&&clearTimeout(drag.timer);drag?.ghost?.remove();drag?.indicator?.remove();drag?.row?.classList.remove('qsoPressing','qsoSourceHidden')}
+function removeDragUi(){stopAutoScroll();document.body.classList.remove('qsoIsDragging');document.documentElement.classList.remove('qsoDirectScroll');drag?.timer&&clearTimeout(drag.timer);drag?.ghost?.remove();drag?.indicator?.remove();drag?.row?.classList.remove('qsoPressing','qsoSourceHidden')}
 function clear(){
   if(drag){removeDragUi();drag=null}ctx=null;suppressClickUntil=0;window.QB_REORDER_ACTIVE=false;document.getElementById('qsoBar')?.remove();
+  document.querySelectorAll('.qsoRow').forEach(row=>{row.removeEventListener('pointerdown',onPointerDown);row.removeEventListener('pointermove',onPointerMove);row.removeEventListener('pointerup',onPointerUp);row.removeEventListener('pointercancel',onPointerCancel)});
   document.querySelectorAll('.qsoHandle').forEach(x=>x.remove());document.querySelectorAll('.qsoNum').forEach(n=>{const p=n.parentElement;if(p)p.textContent=n.textContent||''});
   document.querySelectorAll('.qsoRow,.qsoPressing,.qsoSourceHidden').forEach(x=>x.classList.remove('qsoRow','qsoPressing','qsoSourceHidden'))
 }
@@ -50,30 +51,37 @@ function updateGhost(x,y){if(drag?.ghost){drag.ghost.style.left=`${x-drag.offset
 function scrollStep(){
   autoScrollFrame=0;if(!drag?.active)return;const edge=Math.min(92,Math.max(60,innerHeight*.12)),y=drag.clientY;let speed=0;
   if(y<edge)speed=-Math.ceil(4+24*(edge-y)/edge);else if(y>innerHeight-edge)speed=Math.ceil(4+24*(y-(innerHeight-edge))/edge);
-  if(speed){const before=scrollY;window.scrollBy(0,speed);if(scrollY!==before)placeIndicator(y)}autoScrollFrame=requestAnimationFrame(scrollStep)
+  if(speed){window.scrollBy({top:speed,left:0,behavior:'auto'});placeIndicator(y)}autoScrollFrame=requestAnimationFrame(scrollStep)
 }
 function beginDrag(){
-  if(!drag||drag.active||!ctx||ctx.saving)return;drag.timer=0;drag.active=true;drag.row.classList.remove('qsoPressing');armClickSuppression();
+  if(!drag||drag.active||drag.scrolling||!ctx||ctx.saving)return;drag.timer=0;drag.active=true;drag.row.classList.remove('qsoPressing');armClickSuppression();
   const rect=drag.row.getBoundingClientRect(),ghost=drag.row.cloneNode(true),indicator=document.createElement('div');ghost.classList.remove('qsoPressing','qsoSourceHidden');ghost.classList.add('qsoDragGhost');ghost.setAttribute('aria-hidden','true');ghost.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
   Object.assign(ghost.style,{width:`${rect.width}px`,height:`${rect.height}px`,left:`${rect.left}px`,top:`${rect.top}px`});indicator.className='qsoDropIndicator';indicator.setAttribute('aria-hidden','true');drag.row.parentElement.insertBefore(indicator,drag.row);drag.row.classList.add('qsoSourceHidden');document.body.appendChild(ghost);
-  drag.ghost=ghost;drag.indicator=indicator;drag.offsetX=Math.max(0,Math.min(rect.width,drag.clientX-rect.left));drag.offsetY=Math.max(0,Math.min(rect.height,drag.clientY-rect.top));updateGhost(drag.clientX,drag.clientY);document.body.classList.add('qsoIsDragging');window.QB_REORDER_ACTIVE=true;
+  drag.ghost=ghost;drag.indicator=indicator;drag.offsetX=Math.max(0,Math.min(rect.width,drag.clientX-rect.left));drag.offsetY=Math.max(0,Math.min(rect.height,drag.clientY-rect.top));updateGhost(drag.clientX,drag.clientY);document.documentElement.classList.add('qsoDirectScroll');document.body.classList.add('qsoIsDragging');window.QB_REORDER_ACTIVE=true;
   window.dispatchEvent(new CustomEvent('qb-question-reorder-drag-start',{detail:{questionId:rowId(drag.row)}}));autoScrollFrame=requestAnimationFrame(scrollStep)
 }
-function cancelPending(){if(!drag||drag.active)return;drag.timer&&clearTimeout(drag.timer);drag.row.classList.remove('qsoPressing');drag=null}
+function cancelPending(){if(!drag||drag.active)return;drag.timer&&clearTimeout(drag.timer);drag.row.classList.remove('qsoPressing');document.documentElement.classList.remove('qsoDirectScroll');drag=null}
 function onPointerDown(e){
   const row=e.currentTarget;if(!row||!ctx||ctx.saving||!window.QB_REORDER_MODE||e.button>0||isInteractive(e.target))return;const handle=!!e.target.closest('.qsoHandle');
-  drag={row,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,clientX:e.clientX,clientY:e.clientY,active:false,startIds:idsNow(),timer:0};row.classList.add('qsoPressing');try{row.setPointerCapture(e.pointerId)}catch{}
+  drag={row,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startScrollY:scrollY,clientX:e.clientX,clientY:e.clientY,active:false,scrolling:false,startIds:idsNow(),timer:0};row.classList.add('qsoPressing');try{row.setPointerCapture(e.pointerId)}catch{}
   if(handle){e.preventDefault();e.stopPropagation();beginDrag()}else if(e.pointerType==='touch')drag.timer=setTimeout(beginDrag,160)
 }
 function onPointerMove(e){
   if(!drag||e.pointerId!==drag.pointerId)return;drag.clientX=e.clientX;drag.clientY=e.clientY;const distance=Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY);
-  if(!drag.active){if(e.pointerType==='touch'){if(distance>8)cancelPending()}else if(distance>=4)beginDrag();return}e.preventDefault();e.stopPropagation();armClickSuppression();updateGhost(e.clientX,e.clientY);placeIndicator(e.clientY)
+  if(!drag.active){
+    if(e.pointerType==='touch'){
+      if(distance>8&&!drag.scrolling){drag.timer&&clearTimeout(drag.timer);drag.timer=0;drag.scrolling=true;drag.row.classList.remove('qsoPressing');document.documentElement.classList.add('qsoDirectScroll');armClickSuppression()}
+      if(drag.scrolling){e.preventDefault();e.stopPropagation();window.scrollTo({top:drag.startScrollY+drag.startY-e.clientY,left:0,behavior:'auto'})}
+    }else if(distance>=4)beginDrag();return
+  }e.preventDefault();e.stopPropagation();armClickSuppression();updateGhost(e.clientX,e.clientY);placeIndicator(e.clientY)
 }
 function finishDrag(e,cancel=false){
   if(!drag||e.pointerId!==drag.pointerId)return;const d=drag;if(!d.active){cancelPending();return}e.preventDefault();e.stopPropagation();armClickSuppression();
   if(cancel)orderBy(d.startIds);else d.row.parentElement.insertBefore(d.row,d.indicator);removeDragUi();drag=null;window.QB_REORDER_ACTIVE=!!window.QB_REORDER_MODE;renumber();updateBar();
   window.dispatchEvent(new CustomEvent('qb-question-reorder-drag-end',{detail:{questionId:rowId(d.row),cancelled:cancel}}))
 }
+function onPointerUp(e){finishDrag(e,false)}
+function onPointerCancel(e){finishDrag(e,true)}
 function suppressSyntheticClick(e){if(Date.now()>suppressClickUntil)return;const row=e.target?.closest?.('#view .problem');if(!row)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}
 async function save(){
   if(!ctx||ctx.saving)return;const current=idsNow();if(sameOrder(current,ctx.originalIds))return;ctx.saving=true;updateBar();const msg=document.querySelector('#qsoBar .qsoMsg');if(msg)msg.textContent='順番を保存中…';
@@ -86,7 +94,7 @@ async function inject(){
   const rec=r.data||[];if(rec.length!==ids.length||rec.some(x=>x.unit_id!==unitId)){clear();return}const rankValues=rec.map(x=>Number(x.study_order)||0).sort((a,b)=>a-b);if(new Set(rankValues).size!==rankValues.length){clear();console.warn('question reorder disabled: duplicate study_order');return}
   clear();ctx={unitId,originalIds:[...ids],rankValues,saving:false,dirty:false};css();rs.forEach((row,i)=>{
     row.classList.add('qsoRow');const qid=row.querySelector('.qid');if(!qid)return;const old=qid.textContent.trim();qid.textContent='';const h=document.createElement('button');h.type='button';h.className='qsoHandle';h.setAttribute('aria-label','問題を並び替え');h.textContent='≡';const n=document.createElement('span');n.className='qsoNum';n.textContent=old||String(i+1);qid.append(h,n);
-    row.addEventListener('pointerdown',onPointerDown);row.addEventListener('pointermove',onPointerMove);row.addEventListener('pointerup',e=>finishDrag(e,false));row.addEventListener('pointercancel',e=>finishDrag(e,true));h.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()})
+    row.addEventListener('pointerdown',onPointerDown);row.addEventListener('pointermove',onPointerMove);row.addEventListener('pointerup',onPointerUp);row.addEventListener('pointercancel',onPointerCancel);h.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()})
   });
   const listCard=rs[0].parentElement,bar=document.createElement('div');bar.id='qsoBar';bar.innerHTML='<div class="qsoMsg" aria-live="polite">カードをドラッグして並び替えできます。</div><button id="qsoUndo" type="button" disabled>元に戻す</button><button id="qsoSave" type="button" disabled>順番を保存</button>';listCard?.insertAdjacentElement('beforebegin',bar);document.getElementById('qsoUndo').onclick=restore;document.getElementById('qsoSave').onclick=save;renumber();updateBar()
 }
