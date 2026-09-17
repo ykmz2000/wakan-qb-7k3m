@@ -447,7 +447,12 @@ async function open({context=null}={}){
   }
   overlay.focus();
   if(context)loadFileLibrary();
-  else overlay.addEventListener('qb-library-files-requested',loadFileLibrary,{once:true});
+  else{
+   overlay.addEventListener('qb-library-files-requested',loadFileLibrary,{once:true});
+   // The question-search decorator marks the overlay in the MutationObserver
+   // microtask. Without that feature, preserve the standalone file library.
+   setTimeout(()=>{if(!overlay.dataset.qbQuestionSearch)loadFileLibrary()},0);
+  }
  });
 }
 function placementName(p){return {question:'問題文',choice:'選択肢',explanation_overview:'問題文のポイント',choice_explanation:'選択肢解説',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification:'医学的検証'}[p]||p}
