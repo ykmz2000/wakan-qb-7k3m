@@ -192,7 +192,12 @@ window.qbOpenLibraryQuestion=async({questionId,subjectId,targetUnitId}={})=>{
   if(!questions.some(q=>String(q.id)===id)){const detail=await ensureQuestionDetail(id);questions=[detail];unitId=scope;window.QB_QUESTIONS=questions}
   practice=[id];selected=new Set([id]);pi=0;submitted=false;reviewOnly=false;sel=new Set();practiceMode='ordered';sessionId=null;setScreen('practice');
 };
-window.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='practice')saveSession(false)});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
+window.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&screen==='practice'){saveSession(false);return}
+  // 解説を見たまま管理側で内容が更新されることがある。アプリへ戻った時は、
+  // 回答状態を保ったまま現在の1問を再取得して、古い訂正文・解説を残さない。
+  if(!document.hidden&&screen==='practice'&&submitted)setTimeout(()=>refreshCurrentScreen().catch(e=>console.warn('question freshness refresh',e)),80)
+});window.addEventListener('beforeunload',()=>{if(screen==='practice')saveSession(false)});
 window.addEventListener('qb-content-updated',e=>{const id=String(e.detail?.questionId||'');if(!id)return;detailCache.delete(id);detailPending.delete(id);const i=questions.findIndex(q=>String(q.id)===id);if(i>=0)questions[i]._detailLoaded=false;if(String(pq()?.id||'')===id)syncChoiceFeedback()});
 /* Fetch into a separate snapshot. Never submit an answer or write a session here. */
 let refreshTask=null,interactionVersion=0,detailGeneration=0;
