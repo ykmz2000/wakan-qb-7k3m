@@ -89,7 +89,7 @@ async function boot(browser){
  // on problem search, so express the file intent once for every entry click.
  await page.locator('.qbLibraryEntry').evaluate(entry=>entry.addEventListener('click',()=>{
   const chooseFileTab=()=>{const tab=[...document.querySelectorAll('[role="tab"]')].find(node=>node.textContent==='ファイル');if(!tab)return false;tab.click();return true};
-  if(chooseFileTab())return;const observer=new MutationObserver(()=>{if(chooseFileTab())observer.disconnect()});observer.observe(document.body,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),2000);
+  if(chooseFileTab())return;let attempts=0;const timer=setInterval(()=>{if(chooseFileTab()||++attempts>=200)clearInterval(timer)},10);
  }));
  return{page,errors};
 }
