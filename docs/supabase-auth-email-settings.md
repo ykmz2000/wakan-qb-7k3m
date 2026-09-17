@@ -1,4 +1,4 @@
-# Supabase Auth メール設定（定期テスト対策QB）
+# Supabase Auth メール設定（定期テスト対策プール）
 
 対象プロジェクト: `qebvqcubtyfgaakrzbzh`
 
@@ -17,11 +17,11 @@ localhost が Site URL になっている場合は上記へ変更する。
 Supabase Dashboard → Authentication → Email Templates → Confirm signup
 
 ### Subject
-`【定期テスト対策QB】メールアドレスの確認`
+`【定期テスト対策プール】メールアドレスの確認`
 
 ### Body
 ```html
-<h2>定期テスト対策QBへようこそ</h2>
+<h2>定期テスト対策プールへようこそ</h2>
 <p>新規登録ありがとうございます。</p>
 <p>下のボタンを押してメールアドレスを確認すると、登録が完了します。</p>
 <p style="margin:24px 0;">
@@ -30,7 +30,7 @@ Supabase Dashboard → Authentication → Email Templates → Confirm signup
   </a>
 </p>
 <p>このメールに心当たりがない場合は、そのまま破棄してください。</p>
-<p style="color:#6f7786;font-size:12px;">定期テスト対策QB</p>
+<p style="color:#6f7786;font-size:12px;">定期テスト対策プール</p>
 ```
 
 ## 3. アプリ側

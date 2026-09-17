@@ -131,7 +131,7 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
   const sb=window.qbSupabase,L=window.QBPDFLayout;if(!sb||!L)throw Error('PDF出力の準備ができていません。');
   const scope=await loadScope(sb,target,signal);aborted(signal);
   const lib=await cancellable(loadLibrary(),signal),pdf=await lib.PDFDocument.create();
-  pdf.setTitle([scope.subject.name,scope.all?'':scope.unit.name].filter(Boolean).join(' / '));pdf.setCreator('定期テスト対策QB');
+  pdf.setTitle([scope.subject.name,scope.all?'':scope.unit.name].filter(Boolean).join(' / '));pdf.setCreator('定期テスト対策プール');
   if(document.fonts?.ready)await cancellable(document.fonts.ready,signal);
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(!ctx)throw Error('描画機能を利用できません。');
   const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#c43d79';
@@ -166,9 +166,9 @@ async function generate(target,{mode='full',signal,onProgress=()=>{},onPage=null
     const moduleSize=4,qrX=60,qrY=846;ctx.fillStyle='#fff';ctx.fillRect(qrX,qrY,148,148);ctx.fillStyle='#000';
     SITE_QR.forEach((row,y)=>[...row].forEach((bit,x)=>{if(bit==='1')ctx.fillRect(qrX+(x+4)*moduleSize,qrY+(y+4)*moduleSize,moduleSize,moduleSize)}));
     draw(COVER_NOTICE,60,714,15,false,674);
-    draw('定期テスト対策QBを開く',230,880,18,true,504);
+    draw('定期テスト対策プールを開く',230,880,18,true,504);
     draw(SITE_URL,230,916,13,false,504);
-    draw('定期テスト対策QB',60,1010,14);await savePage({type,title,subtitle,notice:COVER_NOTICE})}
+    draw('定期テスト対策プール',60,1010,14);await savePage({type,title,subtitle,notice:COVER_NOTICE})}
   try{
     await cover(scope.subject.name,scope.all?'':scope.unit.name,scope.all?'subject-cover':'unit-cover');
     for(let start=0;start<scope.index.length;start+=20){

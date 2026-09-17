@@ -24,7 +24,7 @@ async function render(Q,options={}){
   if(qid(q())!==id)throw Error('問題が切り替わりました。もう一度ボタンを押してください。');
   const width=1200,pad=54,inner=width-pad*2,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d'),font='-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif',blocks=[];let y=pad;
   function text(t,size=30,bold=false,gap=22,format=null){ctx.font=`${bold?'700 ':''}${size}px ${font}`;const lines=wrappedLines(ctx,t,inner);blocks.push({type:'text',lines,x:pad,y,size,bold,source:String(t),format});y+=lines.length*size*1.55+gap}
-  text('定期テスト対策QB',22,true,14);
+  text('定期テスト対策プール',22,true,14);
   const occurrences=(Q.occ||[]).map(o=>`${o.academic_year?o.academic_year+'年度':'年度不明'}・${o.exam_type||'試験区分不明'}${o.original_question_number?'・問'+o.original_question_number:''}`);if(occurrences.length)text(occurrences.join(' ／ '),21,false,24);
   text(Q.stem||Q.q||'',32,true,22,record.data?.stem_formatting);if(Q.instruction)text(Q.instruction,26);
   for(const entry of images){const scale=Math.min(1,inner/entry.image.naturalWidth),w=entry.image.naturalWidth*scale,h=entry.image.naturalHeight*scale;blocks.push({type:'image',image:entry.image,x:pad+(inner-w)/2,y,w,h});y+=h+20;if(entry.caption)text(entry.caption,22)}

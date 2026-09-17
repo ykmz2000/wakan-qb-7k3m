@@ -6,14 +6,20 @@ on:
       - 'qb-app.js'
       - 'fill-blank-v2.js'
       - 'qb-practice-dock-v2.js'
+      - 'index.html'
       - 'tests/fill-blank-reference.browser.cjs'
+      - 'tests/practice-keyboard-shortcuts.browser.cjs'
+      - 'tests/brand-name.unit.cjs'
       - '.github/workflows/fill-blank-reference-tests.yml'
   pull_request:
     paths:
       - 'qb-app.js'
       - 'fill-blank-v2.js'
       - 'qb-practice-dock-v2.js'
+      - 'index.html'
       - 'tests/fill-blank-reference.browser.cjs'
+      - 'tests/practice-keyboard-shortcuts.browser.cjs'
+      - 'tests/brand-name.unit.cjs'
       - '.github/workflows/fill-blank-reference-tests.yml'
   workflow_dispatch:
 permissions:
@@ -31,10 +37,17 @@ jobs:
       - name: Check syntax
         run: |
           node --check qb-app.js
+          node --check qb-practice-dock-v2.js
           node --check tests/fill-blank-reference.browser.cjs
+          node --check tests/practice-keyboard-shortcuts.browser.cjs
+          node --check tests/brand-name.unit.cjs
+      - name: User-facing brand regression
+        run: node --test tests/brand-name.unit.cjs
       - name: Install pinned browser client outside repository
         run: npm install --prefix /tmp/qb-reference-tests --no-save --package-lock=false playwright@1.63.0
       - name: Reference, short-answer, and MCQ regressions
         env:
           NODE_PATH: /tmp/qb-reference-tests/node_modules
-        run: node tests/fill-blank-reference.browser.cjs
+        run: |
+          node tests/fill-blank-reference.browser.cjs
+          node tests/practice-keyboard-shortcuts.browser.cjs
