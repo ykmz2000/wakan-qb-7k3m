@@ -39,7 +39,7 @@ async function run(engine,name){
     await page.waitForSelector('.qsoDragGhost');assert.equal(await page.locator('.qsoDropIndicator').count(),1);assert.equal(await page.locator('.qsoSourceHidden').count(),1);
     const target=page.locator('.problem').filter({has:page.locator('[data-q="q3"]')}),b=await target.boundingBox();await page.mouse.move(b.x+b.width*.55,b.y+b.height*.6);await page.mouse.up();
     assert.deepEqual((await ids(page)).slice(0,3),['q2','q3','q1']);assert(await page.locator('[data-q="q2"]').isChecked());assert.equal(await page.locator('.qsoDragGhost').count(),0);
-    await page.click('#qsoSave');await page.waitForFunction(()=>window.__rpcCalls.length===1);assert.deepEqual((await page.evaluate(()=>window.__rpcCalls[0].args.p_items.slice(0,3).map(x=>x.id))),['q2','q3','q1']);
+    await page.click('#qsoSave');await page.waitForFunction(()=>window.__rpcCalls.length===1);assert.deepEqual((await page.evaluate(()=>window.__rpcCalls[0].args.p_items.slice(0,3).map(x=>x.id))),['q2','q3','q1']);await page.waitForTimeout(240);
 
     const q1=page.locator('.problem').filter({has:page.locator('[data-q="q1"]')}),q2=page.locator('.problem').filter({has:page.locator('[data-q="q2"]')});const c=await q1.boundingBox(),d=await q2.boundingBox();
     await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5);await page.mouse.down();await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5+8);await page.mouse.move(d.x+d.width*.55,d.y+2);await page.mouse.up();
