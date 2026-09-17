@@ -62,6 +62,7 @@ async function run(browserType,name){
    await page.keyboard.press('ArrowLeft');await page.waitForFunction(()=>qbGetPracticeState().currentIndex===0);
    await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>qbGetPracticeState().currentIndex===1);
    await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>qbGetScreen()==='problems');
+   await page.locator('#qbPracticeDockV2').waitFor({state:'detached'});
    assert.equal(await page.locator('#qbPracticeDockV2').count(),0,'right on the final question ends practice');
    assert.deepEqual(errors,[]);await page.close()
   }
