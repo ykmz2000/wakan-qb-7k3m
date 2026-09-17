@@ -1,0 +1,42 @@
+name: Problem reorder UX tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - admin-question-order-dnd-v1.js
+      - admin-problem-list-mode-v1.js
+      - index.html
+      - tests/problem-reorder.browser.cjs
+      - .github/workflows/problem-reorder-tests.yml
+  pull_request:
+    paths:
+      - admin-question-order-dnd-v1.js
+      - admin-problem-list-mode-v1.js
+      - index.html
+      - tests/problem-reorder.browser.cjs
+      - .github/workflows/problem-reorder-tests.yml
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright
+        run: |
+          mkdir -p /tmp/qb-browser-tests
+          npm install --prefix /tmp/qb-browser-tests playwright@1.63.0
+          /tmp/qb-browser-tests/node_modules/.bin/playwright install --with-deps chromium webkit
+      - name: Check scripts
+        run: |
+          node --check admin-question-order-dnd-v1.js
+          node --check admin-problem-list-mode-v1.js
+          node --check tests/problem-reorder.browser.cjs
+      - name: Test Chromium and WebKit
+        env:
+          NODE_PATH: /tmp/qb-browser-tests/node_modules
+        run: node tests/problem-reorder.browser.cjs
