@@ -8,7 +8,7 @@ const mode=path.join(root,'admin-problem-list-mode-v1.js');
 
 async function setup(page,count=18){
   await page.setViewportSize({width:390,height:520});
-  await page.setContent(`<!doctype html><style>
+  await page.setContent(`<!doctype html><style>html{scroll-behavior:smooth}
     body{margin:0;font-family:sans-serif}.spacer{height:160px}#view{padding:8px}.problem{height:92px;padding:8px;border-bottom:1px solid #ddd;display:grid;grid-template-columns:52px 1fr 40px;gap:8px;background:#fff}.qid{font-weight:bold}.pick{grid-column:3}.qtext{grid-column:2}
   </style><div class="spacer"></div><div id="view">${Array.from({length:count},(_,i)=>`<div class="problem"><div class="qid">${i+1}</div><div class="qtext">問題 ${i+1}</div><label class="pick"><input type="checkbox" data-q="q${i+1}"></label></div>`).join('')}</div>`);
   await page.evaluate(()=>{
