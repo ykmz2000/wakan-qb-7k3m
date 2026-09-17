@@ -39,12 +39,10 @@ async function run(engine,name){
     await page.waitForSelector('.qsoDragGhost');assert.equal(await page.locator('.qsoDropIndicator').count(),1);assert.equal(await page.locator('.qsoSourceHidden').count(),1);
     const target=page.locator('.problem').filter({has:page.locator('[data-q="q3"]')}),b=await target.boundingBox();await page.mouse.move(b.x+b.width*.55,b.y+b.height*.6);await page.mouse.up();
     assert.deepEqual((await ids(page)).slice(0,3),['q2','q3','q1']);assert(await page.locator('[data-q="q2"]').isChecked());assert.equal(await page.locator('.qsoDragGhost').count(),0);
-    await page.click('#qsoSave');await page.waitForFunction(()=>window.__rpcCalls.length===1);assert.deepEqual((await page.evaluate(()=>window.__rpcCalls[0].args.p_items.slice(0,3).map(x=>x.id))),['q2','q3','q1']);await page.waitForTimeout(240);
+    await page.evaluate(()=>{window.__rpcError=true});await page.click('#qsoSave');await page.waitForFunction(()=>document.querySelector('.qsoMsg').textContent.includes('元の順番に戻しました'));assert.deepEqual((await ids(page)).slice(0,3),['q1','q2','q3']);
 
-    const q1=page.locator('.problem').filter({has:page.locator('[data-q="q1"]')}),q2=page.locator('.problem').filter({has:page.locator('[data-q="q2"]')});const c=await q1.boundingBox(),d=await q2.boundingBox();
-    await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5);await page.mouse.down();await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5+8);await page.mouse.move(d.x+d.width*.55,d.y+2);await page.mouse.up();
-    await page.evaluate(()=>{window.__rpcError=true});await page.click('#qsoSave');await page.waitForFunction(()=>document.querySelector('.qsoMsg').textContent.includes('元の順番に戻しました'));
-    assert.deepEqual((await ids(page)).slice(0,3),['q2','q3','q1']);
+    await page.evaluate(()=>{window.__rpcError=false});const q1=page.locator('.problem').filter({has:page.locator('[data-q="q1"]')}),c=await q1.boundingBox();await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5);await page.mouse.down();await page.mouse.move(c.x+c.width*.55,c.y+c.height*.5+8);await page.waitForSelector('.qsoDragGhost');const q3=page.locator('.problem').filter({has:page.locator('[data-q="q3"]')}),d=await q3.boundingBox();await page.mouse.move(d.x+d.width*.55,d.y+d.height*.6);await page.mouse.up();
+    await page.click('#qsoSave');await page.waitForFunction(()=>window.__rpcCalls.length===2);assert.deepEqual((await page.evaluate(()=>window.__rpcCalls[1].args.p_items.slice(0,3).map(x=>x.id))),['q2','q3','q1']);await page.waitForTimeout(240);
 
     await page.evaluate(()=>scrollTo(0,0));const handle=page.locator('.qsoHandle').first(),h=await handle.boundingBox();await page.mouse.move(h.x+h.width/2,h.y+h.height/2);await page.mouse.down();await page.mouse.move(h.x+h.width/2,510);await page.waitForTimeout(420);assert((await page.evaluate(()=>scrollY))>0);await page.mouse.up();
 
