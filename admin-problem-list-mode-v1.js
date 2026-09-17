@@ -66,7 +66,7 @@ function refreshUi(){
   const wrap=document.getElementById('qsoModeWrap');if(!wrap)return;
   wrap.querySelectorAll('button[data-mode]').forEach(b=>{const on=b.dataset.mode===mode;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))});
   const msg=document.querySelector('#qsoBar .qsoMsg');if(!msg)return;
-  const text=mode==='open'?'問題を押すと、その1問だけ開きます。自己評価・★の選択状態には影響しません。':(!document.getElementById('qsoSave')?.disabled?'順番を変更中です。保存するまでDBには反映されません。':'≡ をドラッグして並び替えできます。自己評価・★の選択状態は保持されます。');
+  const text=mode==='open'?'問題を押すと、その1問だけ開きます。自己評価・★の選択状態には影響しません。':(!document.getElementById('qsoSave')?.disabled?'順番を変更中です。保存するまでDBには反映されません。':'カードをドラッグして並び替えできます。自己評価・★の選択状態は保持されます。');
   if(msg.textContent!==text)msg.textContent=text
 }
 function wireBar(){
@@ -95,12 +95,8 @@ function boot(){
     window.QB_REORDER_ACTIVE=false;
     setTimeout(()=>{if(mode==='reorder')window.QB_REORDER_ACTIVE=true},0)
   },true);
-  document.addEventListener('pointerdown',e=>{if(mode==='reorder'&&e.target.closest?.('.qsoHandle'))lastSnapshot=snapshot()},true);
-  document.addEventListener('pointerup',e=>{
-    if(mode!=='reorder'||!e.target.closest?.('.qsoHandle'))return;
-    window.QB_REORDER_ACTIVE=true;scheduleRestore(lastSnapshot);setTimeout(refreshUi,180)
-  });
-  document.addEventListener('pointercancel',e=>{if(mode==='reorder'&&e.target.closest?.('.qsoHandle')){window.QB_REORDER_ACTIVE=true;scheduleRestore(lastSnapshot)}},true);
+  window.addEventListener('qb-question-reorder-drag-start',()=>{if(mode==='reorder')lastSnapshot=snapshot()});
+  window.addEventListener('qb-question-reorder-drag-end',()=>{if(mode==='reorder'){window.QB_REORDER_ACTIVE=true;scheduleRestore(lastSnapshot);setTimeout(refreshUi,180)}});
   document.addEventListener('click',e=>{
     if(e.target.closest?.('#qbRatingFilterPanel .qbrfBtn,#qbReviewLaterPanel [data-qbrl="filter"]'))setTimeout(()=>{if(!restoring)lastSnapshot=snapshot()},180);
     if(e.target.closest?.('#qsoSave,#qsoUndo')){lastSnapshot=snapshot();scheduleRestore(lastSnapshot);setTimeout(refreshUi,220)}
