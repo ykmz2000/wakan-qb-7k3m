@@ -82,6 +82,13 @@ function keyboardShortcut(e){
     if(editable&&!editable.classList.contains('fbInput'))return;
     e.preventDefault();e.stopPropagation();doMain();return
   }
+  const choiceKey=String(e.key||'').toLowerCase();
+  if(!editable&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[a-e]$/.test(choiceKey)){
+    const index=choiceKey.charCodeAt(0)-97;
+    const button=document.querySelector(`#view .choice[data-choice-key="${choiceKey}"]`)||document.querySelector(`#view .choice[data-c="${index}"]`);
+    if(!button||button.disabled)return;
+    e.preventDefault();e.stopPropagation();button.click();return
+  }
   if(editable||e.shiftKey||e.ctrlKey||e.metaKey||e.altKey||!['ArrowLeft','ArrowRight'].includes(e.key))return;
   const button=document.getElementById(e.key==='ArrowRight'?'next':'prev');
   if(!button||button.disabled)return;

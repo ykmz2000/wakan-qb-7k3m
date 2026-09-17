@@ -18,7 +18,7 @@ window.__fixtureOpen=raws=>{
 };
 `);
 function fixture(id,order,mode='single'){
- return {id,canonical_key:id,stem:'設問 '+id,answer_mode:mode,instruction:null,study_order:order,unit_id:'unit1',answer_fields:mode==='fill_blank'?[{key:'A',label:'A'}]:null,explanation_overview:'解説',choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'正答',is_correct:true,sort_order:1},{id:id+'-b',choice_key:'b',choice_text:'誤答',is_correct:false,sort_order:2}],question_occurrences:[{id:'occ-'+id,academic_year:2026,exam_type:'本試',original_question_number:String(order),official_answer:mode==='fill_blank'?{A:'模範解答'}:['a']}]}
+ return {id,canonical_key:id,stem:'設問 '+id,answer_mode:mode,instruction:null,study_order:order,unit_id:'unit1',answer_fields:mode==='fill_blank'?[{key:'A',label:'A'}]:null,explanation_overview:'解説',choices:mode==='fill_blank'?[]:[{id:id+'-a',choice_key:'a',choice_text:'正答',is_correct:true,sort_order:1},{id:id+'-b',choice_key:'b',choice_text:'誤答',is_correct:false,sort_order:2},{id:id+'-c',choice_key:'c',choice_text:'誤答',is_correct:false,sort_order:3},{id:id+'-d',choice_key:'d',choice_text:'誤答',is_correct:false,sort_order:4},{id:id+'-e',choice_key:'e',choice_text:'誤答',is_correct:false,sort_order:5}],question_occurrences:[{id:'occ-'+id,academic_year:2026,exam_type:'本試',original_question_number:String(order),official_answer:mode==='fill_blank'?{A:'模範解答'}:['a']}]}
 }
 async function boot(browser,questions){
  const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(10000);
@@ -46,7 +46,11 @@ async function run(browserType,name){
    await focusPage(page);await page.keyboard.press('Shift+Enter');await page.waitForSelector('#ans .resultcard.review');
    assert.equal(await page.evaluate(()=>__writes.filter(x=>x.table==='attempts').length),0,'no-selection shortcut opens the explanation');
    await focusPage(page);await page.keyboard.press('Shift+Enter');await page.waitForFunction(()=>document.querySelector('#ans')?.classList.contains('hidden'));
-   await page.locator('[data-c="0"]').click();await focusPage(page);await page.keyboard.press('Shift+Enter');await page.waitForSelector('#ans .resultcard.ok');
+   await focusPage(page);await page.keyboard.press('a');assert.equal(await page.locator('[data-c="0"].sel').count(),1,'A selects the first option');
+   await page.keyboard.press('a');assert.equal(await page.locator('.choice.sel').count(),0,'pressing A again clears a single-choice selection');
+   await page.keyboard.press('e');assert.equal(await page.locator('[data-c="4"].sel').count(),1,'E selects the fifth option');
+   await page.keyboard.press('e');assert.equal(await page.locator('.choice.sel').count(),0,'pressing E again clears the selection');
+   await page.keyboard.press('a');await page.keyboard.press('Shift+Enter');await page.waitForSelector('#ans .resultcard.ok');
    assert.equal(await page.evaluate(()=>__writes.filter(x=>x.table==='attempts').length),1,'selected answer is submitted');
    await focusPage(page);await page.keyboard.press('ArrowLeft');assert.equal(await page.evaluate(()=>qbGetPracticeState().currentIndex),0,'left is inert on the first question');
    await page.keyboard.press('Control+ArrowRight');assert.equal(await page.evaluate(()=>qbGetPracticeState().currentIndex),0,'modified arrows stay available to the browser');
@@ -64,6 +68,22 @@ async function run(browserType,name){
    await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>qbGetScreen()==='problems');
    await page.locator('#qbPracticeDockV2').waitFor({state:'detached'});
    assert.equal(await page.locator('#qbPracticeDockV2').count(),0,'right on the final question ends practice');
+   assert.deepEqual(errors,[]);await page.close()
+  }
+  {
+   const {page,errors}=await boot(browser,[fixture('multi',1,'multiple')]);await focusPage(page);
+   await page.evaluate(()=>{const t=document.createElement('textarea');t.id='fixtureChoiceDraft';document.body.append(t);t.focus()});
+   await page.keyboard.press('a');assert.equal(await page.locator('.choice.sel').count(),0,'letters type normally in editors');
+   await page.evaluate(()=>{document.getElementById('fixtureChoiceDraft').remove();const d=document.createElement('div');d.id='fixtureChoiceDialog';d.setAttribute('role','dialog');d.textContent='dialog';document.body.append(d);document.body.focus()});
+   await page.keyboard.press('a');assert.equal(await page.locator('.choice.sel').count(),0,'visible dialogs own letter shortcuts');
+   await page.evaluate(()=>{document.getElementById('fixtureChoiceDialog').remove();document.body.focus()});
+   const composing=await page.evaluate(()=>{const e=new KeyboardEvent('keydown',{key:'a',isComposing:true,bubbles:true,cancelable:true});document.body.dispatchEvent(e);return e.defaultPrevented});
+   assert.equal(composing,false);assert.equal(await page.locator('.choice.sel').count(),0,'IME composition never selects a choice');
+   await page.keyboard.press('a');await page.keyboard.press('e');
+   assert.deepEqual(await page.locator('.choice.sel').evaluateAll(nodes=>nodes.map(node=>node.dataset.c)),['0','4'],'A and E select two multiple-choice options');
+   await page.keyboard.press('a');assert.deepEqual(await page.locator('.choice.sel').evaluateAll(nodes=>nodes.map(node=>node.dataset.c)),['4'],'pressing A again clears only A');
+   await page.keyboard.press('e');assert.equal(await page.locator('.choice.sel').count(),0,'pressing E again clears E');
+   await page.keyboard.press('f');assert.equal(await page.locator('.choice.sel').count(),0,'keys outside A-E are inert');
    assert.deepEqual(errors,[]);await page.close()
   }
   {
