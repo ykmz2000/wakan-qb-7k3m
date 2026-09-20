@@ -135,7 +135,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?'<span class="qbripMediaPlaceholder" aria-hidden="true">PDF</span>':`<img loading="lazy" decoding="async" draggable="false" data-qbrip-src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?'<span class="qbripMediaPlaceholder" aria-hidden="true">PDF</span>':`<img loading="lazy" decoding="async" draggable="false" data-original-src="${esc(publicUrl(sb,row.image_path))}" data-qbrip-src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
