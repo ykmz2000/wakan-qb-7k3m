@@ -83,9 +83,9 @@ async function run(browser,name){
   const {page:p,errors}=await boot(browser);await open(p);
   assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');assert.equal(await p.locator('.qbripUnit').inputValue(),'u11');
   assert.deepEqual(await p.locator('.qbripUnit option').evaluateAll(es=>es.map(x=>x.value)),['','u11','u12']);
-  assert.equal((await ids(p)).length,2);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));assert.ok(await p.evaluate(()=>testPublicOptions.some(o=>o?.transform?.width===320&&o.transform.quality===65)));
+  assert.equal((await ids(p)).length,2);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));assert.ok(await p.evaluate(()=>testPublicOptions.some(o=>o?.transform?.width===192&&o.transform.quality===60)));
   const initialReads=await p.evaluate(()=>testPickerReads.filter(r=>r.table==='question_images'));assert.ok(initialReads.length>0);assert.ok(initialReads.every(r=>r.filters.some(f=>f[0]==='questions.unit_id'&&f[2]==='u11')));pass('defaults to the current question subject and unit before the very first image query');
-  await p.locator('.qbripUnit').selectOption('');await settle(p);
+  await p.locator('.qbripUnit').selectOption('');await settle(p);await p.waitForTimeout(150);assert.ok((await ids(p)).length<=10);pass('opening the picker never chains additional pages before the user scrolls');
   await finish(p);const loaded=await ids(p);const expected=await p.evaluate(()=>new Set(testDB.question_images.filter(r=>['q1','q2'].includes(r.question_id)).map(r=>r.image_path)).size);assert.equal(loaded.length,expected);
   const reads=await p.evaluate(()=>testPickerReads.filter(r=>r.table==='question_images'));
   assert.ok(reads.every(r=>r.cols.includes('questions!inner')&&r.filters.some(f=>f[0]==='questions.subject_id'&&f[2]==='s1')));
@@ -93,14 +93,15 @@ async function run(browser,name){
   pass('server-side scope precedes cursor pagination; equal timestamps, older pages and duplicate paths do not drop images');
   await p.locator('.qbripUnit').selectOption('u11');await settle(p);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));assert.equal((await ids(p)).length,2);pass('unit filtering returns only images on questions in that unit');
   await p.locator('.qbripSubject').selectOption('s2');await settle(p);assert.equal(await p.locator('.qbripUnit').inputValue(),'');assert.deepEqual(await p.locator('.qbripUnit option').evaluateAll(es=>es.map(x=>x.value)),['','u21']);assert.ok((await ids(p)).every(x=>x>='img-026'));pass('changing subject clears stale unit selection and replaces the unit choices');
-  await p.locator('.qbripSubject').selectOption('');await finish(p);assert.equal(await p.locator('.qbripUnit').isDisabled(),true);assert.ok((await ids(p)).includes('img-045'));pass('all-subject mode includes cross-subject images and disables meaningless unit filtering');
+  await p.locator('.qbripSubject').selectOption('');await finish(p);assert.equal(await p.locator('.qbripUnit').isDisabled(),true);assert.ok((await ids(p)).includes('img-045'));
+  const mounted=await p.locator('.qbripItem img[src]').count(),allImages=await p.locator('.qbripItem img').count();assert.ok(mounted>0&&mounted<allImages);assert.equal(await p.locator('.qbripItem img').first().getAttribute('src'),null);pass('all-subject mode includes cross-subject images while only viewport-adjacent thumbnails retain decoded media');
   await p.waitForFunction(()=>document.querySelectorAll('.qbripItemHost').length===document.querySelectorAll('.qbripItemHost>.qbMediaShareButton').length);assert.ok(await p.locator('.qbripItemHost>.qbMediaShareButton').count()>1);pass('every recent thumbnail has its own share action after asynchronous rendering');
   await p.locator('.qbripItem').first().click();assert.equal(await p.locator('.qbripItem.on').count(),1);assert.equal(await p.locator('.qbripPreview').count(),0);
   await p.locator('.qbripItem').first().click();assert.equal(await p.locator('.qbripItem.on').count(),0);pass('short tap toggles selection without opening an enlarged image or writing any data');
   await p.locator('.qbripItem').nth(1).click();
   await p.evaluate(()=>{document.querySelector('.qbripPanel').scrollTop=120;window.pickerBeforeScroll=document.querySelector('.qbripPanel').scrollTop});
   const before=await p.locator('.qbripItem.on').getAttribute('data-id');await hold(p);
-  assert.equal(await p.locator('.qbripItem.on').getAttribute('data-id'),before);assert.equal(await p.locator('.qbripPreview').count(),1);
+  assert.equal(await p.locator('.qbripItem.on').getAttribute('data-id'),before);assert.equal(await p.locator('.qbripPreview').count(),1);assert.ok(await p.evaluate(()=>testPublicOptions.some(o=>o?.transform?.width===1600&&o.transform.quality===82)));
   await p.locator('.qbripPreviewClose').click();assert.equal(await p.locator('.qbripItem.on').getAttribute('data-id'),before);
   assert.equal(await p.evaluate(()=>document.querySelector('.qbripPanel').scrollTop===pickerBeforeScroll),true);assert.equal(await p.locator('.qbripSubject').inputValue(),'');pass('long press persists after release; closing preserves selection, scope and exact list scroll position');
   await pointer(p,'.qbripItem','pointerdown');await p.waitForTimeout(560);await p.locator('.qbripPreview').waitFor();
@@ -174,7 +175,7 @@ async function run(browser,name){
   await p.addScriptTag({content:fs.readFileSync(path.join(root,'file-media-v1.js'),'utf8')});
   await p.evaluate(()=>{testDB.question_images.push({id:'recent-pdf',image_path:'recent.pdf',question_id:'q1',placement:'explanation_overview',created_at:'2026-09-10T00:00:00.000Z'});window.pdfDetails=0;QBFiles.open=async()=>{pdfDetails++}});
   await open(p);await finish(p);
-  const pdfItem=p.locator('[data-id="recent-pdf"]'),pdfPoster=pdfItem.locator('.qbPdfCard');await pdfPoster.waitFor();
+  const pdfItem=p.locator('[data-id="recent-pdf"]'),pdfPoster=pdfItem.locator('.qbripMediaPlaceholder');await pdfPoster.waitFor();assert.equal(await pdfItem.locator('[data-pdf-src]').count(),0);
   await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'true');assert.equal(await p.locator('.qbPdfModal').count(),0);assert.equal(await p.evaluate(()=>pdfDetails),0);
   await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'false');
   await pdfPoster.dispatchEvent('pointerdown',{pointerId:91,pointerType:'touch',button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true});
