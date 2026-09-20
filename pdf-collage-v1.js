@@ -61,7 +61,9 @@ async function cloneItem(item){
 }
 function disposeItem(item){if(item?.previewUrl)URL.revokeObjectURL(item.previewUrl)}
 async function pngBlob(blob){
- if(blob.type==='image/png')return blob;const loaded=await decodeImage(blob),img=new Image();try{img.src=loaded.url;await img.decode();const pixels=img.naturalWidth*img.naturalHeight,scale=Math.min(1,8192/Math.max(img.naturalWidth,img.naturalHeight),Math.sqrt(32000000/pixels)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);const out=await toBlob(canvas);canvas.width=canvas.height=1;if(!out)throw Error('この画像をPDF用に変換できませんでした。');return out}finally{URL.revokeObjectURL(loaded.url)}
+ const signature=new Uint8Array(await blob.slice(0,8).arrayBuffer());
+ if(signature.length===8&&signature[0]===137&&signature[1]===80&&signature[2]===78&&signature[3]===71&&signature[4]===13&&signature[5]===10&&signature[6]===26&&signature[7]===10)return blob;
+ const loaded=await decodeImage(blob),img=new Image();try{img.src=loaded.url;await img.decode();const pixels=img.naturalWidth*img.naturalHeight,scale=Math.min(1,8192/Math.max(img.naturalWidth,img.naturalHeight),Math.sqrt(32000000/pixels)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);const out=await toBlob(canvas);canvas.width=canvas.height=1;if(!out)throw Error('この画像をPDF用に変換できませんでした。');return out}finally{URL.revokeObjectURL(loaded.url)}
 }
 async function exportPDF(rows,{mode,border,gap,margin=16,axis='rows'}){
  const M=window.QBPDFCollageModel;if(!M)throw Error('配置機能を読み込めません。');const layout=M.calculate(rows,{mode,gap,margin,axis}),L=await import('./vendor/pdfjs/pdf-lib.mjs'),pdf=await L.PDFDocument.create(),page=pdf.addPage([layout.width,layout.height]),loadedPDFs=new Map();
