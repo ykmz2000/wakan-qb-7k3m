@@ -1,12 +1,14 @@
 (()=>{
 'use strict';
-const BUCKET='question-media',DEFAULT_PAGE_SIZE=30,HOLD_MS=500,MOVE_PX=10;
+const BUCKET='question-media',DEFAULT_PAGE_SIZE=18,HOLD_MS=500,MOVE_PX=10;
 const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
 const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-annotation':row.id;
 function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
 const imageLabel=row=>(row.image_variant==='before-annotation'?'書き込み前・':row.image_variant==='current'?'現在の画像・':'')+placementLabel(row.placement);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
+function thumbnailUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:320,height:320,resize:'contain',quality:65}}).data.publicUrl}
+function releaseImages(root){for(const img of root?.querySelectorAll?.('img')||[]){img.removeAttribute('src');img.removeAttribute('srcset')}for(const canvas of root?.querySelectorAll?.('canvas')||[])canvas.width=canvas.height=1}
 function css(){
   if(document.getElementById('qbripCss'))return;
   const s=document.createElement('style');s.id='qbripCss';s.textContent=`
@@ -104,12 +106,12 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(press.fired)previewGuard=performance.now()+350;press=null;
     }
     function closePreview(){
-      if(!preview)return;preview.remove();preview=null;panel.inert=false;panel.removeAttribute('aria-hidden');
+      if(!preview)return;releaseImages(preview);preview.remove();preview=null;panel.inert=false;panel.removeAttribute('aria-hidden');
       const focus=previewOrigin?.isConnected?previewOrigin:panel;focus.focus({preventScroll:true});panel.scrollTop=previewScroll;
     }
     function close(value){
       if(closed)return;closed=true;generation++;unitVersion++;cancelPress();observer?.disconnect();
-      window.removeEventListener('blur',cancelPress);d.remove();document.documentElement.style.overflow=oldOverflow;
+      window.removeEventListener('blur',cancelPress);releaseImages(d);d.remove();document.documentElement.style.overflow=oldOverflow;
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
     d.addEventListener('click',e=>{if(e.target===d){if(preview)closePreview();else close([])}else if(e.target===preview&&performance.now()>=previewGuard)closePreview()});
@@ -131,7 +133,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(publicUrl(sb,row.image_path),'PDF',{passive:true}):`<img loading="lazy" draggable="false" src="${esc(publicUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(publicUrl(sb,row.image_path),'PDF',{passive:true}):`<img loading="lazy" decoding="async" draggable="false" src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
@@ -170,7 +172,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       finally{if(!closed&&token===generation){loading=false;if(hasMore&&loader.dataset.state!=='error')maybeContinue()}}
     }
     function reset(){
-      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
+      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();releaseImages(grid);grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
     }
     function fillOptions(select,rows,first){
       select.replaceChildren(new Option(first,''));for(const row of rows)select.add(new Option(row.name||'名称未設定',row.id));
