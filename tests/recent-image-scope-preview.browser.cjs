@@ -19,7 +19,7 @@ async function boot(browser){
     testDB.question_images.forEach((r,i)=>r.created_at='2026-09-01T00:00:00.000Z');
     for(let i=1;i<=45;i++)testDB.question_images.push({id:'img-'+String(i).padStart(3,'0'),image_path:'fixture-'+i+'.png',question_id:i<=25?'q2':'q3',placement:'explanation_overview',choice_id:null,created_at:i<=25?'2026-09-02T00:00:00.000Z':'2026-09-03T00:00:00.000Z'});
     testDB.question_images.push({...testDB.question_images.find(r=>r.id==='img-020'),id:'duplicate-path'});
-    window.testPickerReads=[];window.testPublicPaths=[];window.testDownloads=[];window.testUploadPaths=[];window.pickerResult=null;window.failPickerImages=false;window.failPickerCatalog=false;window.slowPickerScope='';
+    window.testPickerReads=[];window.testPublicPaths=[];window.testPublicOptions=[];window.testDownloads=[];window.testUploadPaths=[];window.pickerResult=null;window.failPickerImages=false;window.failPickerCatalog=false;window.slowPickerScope='';
     class ReadQuery{
       constructor(t){this.table=t;this.filters=[];this.orders=[];this.cols='';this.n=null;this.bounds=null;this.one=false}
       select(c){this.cols=c;return this}eq(k,v){this.filters.push([k,'eq',v]);return this}lt(k,v){this.filters.push([k,'lt',v]);return this}not(k,op,v){this.filters.push([k,'not',v]);return this}
@@ -48,7 +48,7 @@ async function boot(browser){
     };
     const storage=qbSupabase.storage.from.bind(qbSupabase.storage);
     qbSupabase.storage.from=bucket=>{const api=storage(bucket),upload=api.upload;return{...api,
-      getPublicUrl:p=>{testPublicPaths.push(p);return api.getPublicUrl(p)},
+      getPublicUrl:(p,options)=>{testPublicPaths.push(p);testPublicOptions.push(options||null);return api.getPublicUrl(p,options)},
       download:async p=>{testDownloads.push(p);return{data:new Blob(['synthetic copied image'],{type:'image/png'}),error:null}},
       upload:async(p,file,options)=>{testUploadPaths.push(p);return upload(p,file,options)}
     }};
@@ -83,7 +83,7 @@ async function run(browser,name){
   const {page:p,errors}=await boot(browser);await open(p);
   assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');assert.equal(await p.locator('.qbripUnit').inputValue(),'u11');
   assert.deepEqual(await p.locator('.qbripUnit option').evaluateAll(es=>es.map(x=>x.value)),['','u11','u12']);
-  assert.equal((await ids(p)).length,2);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));
+  assert.equal((await ids(p)).length,2);assert.ok((await ids(p)).every(id=>!id.startsWith('img-')));assert.ok(await p.evaluate(()=>testPublicOptions.some(o=>o?.transform?.width===320&&o.transform.quality===65)));
   const initialReads=await p.evaluate(()=>testPickerReads.filter(r=>r.table==='question_images'));assert.ok(initialReads.length>0);assert.ok(initialReads.every(r=>r.filters.some(f=>f[0]==='questions.unit_id'&&f[2]==='u11')));pass('defaults to the current question subject and unit before the very first image query');
   await p.locator('.qbripUnit').selectOption('');await settle(p);
   await finish(p);const loaded=await ids(p);const expected=await p.evaluate(()=>new Set(testDB.question_images.filter(r=>['q1','q2'].includes(r.question_id)).map(r=>r.image_path)).size);assert.equal(loaded.length,expected);
@@ -118,7 +118,7 @@ async function run(browser,name){
   await p.locator('.qbripItem').first().click();const colors=await p.evaluate(()=>{
     const out=[];for(const [key,t] of Object.entries(QB_THEME_PALETTE)){document.documentElement.style.setProperty('--accent',t.accent);const probe=document.createElement('span');probe.style.color='var(--accent)';document.body.appendChild(probe);out.push([key,getComputedStyle(document.querySelector('.qbripUse')).backgroundColor,getComputedStyle(document.querySelector('.qbripItem.on')).borderTopColor,getComputedStyle(probe).color]);probe.remove()}return out;
   });for(const [key,bg,border,accent] of colors){assert.equal(bg,accent,key);assert.equal(border,accent,key)}pass('selection and add controls follow all seven system colors without hardcoded blue');
-  await p.locator('.qbripCancel').click();assert.deepEqual(await p.evaluate(()=>pickerResult),[]);assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),await p.evaluate(()=>pickerOriginal));assert.equal(await p.evaluate(()=>testDownloads.length+testUploadPaths.length),0);pass('browsing, filtering, previewing and cancelling cause no DB or Storage writes');
+  await p.evaluate(()=>window.recentReleasedImage=document.querySelector('.qbripItem img'));await p.locator('.qbripCancel').click();assert.equal(await p.evaluate(()=>recentReleasedImage.hasAttribute('src')),false);assert.deepEqual(await p.evaluate(()=>pickerResult),[]);assert.equal(await p.evaluate(()=>JSON.stringify(testDB)),await p.evaluate(()=>pickerOriginal));assert.equal(await p.evaluate(()=>testDownloads.length+testUploadPaths.length),0);pass('browsing uses transformed thumbnails and cancelling immediately releases decoded media without DB or Storage writes');
   await p.evaluate(()=>failPickerCatalog=true);await p.evaluate(()=>{qbRecentImagePicker.pick({sb:qbSupabase}).then(r=>pickerResult=r)});await p.locator('.qbripFilterRetry:not(.hidden)').waitFor();assert.equal(await p.locator('.qbripItem').count(),0);await p.locator('.qbripFilterRetry').click();await p.locator('.qbripSubject:not(:disabled)').waitFor();await settle(p);assert.equal(await p.locator('.qbripSubject').inputValue(),'s1');await p.locator('.qbripCancel').click();pass('catalog errors have an explicit retry path and preserve the intended initial subject');
   // The real existing image button -> picker -> independent file copy route.
   await p.locator('.adeStemBtn').click();const rich=p.locator('.qtext .qbInlineRich[contenteditable="true"]');await rich.waitFor();await rich.press('End');await p.keyboard.insertText(' 未保存の本文');const draft=await rich.textContent();
