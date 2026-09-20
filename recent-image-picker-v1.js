@@ -1,13 +1,14 @@
 (()=>{
 'use strict';
-const BUCKET='question-media',DEFAULT_PAGE_SIZE=18,HOLD_MS=500,MOVE_PX=10;
+const BUCKET='question-media',DEFAULT_PAGE_SIZE=9,HOLD_MS=500,MOVE_PX=10;
 const IMAGE_COLUMNS='id,image_path,question_id,placement,choice_id,created_at,annotation_base_image_path,annotation_result_image_path';
 const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-annotation':row.id;
 function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
 const imageLabel=row=>(row.image_variant==='before-annotation'?'書き込み前・':row.image_variant==='current'?'現在の画像・':'')+placementLabel(row.placement);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
-function thumbnailUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:320,height:320,resize:'contain',quality:65}}).data.publicUrl}
+function thumbnailUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:192,height:192,resize:'contain',quality:60}}).data.publicUrl}
+function previewUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:1600,height:1600,resize:'contain',quality:82}}).data.publicUrl}
 function releaseImages(root){for(const img of root?.querySelectorAll?.('img')||[]){img.removeAttribute('src');img.removeAttribute('srcset')}for(const canvas of root?.querySelectorAll?.('canvas')||[])canvas.width=canvas.height=1}
 function css(){
   if(document.getElementById('qbripCss'))return;
@@ -25,6 +26,7 @@ function css(){
 .qbripItemHost{position:relative;min-width:0}.qbripItem{position:relative;width:100%;border:2px solid transparent;background:var(--bg,#f5f7fb);color:var(--text);border-radius:11px;padding:5px;min-height:110px;touch-action:pan-y pinch-zoom;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .qbripItem.on{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 .qbripItem img{display:block;width:100%;height:120px;object-fit:contain;background:var(--card,#fff);border-radius:7px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.qbripMediaPlaceholder{display:grid;width:100%;height:120px;place-items:center;background:var(--card,#fff);border-radius:7px;color:var(--muted,#6f7786);font-size:12px;font-weight:900;letter-spacing:.08em}
 .qbripMeta{font-size:10px;color:var(--muted,#6f7786);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .qbripCheck{position:absolute;right:8px;top:8px;width:24px;height:24px;border-radius:999px;background:var(--card,#fff);border:1px solid var(--line);display:grid;place-items:center;font-weight:900;color:var(--accent)}
 .qbripItem.on .qbripCheck{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
@@ -43,7 +45,7 @@ function css(){
 .qbripPreviewStage{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y pinch-zoom;text-align:center}
 .qbripPreviewImage{display:block;width:auto;max-width:100%;height:auto;max-height:none;margin:0 auto;background:#fff}
 .qbripModal :is(button,select):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media(max-width:560px){.qbripGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.qbripItem img{height:92px}.qbripModal{padding:0}.qbripPanel{max-height:92vh;border-radius:18px 18px 0 0;padding-bottom:max(12px,env(safe-area-inset-bottom))}}
+@media(max-width:560px){.qbripGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.qbripItem img,.qbripMediaPlaceholder{height:92px}.qbripModal{padding:0}.qbripPanel{max-height:92vh;border-radius:18px 18px 0 0;padding-bottom:max(12px,env(safe-area-inset-bottom))}}
 `;document.head.appendChild(s);
 }
 function placementLabel(p){return({question:'問題文',explanation_overview:'問題文のポイント',choice_explanation:'選択肢解説',examiner_intent:'出題者の意図',exam_summary:'試験用まとめ',medical_verification:'医学的検証'}[p]||p||'画像')}
@@ -91,7 +93,7 @@ async function currentScope(sb,q){
 }
 async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロードしたファイル',parent=document.body,context=currentQuestion(),noun='画像'}={}){
   if(!sb)throw new Error('Supabaseを取得できません');css();
-  const pageSize=Math.max(10,Math.min(60,Number(limit)||DEFAULT_PAGE_SIZE));
+  const pageSize=Math.max(6,Math.min(30,Number(limit)||DEFAULT_PAGE_SIZE));
   return new Promise(resolve=>{
     const origin=document.activeElement,d=document.createElement('div');d.className='qbripModal';
     d.innerHTML=`<div class="qbripPanel" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><div class="qbripHead"><b>${esc(title)}</b><button type="button" class="qbripClose" aria-label="${esc(noun)}一覧を閉じる">×</button></div><div class="qbripSub">短くタップして選択、長押しで詳細を確認できます。選択した順に追加します。長押しでは選択順は変わりません。</div><div class="qbripFilters"><label>科目<select class="qbripSubject" disabled aria-label="科目"><option value="">全科目</option></select></label><label>単元<select class="qbripUnit" disabled aria-label="単元"><option value="">すべて</option></select></label></div><div class="qbripFilterStatus" role="status">科目・単元を読み込み中…</div><button type="button" class="qbripFilterRetry hidden">分類を再読み込み</button><div class="qbripGrid"></div><div class="qbripEmpty hidden">この条件の${esc(noun)}はありません。</div><button type="button" class="qbripLoader" data-state="loading" disabled aria-label="さらに${esc(noun)}を読み込む"></button><div class="qbripFoot"><button type="button" class="qbripCancel">キャンセル</button><button type="button" class="qbripUse" disabled>選択した${esc(noun)}を追加</button></div></div>`;
@@ -100,7 +102,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     const panel=d.querySelector('.qbripPanel'),grid=d.querySelector('.qbripGrid'),loader=d.querySelector('.qbripLoader'),empty=d.querySelector('.qbripEmpty'),use=d.querySelector('.qbripUse');
     const subject=d.querySelector('.qbripSubject'),unit=d.querySelector('.qbripUnit'),filterStatus=d.querySelector('.qbripFilterStatus'),filterRetry=d.querySelector('.qbripFilterRetry');
     const selected=new Map(),seenPaths=new Set(),rowByButton=new WeakMap(),blockedClicks=new WeakSet();
-    let scope={subjectId:'',unitId:''},cursor=null,loading=false,hasMore=true,closed=false,ready=false,generation=0,unitVersion=0,observer=null,press=null,preview=null,previewOrigin=null,previewScroll=0,previewGuard=0;
+    let scope={subjectId:'',unitId:''},cursor=null,loading=false,hasMore=true,closed=false,ready=false,generation=0,unitVersion=0,mediaObserver=null,press=null,preview=null,previewOrigin=null,previewScroll=0,previewGuard=0;
     function cancelPress(){
       if(!press)return;clearTimeout(press.timer);blockedClicks.add(press.button);
       if(press.fired)previewGuard=performance.now()+350;press=null;
@@ -110,7 +112,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       const focus=previewOrigin?.isConnected?previewOrigin:panel;focus.focus({preventScroll:true});panel.scrollTop=previewScroll;
     }
     function close(value){
-      if(closed)return;closed=true;generation++;unitVersion++;cancelPress();observer?.disconnect();
+      if(closed)return;closed=true;generation++;unitVersion++;cancelPress();mediaObserver?.disconnect();
       window.removeEventListener('blur',cancelPress);releaseImages(d);d.remove();document.documentElement.style.overflow=oldOverflow;
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
@@ -119,7 +121,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(closed||preview)return;
       previewOrigin=b;previewScroll=panel.scrollTop;previewGuard=fromHold?Infinity:performance.now()+100;
       preview=document.createElement('div');preview.className='qbripPreview';preview.setAttribute('role','dialog');preview.setAttribute('aria-modal','true');preview.setAttribute('aria-label','画像の拡大表示');
-      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(imageLabel(row))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(publicUrl(sb,row.image_path))}" alt="拡大した画像" draggable="false"></div>`;
+      preview.innerHTML=`<div class="qbripPreviewHead"><span>${esc(imageLabel(row))} — 確認のみ（選択状態は変わりません）</span><button type="button" class="qbripPreviewClose" aria-label="拡大表示を閉じる">×</button></div><div class="qbripPreviewStage"><img class="qbripPreviewImage" src="${esc(previewUrl(sb,row.image_path))}" alt="拡大した画像" draggable="false" decoding="async"></div>`;
       d.appendChild(preview);panel.inert=true;panel.setAttribute('aria-hidden','true');
       // The pointer release which triggered a long press must not close the preview.
       preview.addEventListener('click',e=>{if(performance.now()<previewGuard){e.preventDefault();e.stopImmediatePropagation()}},true);
@@ -133,11 +135,11 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?QBFiles.markup(publicUrl(sb,row.image_path),'PDF',{passive:true}):`<img loading="lazy" decoding="async" draggable="false" src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?'<span class="qbripMediaPlaceholder" aria-hidden="true">PDF</span>':`<img loading="lazy" decoding="async" draggable="false" data-qbrip-src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
-        const host=document.createElement('div');host.className='qbripItemHost';host.append(b);grid.appendChild(host);
+        const host=document.createElement('div');host.className='qbripItemHost';host.append(b);grid.appendChild(host);const img=b.querySelector('[data-qbrip-src]');if(img){if(mediaObserver)mediaObserver.observe(img);else img.src=img.dataset.qbripSrc}
       }
     }
     grid.addEventListener('pointerdown',e=>{
@@ -158,7 +160,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     panel.addEventListener('scroll',()=>{cancelPress();if(loader.dataset.state==='more')maybeContinue()},{passive:true});window.addEventListener('blur',cancelPress);
     function maybeContinue(){requestAnimationFrame(()=>{
       if(closed||!ready||loading||!hasMore||preview||loader.dataset.state==='error'||!loader.isConnected)return;
-      const pr=panel.getBoundingClientRect(),lr=loader.getBoundingClientRect();if(lr.top<=pr.bottom+320)loadNext();
+      const pr=panel.getBoundingClientRect(),lr=loader.getBoundingClientRect();if(lr.top<=pr.bottom+60)loadNext();
     })}
     async function loadNext(){
       if(closed||!ready||loading||!hasMore)return;
@@ -169,10 +171,10 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(rows.length)cursor=rows[rows.length-1];hasMore=rows.length===pageSize;appendRows(rows);
         loader.dataset.state=hasMore?'more':'end';loader.disabled=!hasMore;empty.classList.toggle('hidden',seenPaths.size>0||hasMore);
       }catch(e){if(!closed&&token===generation){loader.dataset.state='error';loader.disabled=false;loader.title=e?.message||'読み込み失敗'}}
-      finally{if(!closed&&token===generation){loading=false;if(hasMore&&loader.dataset.state!=='error')maybeContinue()}}
+      finally{if(!closed&&token===generation)loading=false}
     }
     function reset(){
-      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();releaseImages(grid);grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
+      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();for(const img of grid.querySelectorAll('[data-qbrip-src]'))mediaObserver?.unobserve(img);releaseImages(grid);grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
     }
     function fillOptions(select,rows,first){
       select.replaceChildren(new Option(first,''));for(const row of rows)select.add(new Option(row.name||'名称未設定',row.id));
@@ -207,8 +209,8 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
     });
     if('IntersectionObserver'in window){
-      observer=new IntersectionObserver(entries=>{if(entries.some(x=>x.isIntersecting)&&loader.dataset.state==='more')loadNext()},{root:panel,rootMargin:'360px 0px 360px 0px',threshold:0.01});observer.observe(loader);
-    }else panel.addEventListener('scroll',()=>{if(loader.dataset.state==='more'&&panel.scrollTop+panel.clientHeight>=panel.scrollHeight-400)loadNext()},{passive:true});
+      mediaObserver=new IntersectionObserver(entries=>{for(const entry of entries){const img=entry.target,src=img.dataset.qbripSrc;if(entry.isIntersecting){if(src&&!img.src)img.src=src}else if(img.src){img.removeAttribute('src');img.removeAttribute('srcset')}}},{root:panel,rootMargin:'80px 0px 80px 0px',threshold:0.01});
+    }else for(const img of grid.querySelectorAll('[data-qbrip-src]'))img.src=img.dataset.qbripSrc;
     d.querySelector('.qbripClose').focus({preventScroll:true});initialize();
   });
 }
