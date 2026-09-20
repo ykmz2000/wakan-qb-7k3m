@@ -173,15 +173,16 @@ async function run(browser,name){
   await p.locator('.qbripUse').click();assert.deepEqual(await p.evaluate(()=>pickerResult.map(r=>r.image_path)),['after-crop.png','written.png']);
   pass('pre-annotation and current versions preview/select independently; pre-crop, unknown and stale originals are excluded');
   await p.addScriptTag({content:fs.readFileSync(path.join(root,'file-media-v1.js'),'utf8')});
-  await p.evaluate(()=>{testDB.question_images.push({id:'recent-pdf',image_path:'recent.pdf',question_id:'q1',placement:'explanation_overview',created_at:'2026-09-10T00:00:00.000Z'});window.pdfDetails=0;QBFiles.open=async()=>{pdfDetails++}});
-  await open(p);await finish(p);
-  const pdfItem=p.locator('[data-id="recent-pdf"]'),pdfPoster=pdfItem.locator('.qbripMediaPlaceholder');await pdfPoster.waitFor();assert.equal(await pdfItem.locator('[data-pdf-src]').count(),0);
+  await p.evaluate(()=>{testDB.question_images.push({id:'recent-pdf',image_path:'recent.pdf',question_id:'q1',placement:'explanation_overview',created_at:'2026-09-10T00:00:00.000Z'},{id:'recent-pdf-2',image_path:'recent-2.pdf',question_id:'q1',placement:'explanation_overview',created_at:'2026-09-10T00:00:00.000Z'});window.pdfDetails=0;window.pdfPreviewCalls=[];window.pdfPreviewActive=0;window.pdfPreviewMax=0;QBFiles.open=async()=>{pdfDetails++};QBFiles.previewPage=async(source,options)=>{pdfPreviewCalls.push({source,options});pdfPreviewActive++;pdfPreviewMax=Math.max(pdfPreviewMax,pdfPreviewActive);await new Promise(r=>setTimeout(r,40));const canvas=document.createElement('canvas');canvas.width=24;canvas.height=32;canvas.getContext('2d').fillStyle='#d88';canvas.getContext('2d').fillRect(0,0,24,32);const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));canvas.width=canvas.height=1;pdfPreviewActive--;return{blob,pages:4}}});
+  await open(p);await p.waitForFunction(()=>document.querySelectorAll('.qbripPdfPreview img').length===2);
+  assert.equal(await p.evaluate(()=>pdfPreviewMax),1);assert.ok(await p.evaluate(()=>pdfPreviewCalls.every(x=>x.options.maxPixels===360000&&x.options.maxEdge===768&&x.options.maxScale===1)));
+  const pdfItem=p.locator('[data-id="recent-pdf"]'),pdfPoster=pdfItem.locator('.qbripMediaPlaceholder');await pdfPoster.waitFor();assert.equal(await pdfItem.locator('[data-pdf-src]').count(),0);assert.equal(await pdfPoster.locator('img').getAttribute('alt'),'PDFの1ページ目');assert.match(await pdfPoster.locator('.qbripPdfStatus').textContent(),/4ページ/);
   await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'true');assert.equal(await p.locator('.qbPdfModal').count(),0);assert.equal(await p.evaluate(()=>pdfDetails),0);
   await pdfPoster.click();assert.equal(await pdfItem.getAttribute('aria-pressed'),'false');
   await pdfPoster.dispatchEvent('pointerdown',{pointerId:91,pointerType:'touch',button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true});
   await p.waitForFunction(()=>pdfDetails===1);await pdfPoster.dispatchEvent('pointerup',{pointerId:91,pointerType:'touch',button:0,clientX:100,clientY:100,bubbles:true});await pdfPoster.dispatchEvent('click');
   assert.equal(await pdfItem.getAttribute('aria-pressed'),'false');await p.locator('.qbripCancel').click();
-  pass('PDF thumbnail tap toggles selection; long press opens details without selecting');
+  pass('visible PDF covers render one at a time at low resolution; tap selects and long press opens the full document');
   assert.deepEqual(errors,[]);await p.close();console.log(name+' '+n+' recent-image checks passed');
 }
 (async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
