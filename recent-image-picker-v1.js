@@ -27,6 +27,7 @@ function css(){
 .qbripItem.on{border-color:var(--accent)!important;background:var(--accent-soft)!important}
 .qbripItem img{display:block;width:100%;height:120px;object-fit:contain;background:var(--card,#fff);border-radius:7px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .qbripMediaPlaceholder{display:grid;width:100%;height:120px;place-items:center;background:var(--card,#fff);border-radius:7px;color:var(--muted,#6f7786);font-size:12px;font-weight:900;letter-spacing:.08em}
+.qbripPdfPreview>*{grid-area:1/1}.qbripPdfPreview img{width:100%;height:100%;object-fit:contain}.qbripPdfStatus{align-self:end;justify-self:stretch;padding:3px 4px;border-radius:0 0 7px 7px;background:#0009;color:#fff;font-size:9px;letter-spacing:0;text-align:center;z-index:1}
 .qbripMeta{font-size:10px;color:var(--muted,#6f7786);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .qbripCheck{position:absolute;right:8px;top:8px;width:24px;height:24px;border-radius:999px;background:var(--card,#fff);border:1px solid var(--line);display:grid;place-items:center;font-weight:900;color:var(--accent)}
 .qbripItem.on .qbripCheck{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
@@ -101,8 +102,18 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
     const oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';
     const panel=d.querySelector('.qbripPanel'),grid=d.querySelector('.qbripGrid'),loader=d.querySelector('.qbripLoader'),empty=d.querySelector('.qbripEmpty'),use=d.querySelector('.qbripUse');
     const subject=d.querySelector('.qbripSubject'),unit=d.querySelector('.qbripUnit'),filterStatus=d.querySelector('.qbripFilterStatus'),filterRetry=d.querySelector('.qbripFilterRetry');
-    const selected=new Map(),seenPaths=new Set(),rowByButton=new WeakMap(),blockedClicks=new WeakSet();
-    let scope={subjectId:'',unitId:''},cursor=null,loading=false,hasMore=true,closed=false,ready=false,generation=0,unitVersion=0,mediaObserver=null,press=null,preview=null,previewOrigin=null,previewScroll=0,previewGuard=0;
+    const selected=new Map(),seenPaths=new Set(),rowByButton=new WeakMap(),blockedClicks=new WeakSet(),pdfUrls=new Map(),pdfQueue=[];
+    let scope={subjectId:'',unitId:''},cursor=null,loading=false,hasMore=true,closed=false,ready=false,generation=0,unitVersion=0,mediaObserver=null,pdfBusy=false,press=null,preview=null,previewOrigin=null,previewScroll=0,previewGuard=0;
+    function pdfStatus(node,text){let status=node.querySelector('.qbripPdfStatus');if(!status){status=document.createElement('span');status.className='qbripPdfStatus';node.append(status)}status.textContent=text;return status}
+    function releasePdf(node){node.dataset.qbripVisible='';node.dataset.qbripPdfState='';const url=pdfUrls.get(node);if(url){pdfUrls.delete(node);URL.revokeObjectURL(url)}for(const img of node.querySelectorAll('img')){img.removeAttribute('src');img.remove()}pdfStatus(node,'PDF')}
+    function releasePdfs(root){for(const node of root?.querySelectorAll?.('[data-qbrip-pdf]')||[])releasePdf(node)}
+    async function drainPdfQueue(){
+      if(pdfBusy||closed)return;pdfBusy=true;
+      try{while(pdfQueue.length&&!closed){const node=pdfQueue.shift();if(!node?.isConnected||node.dataset.qbripVisible!=='1'||node.dataset.qbripPdfState!=='queued')continue;node.dataset.qbripPdfState='loading';pdfStatus(node,'PDF · 読み込み中');
+        try{const result=await window.QBFiles?.previewPage?.(node.dataset.qbripPdf,{maxPixels:360000,maxEdge:768,maxScale:1});if(!result?.blob)throw Error('プレビューなし');if(closed||!node.isConnected||node.dataset.qbripVisible!=='1'){continue}const url=URL.createObjectURL(result.blob),img=document.createElement('img');img.alt='PDFの1ページ目';img.decoding='async';img.draggable=false;img.src=url;await img.decode?.().catch(()=>{});if(closed||!node.isConnected||node.dataset.qbripVisible!=='1'){img.removeAttribute('src');URL.revokeObjectURL(url);continue}const old=pdfUrls.get(node);if(old)URL.revokeObjectURL(old);pdfUrls.set(node,url);node.prepend(img);node.dataset.qbripPdfState='ready';pdfStatus(node,`PDF · ${result.pages||'?'}ページ`)}catch{if(node.isConnected&&node.dataset.qbripVisible==='1'){node.dataset.qbripPdfState='error';pdfStatus(node,'PDF · 長押しで確認')}}
+      }}finally{pdfBusy=false;if(pdfQueue.length&&!closed)void drainPdfQueue()}
+    }
+    function enqueuePdf(node){if(!node||node.dataset.qbripPdfState==='queued'||node.dataset.qbripPdfState==='loading'||node.dataset.qbripPdfState==='ready')return;node.dataset.qbripPdfState='queued';pdfQueue.push(node);void drainPdfQueue()}
     function cancelPress(){
       if(!press)return;clearTimeout(press.timer);blockedClicks.add(press.button);
       if(press.fired)previewGuard=performance.now()+350;press=null;
@@ -112,7 +123,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       const focus=previewOrigin?.isConnected?previewOrigin:panel;focus.focus({preventScroll:true});panel.scrollTop=previewScroll;
     }
     function close(value){
-      if(closed)return;closed=true;generation++;unitVersion++;cancelPress();mediaObserver?.disconnect();
+      if(closed)return;closed=true;generation++;unitVersion++;cancelPress();mediaObserver?.disconnect();pdfQueue.length=0;releasePdfs(d);
       window.removeEventListener('blur',cancelPress);releaseImages(d);d.remove();document.documentElement.style.overflow=oldOverflow;
       if(origin?.isConnected)origin.focus({preventScroll:true});resolve(value);
     }
@@ -135,11 +146,11 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
         if(!row?.image_path||seenPaths.has(row.image_path))continue;seenPaths.add(row.image_path);
         const b=document.createElement('button');b.type='button';b.className='qbripItem';b.dataset.id=selectionKey(row);b.setAttribute('aria-pressed','false');
         b.title='短くタップで選択・長押しで拡大（キーボード：Alt+Enter）';b.setAttribute('aria-label',imageLabel(row)+'の画像。長押しまたはAlt+Enterで拡大');
-        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?'<span class="qbripMediaPlaceholder" aria-hidden="true">PDF</span>':`<img loading="lazy" decoding="async" draggable="false" data-original-src="${esc(publicUrl(sb,row.image_path))}" data-qbrip-src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
+        b.innerHTML=`${window.QBFiles?.isPDF(row.image_path)?`<span class="qbripMediaPlaceholder qbripPdfPreview" data-qbrip-pdf="${esc(publicUrl(sb,row.image_path))}"><span class="qbripPdfStatus">PDF</span></span>`:`<img loading="lazy" decoding="async" draggable="false" data-original-src="${esc(publicUrl(sb,row.image_path))}" data-qbrip-src="${esc(thumbnailUrl(sb,row.image_path))}" alt="${esc(imageLabel(row))}">`}<span class="qbripCheck" aria-hidden="true"></span><div class="qbripMeta">${esc(imageLabel(row))}</div>`;
         rowByButton.set(b,row);
         b.onclick=e=>{if(blockedClicks.has(b)||preview){e.preventDefault();e.stopPropagation();blockedClicks.delete(b);return}selectRow(row,b)};
         b.onkeydown=e=>{if(e.altKey&&e.key==='Enter'){e.preventDefault();e.stopPropagation();openPreview(row,b)}else if(e.key==='Enter'||e.key===' ')blockedClicks.delete(b)};
-        const host=document.createElement('div');host.className='qbripItemHost';host.append(b);grid.appendChild(host);const img=b.querySelector('[data-qbrip-src]');if(img){if(mediaObserver)mediaObserver.observe(img);else img.src=img.dataset.qbripSrc}
+        const host=document.createElement('div');host.className='qbripItemHost';host.append(b);grid.appendChild(host);const media=b.querySelector('[data-qbrip-src],[data-qbrip-pdf]');if(media){if(mediaObserver)mediaObserver.observe(media);else if(media.dataset.qbripSrc)media.src=media.dataset.qbripSrc;else enqueuePdf(media)}
       }
     }
     grid.addEventListener('pointerdown',e=>{
@@ -174,7 +185,7 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       finally{if(!closed&&token===generation)loading=false}
     }
     function reset(){
-      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();for(const img of grid.querySelectorAll('[data-qbrip-src]'))mediaObserver?.unobserve(img);releaseImages(grid);grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
+      generation++;cancelPress();cursor=null;loading=false;hasMore=true;selected.clear();seenPaths.clear();syncUse();pdfQueue.length=0;for(const media of grid.querySelectorAll('[data-qbrip-src],[data-qbrip-pdf]'))mediaObserver?.unobserve(media);releasePdfs(grid);releaseImages(grid);grid.replaceChildren();empty.classList.add('hidden');panel.scrollTop=0;loadNext();
     }
     function fillOptions(select,rows,first){
       select.replaceChildren(new Option(first,''));for(const row of rows)select.add(new Option(row.name||'名称未設定',row.id));
@@ -209,8 +220,8 @@ async function pick({sb,limit=DEFAULT_PAGE_SIZE,title='最近アップロード�
       if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
     });
     if('IntersectionObserver'in window){
-      mediaObserver=new IntersectionObserver(entries=>{for(const entry of entries){const img=entry.target,src=img.dataset.qbripSrc;if(entry.isIntersecting){if(src&&!img.src)img.src=src}else if(img.src){img.removeAttribute('src');img.removeAttribute('srcset')}}},{root:panel,rootMargin:'80px 0px 80px 0px',threshold:0.01});
-    }else for(const img of grid.querySelectorAll('[data-qbrip-src]'))img.src=img.dataset.qbripSrc;
+      mediaObserver=new IntersectionObserver(entries=>{for(const entry of entries){const media=entry.target,src=media.dataset.qbripSrc;if(media.dataset.qbripPdf){media.dataset.qbripVisible=entry.isIntersecting?'1':'';if(entry.isIntersecting)enqueuePdf(media);else releasePdf(media)}else if(entry.isIntersecting){if(src&&!media.src)media.src=src}else if(media.src){media.removeAttribute('src');media.removeAttribute('srcset')}}},{root:panel,rootMargin:'80px 0px 80px 0px',threshold:0.01});
+    }else for(const media of grid.querySelectorAll('[data-qbrip-src],[data-qbrip-pdf]'))if(media.dataset.qbripSrc)media.src=media.dataset.qbripSrc;else{media.dataset.qbripVisible='1';enqueuePdf(media)}
     d.querySelector('.qbripClose').focus({preventScroll:true});initialize();
   });
 }
