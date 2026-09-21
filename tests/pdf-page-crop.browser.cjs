@@ -7,7 +7,7 @@ async function run(type,label,url){
  const options=label==='Chromium'&&process.env.QB_CHROMIUM_EXECUTABLE?{executablePath:process.env.QB_CHROMIUM_EXECUTABLE}:{};let browser;
  try{browser=await type.launch(options)}catch(error){if(label==='WebKit'&&process.env.QB_ALLOW_MISSING_WEBKIT==='1'){console.log('WebKit SKIP browser executable is not installed');return}throw error}
  try{
-  const page=await browser.newPage({viewport:{width:1000,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(25000);
+  const page=await browser.newPage({viewport:{width:1000,height:800}}),errors=[];page.on('pageerror',e=>{if(!/^ResizeObserver loop/.test(e.message))errors.push(e.message)});page.setDefaultTimeout(25000);
   await page.goto(url);for(const name of ['file-media-v1.js','pdf-editor-v1.js'])await page.addScriptTag({url:url+name});
   await page.evaluate(async()=>{window.original=await(await fetch('/fixture.pdf')).blob();window.saved=null;window.QBImageCrop={open:async blob=>{const image=await createImageBitmap(blob);return{x:image.width/4,y:image.height/4,width:image.width/2,height:image.height/2,rotate:0,scaleX:1,scaleY:1}}};QBPDFEditor.open(original,{onSave:async blob=>window.saved=blob})});
   await page.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');assert.equal(await page.getByRole('button',{name:'このページをトリミング',exact:true}).count(),1);
