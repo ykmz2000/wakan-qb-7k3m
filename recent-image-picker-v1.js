@@ -6,9 +6,9 @@ const selectionKey=row=>row.image_variant==='before-annotation'?row.id+':before-
 function variants(row){const base=row.annotation_base_image_path;return base&&base!==row.image_path&&row.annotation_result_image_path===row.image_path?[{...row,image_variant:'current'},{...row,image_path:base,image_variant:'before-annotation'}]:[row]}
 const imageLabel=row=>(row.image_variant==='before-annotation'?'書き込み前・':row.image_variant==='current'?'現在の画像・':'')+placementLabel(row.placement);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
-function thumbnailUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:192,height:192,resize:'contain',quality:60}}).data.publicUrl}
-function previewUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:1600,height:1600,resize:'contain',quality:82}}).data.publicUrl}
+function publicUrl(sb,path){return /^https?:\/\//i.test(String(path||''))?String(path):sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
+function thumbnailUrl(sb,path){return /^https?:\/\//i.test(String(path||''))?String(path):sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:192,height:192,resize:'contain',quality:60}}).data.publicUrl}
+function previewUrl(sb,path){return /^https?:\/\//i.test(String(path||''))?String(path):sb.storage.from(BUCKET).getPublicUrl(path,{transform:{width:1600,height:1600,resize:'contain',quality:82}}).data.publicUrl}
 function releaseImages(root){for(const img of root?.querySelectorAll?.('img')||[]){img.removeAttribute('src');img.removeAttribute('srcset')}for(const canvas of root?.querySelectorAll?.('canvas')||[])canvas.width=canvas.height=1}
 function css(){
   if(document.getElementById('qbripCss'))return;

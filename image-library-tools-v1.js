@@ -4,13 +4,13 @@ let raf=0;
 const BUCKET='question-media';
 const q=()=>{try{return window.pq?.()||null}catch{return null}};
 const qid=Q=>Q?.id||Q?.dbId||null;
-function publicUrl(sb,path){return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
+function publicUrl(sb,path){return /^https?:\/\//i.test(String(path||''))?String(path):sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl}
 function ext(path,blob){return window.qbRecentImagePicker?.extFromPath?.(path,blob)||((String(path||'').match(/\.([a-zA-Z0-9]+)$/)||[])[1]||'png').toLowerCase().replace('jpeg','jpg')}
 async function recentFiles(sb,rows){
   const out=[];
   for(const row of rows){
-    const d=await sb.storage.from(BUCKET).download(row.image_path);if(d.error)throw new Error(`元画像の取得に失敗: ${d.error.message}`);
-    const b=d.data,e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif','pdf':'application/pdf'}[e]||'application/octet-stream');
+    let b;if(/^https?:\/\//i.test(String(row.image_path||''))){const response=await fetch(row.image_path);if(!response.ok)throw new Error(`元画像の取得に失敗: HTTP ${response.status}`);b=await response.blob()}else{const d=await sb.storage.from(BUCKET).download(row.image_path);if(d.error)throw new Error(`元画像の取得に失敗: ${d.error.message}`);b=d.data}
+    const e=ext(row.image_path,b),type=b.type||({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','gif':'image/gif','heic':'image/heic','heif':'image/heif','pdf':'application/pdf'}[e]||'application/octet-stream');
     out.push(new File([b],`recent-${crypto.randomUUID()}.${e}`,{type}));
   }
   return out;

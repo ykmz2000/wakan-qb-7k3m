@@ -8,7 +8,7 @@ const qid=q=>q?.id||q?.dbId||null;
 async function ctx(){if(ctxPromise)return ctxPromise;ctxPromise=(async()=>{const sb=window.qbSupabase;if(!sb)return null;const a=await sb.auth.getUser();user=a.data?.user||null;return user?sb:null})();return ctxPromise}
 function heading(card){return [...card.children].find(x=>x.tagName==='B')?.textContent?.trim()||''}
 function section(title){return [...document.querySelectorAll('#ans > .card')].find(c=>heading(c).includes(title))||null}
-function publicUrl(sb,path){return sb.storage.from('question-media').getPublicUrl(path).data.publicUrl}
+function publicUrl(sb,path){return /^https?:\/\//i.test(String(path||''))?String(path):sb.storage.from('question-media').getPublicUrl(path).data.publicUrl}
 function assetUrl(sb,id,path){const base=publicUrl(sb,path),v=publicVersion.get(String(id))||0;return v?`${base}?v=${v}`:base}
 function previewUrl(sb,id,path){if(window.QBFiles?.isPDF(path))return assetUrl(sb,id,path);const original=assetUrl(sb,id,path);try{const u=new URL(original);const marker='/storage/v1/object/public/';if(!u.pathname.includes(marker))return original;u.pathname=u.pathname.replace(marker,'/storage/v1/render/image/public/');u.searchParams.set('width','1600');u.searchParams.set('resize','contain');u.searchParams.set('quality','82');return u.toString()}catch{return original}}
 async function privateUrl(sb,path){const r=await sb.storage.from('user-note-images').createSignedUrl(path,604800);return r.error?'':r.data?.signedUrl||''}
