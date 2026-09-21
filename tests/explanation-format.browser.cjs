@@ -82,7 +82,10 @@ async function run(browser,name){
   ed=await openEditor(page,'overview');await ed.locator('.oeiFile').waitFor({state:'attached'});await ed.locator('.oeiFile').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuQAAAAASUVORK5CYII=','base64')});await page.waitForFunction(()=>testUploads===1);await popup(page,'.oeiGrid img');await ed.locator('.adeCancel').click();pass('existing official-image upload and editor image popup remain operable');
   ed=await openEditor(page,'choice-c1');assert.equal(await ed.locator('.qbFmtTools').count(),4);
   for(const [field,word] of [['explanation','キーワード'],['correction_text','誤り'],['correct_for_other_context','別の条件'],['examiner_distinction','区別']])await format(ed,field,word,'marker');
+  for(const kind of ['bold','underline','accent'])await format(ed,'correction_text','誤り',kind);
   await ed.locator('.ctruth').selectOption('false');await save(ed);await page.locator('.qbChoiceCorrection .qbFmt-marker').waitFor();assert.equal(await page.evaluate(()=>testDB.choices[0].statement_is_true),false);assert.equal(await page.evaluate(()=>testDB.choices[0].choice_text),'選択肢原文');assert.equal(await page.evaluate(()=>testDB.choices[0].is_correct),true);pass('choice explanations and all three detail fields format without changing option source or grading');
+  const correctionStyle=await page.locator('.qbChoiceCorrection .qbFmt-accent').evaluate(el=>{const s=getComputedStyle(el);return{color:s.color,fill:s.webkitTextFillColor,decoration:s.textDecorationLine,weight:s.fontWeight}});
+  assert.equal(correctionStyle.fill,correctionStyle.color);assert.match(correctionStyle.decoration,/underline/);assert.ok(Number(correctionStyle.weight)>=700);pass('inline correction emphasis remains colored, bold and underlined inside disabled answer controls');
   for(const [key,field,word] of [['summary','exam_summary','総括'],['intent','examiner_intent','区別点'],['verify','medical_verification_note','確認事項']]){ed=await openEditor(page,key);await format(ed,field,word,'bold');await save(ed)}
   pass('whole-question overview, summary, intent and verification stay editable');
   await page.evaluate(()=>{document.documentElement.style.setProperty('--accent','rgb(12, 96, 42)');document.documentElement.style.setProperty('--accent-soft','rgb(228, 247, 231)')});
@@ -98,4 +101,19 @@ async function run(browser,name){
   const protectedEditor=await setup(browser);const retained=await protectedEditor.page.evaluate(async()=>{const body=[...document.querySelectorAll('#ans>.card')].find(card=>card.querySelector('[data-ade-v2="overview"]')).querySelector(':scope>.line'),rich=document.createElement('div');body.dataset.qbFormatted='1';rich.className='qbInlineRich';rich.contentEditable='true';rich.textContent='未保存の本文';body.replaceChildren(rich);window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:'q1',type:'personal-note'}}));await new Promise(resolve=>setTimeout(resolve,120));return rich.isConnected&&rich.textContent==='未保存の本文'});assert.equal(retained,true);assert.deepEqual(protectedEditor.errors,[]);await protectedEditor.page.close();pass('display refresh never replaces an active contenteditable draft');
   console.log(name+' '+passed+' browser checks passed');
 }
-(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){const browser=await type.launch();try{await run(browser,name)}finally{await browser.close()}}})().catch(e=>{console.error(e);process.exitCode=1});
+(async()=>{
+  for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){
+    const launchOptions=name==='Chromium'&&process.env.QB_CHROMIUM_EXECUTABLE
+      ?{executablePath:process.env.QB_CHROMIUM_EXECUTABLE}
+      :{};
+    let browser;
+    try{browser=await type.launch(launchOptions)}catch(error){
+      if(name==='WebKit'&&process.env.QB_ALLOW_MISSING_WEBKIT==='1'){
+        console.log('WebKit SKIP browser executable is not installed');
+        continue;
+      }
+      throw error;
+    }
+    try{await run(browser,name)}finally{await browser.close()}
+  }
+})().catch(e=>{console.error(e);process.exitCode=1});

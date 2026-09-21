@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
+const {chromium}=require('playwright');
+const root=path.resolve(__dirname,'..'),fixture=require('./pdf-fixture.cjs')();
+const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://local').pathname;res.setHeader('Access-Control-Allow-Origin','*');if(pathname==='/fixture.pdf'){res.setHeader('Content-Type','application/pdf');res.end(fixture);return}const file=path.resolve(root,'.'+decodeURIComponent(pathname));if(pathname!=='/'&&!file.startsWith(root+path.sep)){res.writeHead(403).end();return}if(pathname==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');return}try{res.setHeader('Content-Type',file.endsWith('.mjs')||file.endsWith('.js')?'application/javascript':file.endsWith('.wasm')?'application/wasm':'application/octet-stream');res.end(fs.readFileSync(file))}catch{res.writeHead(404).end()}});
+(async()=>{
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
+ try{
+  const options=process.env.QB_CHROMIUM_EXECUTABLE?{executablePath:process.env.QB_CHROMIUM_EXECUTABLE}:{};browser=await chromium.launch(options);const page=await browser.newPage({viewport:{width:1000,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(25000);
+  const url=`http://127.0.0.1:${server.address().port}/`;await page.goto(url);for(const name of ['file-media-v1.js','pdf-editor-v1.js'])await page.addScriptTag({url:url+name});
+  await page.evaluate(async()=>{window.original=await(await fetch('/fixture.pdf')).blob();window.saved=null;window.QBImageCrop={open:async blob=>{const image=await createImageBitmap(blob);return{x:image.width/4,y:image.height/4,width:image.width/2,height:image.height/2,rotate:0,scaleX:1,scaleY:1}}};QBPDFEditor.open(original,{onSave:async blob=>window.saved=blob})});
+  await page.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ');assert.equal(await page.getByRole('button',{name:'このページをトリミング',exact:true}).count(),1);
+  await page.getByRole('button',{name:'このページをトリミング',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.qbPdfStatus')?.textContent==='1 / 3ページ · 未保存');await page.getByRole('button',{name:'PDFを保存',exact:true}).click();await page.waitForFunction(()=>saved instanceof Blob);
+  const result=await page.evaluate(async()=>{const L=await import('/vendor/pdfjs/pdf-lib.mjs'),pdf=await L.PDFDocument.load(await saved.arrayBuffer()),sizes=pdf.getPages().map(p=>[p.getWidth(),p.getHeight()]),task=await QBFiles.documentTask(saved),doc=await task.promise,p=await doc.getPage(1),v=p.getViewport({scale:.25}),c=document.createElement('canvas');c.width=v.width;c.height=v.height;await p.render({canvasContext:c.getContext('2d'),viewport:v}).promise;const pixel=[...c.getContext('2d').getImageData(10,10,1,1).data];await task.destroy();return{pages:pdf.getPageCount(),sizes,pixel}});
+  assert.equal(result.pages,3);assert.ok(Math.abs(result.sizes[0][0]-100)<1&&Math.abs(result.sizes[0][1]-150)<1);assert.deepEqual(result.sizes[1],[200,300]);assert.deepEqual(result.pixel,[255,0,0,255]);assert.deepEqual(errors,[]);console.log('Chromium PASS direct PDF page crop, saved bounds, page order and rendered content');await page.close();
+ }finally{await browser?.close();server.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});
