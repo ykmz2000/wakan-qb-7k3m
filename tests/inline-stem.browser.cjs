@@ -14,10 +14,10 @@ mod._compile(source.slice(0,end)+'\nmodule.exports={boot,select,word,command,can
 const {boot:baseBoot,select,word,command,cancel,save,writes}=mod.exports;
 async function boot(browser,options={}){
   const ctx=await baseBoot(browser,options),p=ctx.page;
-  await p.evaluate(({seed,mode})=>{
+  await p.evaluate(({seed,mode,sourcePdf})=>{
     if(!seed){testDB.questions[0].stem=' \n検証用の問題 [A]。2つ選べ。🙂  \n';testDB.questions[0].stem_formatting=null;testQ.stem=testDB.questions[0].stem}
     testDB.question_occurrences=testDB.question_occurrences||[{id:'o1',question_id:'q1',exact_stem:'年度別原文 [A]',official_answer:{A:'模範解答'}}];
-    if(!testDB.question_images.some(x=>x.placement==='question'))testDB.question_images.push({id:'stem-image',question_id:'q1',placement:'question',choice_id:null,image_path:'stem-image',sort_order:0});
+    if(!testDB.question_images.some(x=>x.placement==='question'))testDB.question_images.push(sourcePdf?{id:'exam-source-pdf',question_id:'q1',placement:'question',choice_id:null,image_path:'geriatric-medicine/exams/2021-main/page-01.pdf',caption:'2021年度 本試 問2 原本 p.1',sort_order:0}:{id:'stem-image',question_id:'q1',placement:'question',choice_id:null,image_path:'stem-image',sort_order:0});
     const card=document.querySelector('#view > .card');card.querySelector(':scope > .qtext').textContent=testQ.stem;
     if(mode!=='fill_blank'){
       const choices=document.createElement('div');choices.className='choices';
@@ -28,15 +28,17 @@ async function boot(browser,options={}){
     window.testReadyCount=0;window.addEventListener('qb-question-ready',()=>window.testReadyCount++);
     window.testAnswerCount=0;const answer=document.getElementById('answer');
     if(!answer){const b=document.createElement('button');b.id='answer';b.onclick=()=>window.testAnswerCount++;card.append(b)}
-  },{seed:!!options.db,mode:options.mode||'single'});
+  },{seed:!!options.db,mode:options.mode||'single',sourcePdf:!!options.sourcePdf});
   for(const script of ['current-question-identity-v1.js','question-stem-images-v2.js','qb-practice-dock-v2.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
-  await p.locator('.qsiImg').first().waitFor();await p.waitForTimeout(200);return ctx;
+  await p.locator(options.sourcePdf?'.qsiHost':'.qsiImg').first().waitFor();await p.waitForTimeout(200);return ctx;
 }
 async function open(p){await p.locator('.adeStemBtn').click();await p.locator('.qtext .qbInlineRich[contenteditable="true"]').waitFor();return p.locator('.qtext .qbInlineRich')}
 async function popup(p,selector){await p.locator(selector).first().click();await p.locator('#qbImageLightbox').waitFor();await p.locator('.qbImageLightboxClose').click();await p.locator('#qbImageLightbox').waitFor({state:'detached'})}
 async function run(browser,name){
   let passed=0;const pass=s=>{passed++;console.log(name+' PASS '+s)};
-  let ctx=await boot(browser),p=ctx.page;
+  let ctx=await boot(browser,{sourcePdf:true}),p=ctx.page;
+  assert.equal(await p.locator('.qsiImgWrap').count(),0);assert.equal(await p.locator('.qsiHost').isHidden(),true);assert.equal(await p.evaluate(()=>testDB.question_images.some(x=>x.id==='exam-source-pdf')),true);assert.equal(await writes(p),0);assert.deepEqual(ctx.errors,[]);await p.close();pass('a source exam PDF stays linked but leaves no media area for a non-image question');
+  ctx=await boot(browser);p=ctx.page;
   const raw=await p.evaluate(()=>testDB.questions[0].stem);
   const initial=await p.evaluate(()=>({occ:testDB.question_occurrences,choices:testDB.choices,overview:testDB.questions[0].explanation_overview,formats:testDB.questions[0].explanation_formatting,attempts:testDB.attempts}));
   await p.evaluate(()=>{window.beforeStem=document.querySelector('#view > .card > .qtext');window.beforeStemImage=document.querySelector('.qsiImg');window.beforeNotes=[...document.querySelectorAll('.qbPersonal')];document.getElementById('ans').classList.add('hidden')});
