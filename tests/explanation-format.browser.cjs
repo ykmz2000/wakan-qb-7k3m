@@ -101,8 +101,7 @@ async function run(browser,name){
   const protectedEditor=await setup(browser);const retained=await protectedEditor.page.evaluate(async()=>{const body=[...document.querySelectorAll('#ans>.card')].find(card=>card.querySelector('[data-ade-v2="overview"]')).querySelector(':scope>.line'),rich=document.createElement('div');body.dataset.qbFormatted='1';rich.className='qbInlineRich';rich.contentEditable='true';rich.textContent='未保存の本文';body.replaceChildren(rich);window.dispatchEvent(new CustomEvent('qb-content-updated',{detail:{questionId:'q1',type:'personal-note'}}));await new Promise(resolve=>setTimeout(resolve,120));return rich.isConnected&&rich.textContent==='未保存の本文'});assert.equal(retained,true);assert.deepEqual(protectedEditor.errors,[]);await protectedEditor.page.close();pass('display refresh never replaces an active contenteditable draft');
   console.log(name+' '+passed+' browser checks passed');
 }
-(async()=>{
-  for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){
+(async()=>{for(const [name,type] of [['Chromium',chromium],['WebKit',webkit]]){
     const launchOptions=name==='Chromium'&&process.env.QB_CHROMIUM_EXECUTABLE
       ?{executablePath:process.env.QB_CHROMIUM_EXECUTABLE}
       :{};
