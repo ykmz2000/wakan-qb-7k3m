@@ -30,7 +30,7 @@ async function boot(browser,options={}){
     if(!answer){const b=document.createElement('button');b.id='answer';b.onclick=()=>window.testAnswerCount++;card.append(b)}
   },{seed:!!options.db,mode:options.mode||'single',sourcePdf:!!options.sourcePdf});
   for(const script of ['current-question-identity-v1.js','question-stem-images-v2.js','qb-practice-dock-v2.js'])await p.addScriptTag({content:fs.readFileSync(path.join(root,script),'utf8')});
-  await p.locator(options.sourcePdf?'.qsiHost':'.qsiImg').first().waitFor();await p.waitForTimeout(200);return ctx;
+  await p.locator(options.sourcePdf?'.qsiHost':'.qsiImg').first().waitFor(options.sourcePdf?{state:'attached'}:undefined);await p.waitForTimeout(200);return ctx;
 }
 async function open(p){await p.locator('.adeStemBtn').click();await p.locator('.qtext .qbInlineRich[contenteditable="true"]').waitFor();return p.locator('.qtext .qbInlineRich')}
 async function popup(p,selector){await p.locator(selector).first().click();await p.locator('#qbImageLightbox').waitFor();await p.locator('.qbImageLightboxClose').click();await p.locator('#qbImageLightbox').waitFor({state:'detached'})}
