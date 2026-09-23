@@ -39,6 +39,7 @@ jobs:
           node --check pull-to-refresh-v1.js
           node --check app-header-v1.js
           node --check qb-practice-dock-v2.js
+          node --check fill-blank-v2.js
           node --check tests/practice-keyboard-shortcuts.browser.cjs
           node --check tests/brand-name.unit.cjs
           node --check recent-image-picker-v1.js
