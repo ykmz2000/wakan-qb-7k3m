@@ -37,6 +37,7 @@ jobs:
       - name: Check syntax
         run: |
           node --check qb-app.js
+          node --check fill-blank-v2.js
           node --check qb-practice-dock-v2.js
           node --check tests/fill-blank-reference.browser.cjs
           node --check tests/practice-keyboard-shortcuts.browser.cjs
