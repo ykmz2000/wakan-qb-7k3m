@@ -124,7 +124,7 @@ async function run(browser,name){
      assert.equal(await p.locator('.qbOccurrenceHistory').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
    }
    await p.locator('#next').click();
-   assert.equal(await p.locator('.qbOccurrenceHistory').textContent(),'年度不明 本試・追再試不明');
+   assert.equal(await p.locator('.qbOccurrenceHistory').textContent(),'出題履歴なし');
    await p.locator('#prev').click();
    assert.equal(await p.locator('.qbOccurrenceHistory .badge').count(),3);
    console.log(name+' PASS all occurrence years/types, grouping, deduplication, unknown source, navigation and responsive wrapping');
