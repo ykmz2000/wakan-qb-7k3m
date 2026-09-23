@@ -7,7 +7,7 @@ function screen(){return window.qbGetScreen?.()||''}
 function q(){try{return window.pq?.()||null}catch{return null}}
 const qid=Q=>Q?.id||Q?.dbId||null;
 const systemKey=k=>/^(?:IMAGE|IMG|IMAGE_REQUIRED|FIGURE|FIG|SOURCE|PAGE)(?:[_-].*)?$/i.test(String(k||'').trim());
-function official(Q){return Q?.occ?.[0]?.official_answer}
+function official(Q){return Q?.occ?.[0]?.official_answer??Q?.source_answer}
 function normalizeFields(raw){
   if(!Array.isArray(raw)||!raw.length)return null;
   const out=[],seen=new Set();
