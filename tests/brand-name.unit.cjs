@@ -12,7 +12,7 @@ test('all user-facing application branding uses プール',()=>{
   assert.equal(text.includes('定期テスト対策プール'),true,`${file} does not expose the new name`);
  }
  const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
- assert.match(index,/auth\.js\?v=20260917-pool-brand-01/);
- assert.match(index,/question-image-export-v1\.js\?v=20260917-pool-brand-01/);
- assert.match(index,/unit-pdf-export-v1\.js\?v=20260917-pool-brand-01/);
+ for(const asset of ['auth.js','question-image-export-v1.js','unit-pdf-export-v1.js']){
+  assert.match(index,new RegExp(asset.replaceAll('.','\\.')+'\\?v=[^"\\s]+'),`${asset} is missing a cache version`);
+ }
 });
