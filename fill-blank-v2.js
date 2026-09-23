@@ -77,7 +77,8 @@ function renderResult(Q,response,reviewOnly,refreshOnly=false){
   ans.innerHTML=`<div class="card resultcard ${reviewOnly?'review':'fillblank'}"><div class="result">${reviewOnly?'解説モード（未解答）':'解答確認'}</div>${mine}${off}<div class="meta" style="margin-top:8px">${reviewOnly?'解答済みには含めません。':'自動採点はしません。自己評価で理解度を記録してください。'}</div></div>`;
   window.dispatchEvent(new CustomEvent('qb-answer-shown'));if(!refreshOnly)setTimeout(()=>ans.scrollIntoView({behavior:'smooth',block:'start'}),80)
 }
-function syncButton(box){const fields=[...box.querySelectorAll('.fbInput')],b=box.querySelector('#answer');if(b)b.disabled=!fields.length||fields.some(x=>!x.value.trim())}\nfunction clearPracticeInputs(box){if(!box)return;box.querySelectorAll('.fbInput').forEach(x=>{x.value='';resizeInput(x)});syncButton(box)}
+function syncButton(box){const fields=[...box.querySelectorAll('.fbInput')],b=box.querySelector('#answer');if(b)b.disabled=!fields.length||fields.some(x=>!x.value.trim())}
+function clearPracticeInputs(box){if(!box)return;box.querySelectorAll('.fbInput').forEach(x=>{x.value='';resizeInput(x)});syncButton(box)}
 async function doReview(Q,button){if(button)button.disabled=true;try{await saveReview(Q);renderResult(Q,{},true)}catch(e){console.error(e);if(button)button.disabled=false;alert('学習履歴の保存に失敗しました')}}
 function fieldsHtml(Q,values={}){return fieldsFor(Q).map(f=>`<label class="fbField"><span>${esc(f.label)}</span><textarea class="fbInput" data-k="${esc(f.key)}" rows="1" autocomplete="off" inputmode="text">${esc(values[f.key]||'')}</textarea></label>`).join('')}
 function resizeInput(input){input.style.height='auto';input.style.height=`${Math.max(46,input.scrollHeight)}px`}
