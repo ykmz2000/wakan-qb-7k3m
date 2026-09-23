@@ -139,7 +139,7 @@ function ensure(){
   const q=currentQuestion();if(!q)return;
   addRating(ans,q);
   const overview=q.explanation_overview||q.note||'未登録';
-  addCard(ans,'■ 問題文のポイント',esc(overview));
+  addCard(ans,'■ 問題文のポイント',esc(overview).replace(/https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view/g,url=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`));
   const cb=choiceBody(q);if(cb&&!hasHeading(ans,'■ 各選択肢')){const d=document.createElement('div');d.className='card qbSharedExplanationCard';d.innerHTML=`<b>■ 各選択肢</b>${cb}`;ans.appendChild(d)}
   enhanceExistingChoiceCard(ans,q);
   addCard(ans,'■ 出題者の意図',esc(q.examiner_intent||q.examinerIntent||'未登録'));
