@@ -93,8 +93,8 @@ async function run(browserType,name){
    const composing=await input.evaluate(node=>{const e=new KeyboardEvent('keydown',{key:'Enter',shiftKey:true,isComposing:true,bubbles:true,cancelable:true});node.dispatchEvent(e);return e.defaultPrevented});
    assert.equal(composing,false);assert.equal(await page.locator('#ans .resultcard').count(),0,'IME composition is never submitted');
    await input.press('Shift+Enter');await page.waitForSelector('#ans .resultcard.fillblank');
-   assert.equal(await input.inputValue(),'一行目\n二行目','Shift+Enter does not insert an extra line break');
-   assert.equal(await page.evaluate(()=>__writes.filter(x=>x.table==='attempts').length),1);
+   assert.equal(await page.locator('#ans .fbAnswerLine strong').first().textContent(),'一行目\n二行目','Shift+Enter preserves the submitted text without an extra line break');
+   assert.deepEqual(await page.evaluate(()=>__writes.find(x=>x.table==='attempts').payload.response_payload),{A:'一行目\n二行目'});
    assert.deepEqual(errors,[]);await page.close()
   }
   console.log(name+' PASS practice keyboard shortcuts');
