@@ -115,6 +115,24 @@ async function run(browser,label,url){
  await p.addScriptTag({url:url+'image-sortable-v1.js'});await p.waitForFunction(()=>sorts.length===4);
  await p.evaluate(async()=>{for(const {el,options} of sorts){el.prepend(el.children[1]);await options.onEnd()}});
  const saved=await p.evaluate(()=>writes);assert.equal(saved.length,8);for(let i=0;i<8;i+=2){assert.match(saved[i].filters.id,/-pdf$/);assert.equal(saved[i].patch.sort_order,10);assert.match(saved[i+1].filters.id,/-image$/);assert.equal(saved[i+1].patch.sort_order,20);assert.equal(saved[i].filters.question_id,'question-1');assert.deepEqual(Object.keys(saved[i].patch),['sort_order'])}assert.equal(saved.find(r=>r.filters.id==='note-pdf').filters.user_id,'user-1');
+ // Drive preview links are HTML viewers, never binary PDF.js sources.
+ const driveUrl='https://drive.google.com/file/d/1AVxpV1_ObdSirqK8IjyaDjGckWSQrZGf/preview?filename=lecture.pdf';
+ let driveLoads=0;await p.route('https://drive.google.com/**',route=>{driveLoads++;return route.fulfill({contentType:'text/html',body:'<!doctype html><body>Drive preview fixture</body>'})});
+ await p.evaluate(source=>{const host=document.createElement('div');host.id='drivePreview';host.innerHTML=QBFiles.markup(source);document.body.append(host)},driveUrl);
+ await p.waitForFunction(()=>document.querySelector('#drivePreview .qbPdfCaption')?.textContent.includes('タップして表示'));
+ assert.equal(await p.locator('#drivePreview [data-inline-page]').count(),0);
+ assert.equal(driveLoads,0);
+ await p.locator('#drivePreview .qbPdfCard').click();
+ await p.locator('.qbDrivePdfFrame').waitFor();
+ assert.equal(await p.locator('.qbDrivePdfFrame').getAttribute('src'),driveUrl);
+ assert.equal(await p.locator('.qbDrivePdfLink').getAttribute('href'),driveUrl);
+ await p.frameLocator('.qbDrivePdfFrame').getByText('Drive preview fixture').waitFor();
+ assert.equal(driveLoads,1);
+ assert.doesNotMatch(await p.locator('.qbPdfStatus').textContent(),/PDFを開けません/);
+ await p.getByRole('button',{name:'閉じる',exact:true}).click();
+ await p.locator('.qbPdfModal').waitFor({state:'detached'});
+ await p.locator('#drivePreview').evaluate(n=>n.remove());
+ await p.unroute('https://drive.google.com/**');
  fs.mkdirSync(path.join(root,'test-results/ui'),{recursive:true});await p.screenshot({path:path.join(root,`test-results/ui/${label}-file-card.png`)});
  assert.deepEqual(errors,[]);await p.close();console.log(label+' PASS stable inline PDF while scrolling, export/share, long press, page navigation, all-page thumbnails, 12x high-resolution zoom with eager release, explicit PNG extraction, paste types, retry and mixed attachment sorting');
 }
