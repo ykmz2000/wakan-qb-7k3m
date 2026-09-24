@@ -3,6 +3,7 @@
 'use strict';
 const MAX=100*1024*1024;
 const isPDF=value=>typeof value==='string'?/\.pdf(?:[?#]|$)/i.test(value):/^application\/(?:x-)?pdf$/i.test(value?.type||'')||/\.pdf$/i.test(value?.name||'');
+function isDrivePreview(value){try{const u=new URL(String(value));return u.hostname==='drive.google.com'&&/^\/file\/d\/[A-Za-z0-9_-]+\/preview\/?$/.test(u.pathname)}catch{return false}}
 const IMAGE_EXT=/\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
 const imageMime=name=>({avif:'image/avif',bmp:'image/bmp',gif:'image/gif',heic:'image/heic',heif:'image/heif',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',svg:'image/svg+xml',tif:'image/tiff',tiff:'image/tiff',webp:'image/webp'}[String(name||'').split('.').pop()?.toLowerCase()]||'');
 const supported=file=>isPDF(file)||/^image\//.test(file?.type||'')||IMAGE_EXT.test(file?.name||'');
@@ -90,7 +91,7 @@ function resumeCard(card){
  if(slots.length){for(const slot of slots){let st=inlineStates.get(slot);if(!st){const img=slot.querySelector('.qbPdfRaster'),rendered=!!(previewUrls.has(slot)&&img?.complete&&img.naturalWidth);st={card,visible:nearViewport(slot),width:slot.clientWidth,token:0,queued:false,rendered};inlineStates.set(slot,st);inlineObserver.observe(slot);inlineResize.observe(slot)}if(st.visible&&!st.rendered)enqueueThumbnail(slot,true)}return}
  const poster=card.querySelector('.qbPdfPoster'),img=poster?.querySelector('.qbPdfRaster');if(card.dataset.pdfPages&&!(previewUrls.has(poster)&&img?.complete&&img.naturalWidth))delete card.dataset.pdfPages;if(!card.dataset.pdfPages&&nearViewport(card))enqueueThumbnail(card,true)
 }
-function scan(root=document){const cards=[...(root.matches?.('[data-pdf-src]')?[root]:[]),...root.querySelectorAll('[data-pdf-src]')];for(const card of cards){if(card.dataset.pdfBound){resumeCard(card);continue}card.dataset.pdfBound='1';if(card.dataset.pdfPassive!=='true'){card.setAttribute('role','button');card.tabIndex=0;card.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();void open(card.dataset.pdfSrc,{mediaOrigin:card,initialPage:Number(e.target.closest('[data-inline-page]')?.dataset.inlinePage)||1})});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();e.target.click()}})}visible.observe(card);requestAnimationFrame(()=>{if(card.isConnected&&!card.dataset.pdfPages&&nearViewport(card))enqueueThumbnail(card)});if(!card.closest('.qbLibraryImageButton,.qbripItem'))setTimeout(()=>{if(card.isConnected&&nearViewport(card)&&!card.dataset.pdfPages&&card.querySelector('.qbPdfCaption')?.textContent.includes('読み込み待ち'))enqueueThumbnail(card,true)},1200)}}
+function scan(root=document){const cards=[...(root.matches?.('[data-pdf-src]')?[root]:[]),...root.querySelectorAll('[data-pdf-src]')];for(const card of cards){if(card.dataset.pdfBound){resumeCard(card);continue}card.dataset.pdfBound='1';if(card.dataset.pdfPassive!=='true'){card.setAttribute('role','button');card.tabIndex=0;card.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();void open(card.dataset.pdfSrc,{mediaOrigin:card,initialPage:Number(e.target.closest('[data-inline-page]')?.dataset.inlinePage)||1})});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();e.target.click()}})}if(isDrivePreview(card.dataset.pdfSrc)){card.dataset.pdfPages='external';const caption=card.querySelector('.qbPdfCaption');if(caption)caption.textContent='講義PDF · タップして表示';continue}visible.observe(card);requestAnimationFrame(()=>{if(card.isConnected&&!card.dataset.pdfPages&&nearViewport(card))enqueueThumbnail(card)});if(!card.closest('.qbLibraryImageButton,.qbripItem'))setTimeout(()=>{if(card.isConnected&&nearViewport(card)&&!card.dataset.pdfPages&&card.querySelector('.qbPdfCaption')?.textContent.includes('読み込み待ち'))enqueueThumbnail(card,true)},1200)}}
 let active=null;
 async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
  if(active)return null;
@@ -106,6 +107,12 @@ async function open(source,{pickPage=false,mediaOrigin=null,initialPage=1}={}){
  const closeButton=button('閉じる',()=>close());head.append(closeButton);
  if(!pickPage){const shareButton=button('共有',()=>window.QBMediaShare?.open({source,kind:'pdf',page:pageNumber,name:mediaOrigin?.getAttribute?.('aria-label')||'PDF'}));shareButton.className='qbPdfShare';head.insertBefore(shareButton,closeButton)}
  const questionPreview=!pickPage?(window.QBQuestionPreview?.attach(modal,head,{before:closeButton})||null):null;
+ if(isDrivePreview(source)){
+  stage.classList.add('qbDrivePdfStage');status.textContent=pickPage?'この資料はGoogle Driveで開いてください。':'Google Driveの講義PDFを表示';
+  if(!pickPage){const frame=element('iframe','qbDrivePdfFrame');frame.title='講義PDF';frame.src=source;frame.referrerPolicy='no-referrer';stage.append(frame)}
+  const link=element('a','qbDrivePdfLink','Google Driveで開く');link.href=source;link.target='_blank';link.rel='noopener noreferrer';nav.append(link);
+  return result;
+ }
  let editorHost=null,runEditor=null,editorRow=null;
  if(!pickPage){editorHost=mediaOrigin;while(editorHost&&typeof editorHost.qbEditMedia!=='function')editorHost=editorHost.parentElement;if(editorHost){runEditor=editorHost.qbEditMedia;editorRow=editorHost.dataset.row||editorHost.dataset.id;head.append(button('PDF編集',()=>openEditor()))}}
  async function openEditor(order=null){
